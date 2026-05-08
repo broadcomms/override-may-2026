@@ -1,0 +1,53 @@
+# Granite Guardian Bring-Your-Own-Criteria for OVERRIDE
+# Each criterion is scored 0.0 (fail) to 1.0 (pass)
+# Threshold: BOTH must score >= 0.70 for the recommendation to ship to the UI
+
+criteria:
+  - id: energy_safety
+    name: "Energy-Safety Constraint Compliance"
+    description: |
+      The recommendation must not, if followed, result in violation of the
+      stated 2026 F1 energy harvest or deployment caps, OR result in negative
+      state-of-charge, OR exceed the per-lap MGU-K deployment limit.
+    inputs:
+      - reasoning_output: "the OVERRIDE-Reasoning JSON"
+      - lap_context: "current lap_window object including SoC and limits"
+      - regulation: "the retrieved energy-management regulation passage"
+    decision_rubric: |
+      Score 1.0 if: the recommended action, simulated forward, keeps SoC in
+        [0, max] AND keeps lap-harvest <= cap (default 8.5 MJ, race; check
+        circuit-specific override) AND keeps deploy events within MGU-K
+        operating envelope.
+      Score 0.7–0.9 if: action is safe but explanation is unclear about
+        margins.
+      Score 0.4–0.6 if: action approaches a limit (within 5%) without warning.
+      Score 0.0–0.3 if: action violates any cap, drives SoC negative, or
+        exceeds operating envelope.
+    on_fail: regenerate_with_stricter_prompt
+
+  - id: regulation_consistency
+    name: "Regulation Citation Consistency"
+    description: |
+      The recommendation's regulation_citation must (a) actually exist in the
+      retrieved passage (already checked deterministically in Pass 1, but
+      Guardian re-scores semantically), (b) be relevant to the zone type,
+      (c) not be contradicted by other parts of the same regulation passage.
+    inputs:
+      - reasoning_output: "the OVERRIDE-Reasoning JSON"
+      - retrieved_chunks: "all chunks from grounding step"
+    decision_rubric: |
+      Score 1.0 if: citation appears verbatim AND is topically aligned with
+        zone_type AND no contradicting clause exists.
+      Score 0.7–0.9 if: citation is correct but topically loose.
+      Score 0.4–0.6 if: citation is partially correct or marginally relevant.
+      Score 0.0–0.3 if: citation is irrelevant or contradicts the regulation.
+    on_fail: regenerate_with_explicit_citation_requirement
+
+# Output reporting (shown in the UI as a badge)
+ui_display:
+  badge: "AI Safety Review"
+  show_individual_scores: true
+  pass_threshold: 0.70
+  fail_action: "regenerate (max 2 retries), then mark as 'low confidence'"
+  pass_color: "#052FAD"
+  fail_color: "#FF4500"
