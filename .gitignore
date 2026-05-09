@@ -1,0 +1,70 @@
+# Environment and secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.venv*
+venv/
+venv*
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+ui/.next/
+ui/out/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Data
+data/regs/*.pdf
+data/regs/*.md
+data/regs/raw/
+data/sessions/*/
+analysis/exploratory-plots/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary Office files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Working files — large .docx drafts only; the .md docs are committed
+docs/00-OVERRIDE_Software_Project_Documentation.docx
+docs/00-OVERRIDE_Complete_Project_Documentation.docx
+
+# Test + parser caches
+.pytest_cache/
+data/fastf1-cache/
+
+# UI build artifacts
+ui/node_modules/
+ui/dist/
+ui/.env.*.local

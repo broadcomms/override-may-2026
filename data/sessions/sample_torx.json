@@ -1,0 +1,99 @@
+{
+  "laps": [
+    {
+      "override_uses": 1,
+      "soc_source": "derived",
+      "sector1_time": 27.0,
+      "recharge_zones": [
+        2
+      ],
+      "lap_number": 1,
+      "avg_speed": 210.0,
+      "harvest_mj": 0.4,
+      "sector2_time": 29.5,
+      "deploy_mj": 0.3,
+      "soc_end": 0.78,
+      "sector3_time": 28.9,
+      "boost_uses": 0,
+      "lap_time": 85.4,
+      "max_speed": 320.0,
+      "soc_start": 0.85
+    },
+    {
+      "override_uses": 1,
+      "soc_source": "derived",
+      "sector1_time": 27.0,
+      "recharge_zones": [
+        2
+      ],
+      "lap_number": 2,
+      "avg_speed": 210.0,
+      "harvest_mj": 0.3,
+      "sector2_time": 29.5,
+      "deploy_mj": 0.4,
+      "soc_end": 0.72,
+      "sector3_time": 28.9,
+      "boost_uses": 0,
+      "lap_time": 85.4,
+      "max_speed": 320.0,
+      "soc_start": 0.78
+    },
+    {
+      "override_uses": 1,
+      "soc_source": "derived",
+      "sector1_time": 27.0,
+      "recharge_zones": [
+        1
+      ],
+      "lap_number": 3,
+      "avg_speed": 205.0,
+      "harvest_mj": 0.2,
+      "sector2_time": 30.5,
+      "deploy_mj": 0.7,
+      "soc_end": 0.55,
+      "sector3_time": 27.9,
+      "boost_uses": 0,
+      "lap_time": 85.4,
+      "max_speed": 315.0,
+      "soc_start": 0.72
+    },
+    {
+      "override_uses": 1,
+      "soc_source": "derived",
+      "sector1_time": 27.0,
+      "recharge_zones": [
+        2
+      ],
+      "lap_number": 4,
+      "avg_speed": 210.0,
+      "harvest_mj": 0.4,
+      "sector2_time": 29.5,
+      "deploy_mj": 0.5,
+      "soc_end": 0.48,
+      "sector3_time": 28.9,
+      "boost_uses": 0,
+      "lap_time": 85.4,
+      "max_speed": 320.0,
+      "soc_start": 0.55
+    },
+    {
+      "override_uses": 1,
+      "soc_source": "derived",
+      "sector1_time": 27.0,
+      "recharge_zones": [
+        2
+      ],
+      "lap_number": 5,
+      "avg_speed": 210.0,
+      "harvest_mj": 0.3,
+      "sector2_time": 29.5,
+      "deploy_mj": 0.4,
+      "soc_end": 0.4,
+      "sector3_time": 28.9,
+      "boost_uses": 0,
+      "lap_time": 85.4,
+      "max_speed": 320.0,
+      "soc_start": 0.48
+    }
+  ]
+}

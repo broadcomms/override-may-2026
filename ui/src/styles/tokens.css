@@ -1,0 +1,39 @@
+/* Design tokens — mirror docs/04-ui-ux-design.md §3 verbatim. */
+
+:root {
+  /* Palette */
+  --color-bg: #0A0A0A;            /* carbon black */
+  --color-surface: #141414;
+  --color-surface-2: #1F1F1F;
+  --color-border: #2A2A2A;
+  --color-text: #F5F5F5;
+  --color-text-muted: #9A9A9A;
+  --color-accent: #FF4500;        /* override-orange */
+  --color-success: #00C853;       /* sustainable-fuel green */
+  --color-warning: #F9A825;
+  --color-danger: #D32F2F;
+  --color-granite-blue: #052FAD;
+
+  /* Motion — honor prefers-reduced-motion in components.
+     The cubic-bezier curve is a "natural" decelerator (variant of iOS-spring)
+     that feels snappier than ease-out without feeling abrupt. */
+  --motion-fast: 120ms cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-card: 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-mode: 240ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Card elevation tokens — used for the subtle hover lift on
+     RecommendationCard. Both layered: a tight inner shadow + a wider
+     diffused one for soft depth on dark backgrounds. */
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.18);
+  --shadow-card-hover:
+    0 8px 24px -4px rgba(0, 0, 0, 0.32),
+    0 2px 4px -2px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-card: 0ms;
+    --motion-mode: 0ms;
+  }
+}

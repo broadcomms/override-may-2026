@@ -18,7 +18,7 @@ This file provides guidance to agents when working with code in this repository.
 
 **Counterintuitive folder organization**: `prompts/` contains system prompts that define JSON contracts—these must match Pydantic schemas in implementation files. If prompt and schema disagree, schema wins. Prompts are not just documentation.
 
-**Model version verification**: `models.json` populated at G-1 gate with exact Ollama tags from `github.com/ibm-granite-community`. Never assume tag strings—this is a verification gate, not a config file.
+**Model version verification**: `models.json` is populated at G-1 with watsonx.ai model IDs + project-id-var (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`, US-South). Granite reasoning runs on watsonx.ai, not local Ollama (see `docs/adrs/ADR-001-watsonx-runtime.md`). Smoke test via `scripts/test_watsonx.py`.
 
 **Schema conventions non-standard**: Times in seconds (not ms), energies in MJ (not kJ/J), `lap_number` 1-indexed (not 0-indexed). These match FIA conventions, not typical programming defaults.
 

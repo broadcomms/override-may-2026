@@ -27,7 +27,8 @@ Produce a JSON object with these fields:
     - "passage": a verbatim quote (≤ 25 words) from the regulation passage that
       grounds your recommendation. Must appear character-for-character in the
       input regulation passage.
-    - "source": the source string provided in the input (do not modify).
+    - "source": the source OBJECT provided in the input, copied verbatim
+      (document_title, issue, section, public_url, fetched_at). Do not modify.
 - "confidence": one of "low" / "medium" / "high".
 - "confidence_justification": one sentence explaining the confidence level
   based on data quality, forecast availability, and forecast interval width.

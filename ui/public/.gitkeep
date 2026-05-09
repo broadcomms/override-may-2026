@@ -1,0 +1,8 @@
+# Vite serves files in this directory at the URL root.
+#
+# When the designer ships brand assets (per docs/logo-design-brief.md):
+#   1. Copy assets/logo-icon.png   → ui/public/logo-icon.png   (32×32 PNG, used as favicon + header logo)
+#   2. Copy assets/logo.svg        → ui/public/favicon.svg     (SVG variant; better at all sizes)
+#   3. Optional: copy logo-on-dark.png → ui/public/og-image.png (Open Graph preview, 1200×630)
+#
+# The header in src/App.tsx auto-renders /logo-icon.png if present, falls back to wordmark-only.

@@ -6,83 +6,75 @@
 
 ## Current State Assessment
 
-**What we have:**
+**What we have (post-P1.1):**
 - ✅ Complete documentation (`docs/*.md`)
 - ✅ Architecture defined (`docs/03-architecture.md`, `.mmd`)
 - ✅ Schemas documented (`docs/04-schema.md`)
 - ✅ Prompts written (`prompts/*.system.md`)
 - ✅ Validation rules (`core/validator.yaml`, `guardian/byoc_criteria.yaml`)
-- ✅ Folder structure in place
-- ✅ AGENTS.md files created
+- ✅ AGENTS.md files (root + 5 mode-specific)
+- ✅ `models.json` populated; `runtime: "watsonx"`; `scripts/test_watsonx.py` smoke-passes (gate G-1 closed)
+- ✅ `requirements.txt` locked (127 packages); `ibm-watsonx-ai` installed
+- ✅ TTM-R2 downloaded; HuggingFace revision pinned
+- ✅ `.env.example` complete (watsonx + reasoning + retry + TTM + session limits)
+- ✅ `LICENSE` Apache 2.0; `.gitignore` correct
+- ✅ Embedding model decided (`ibm/granite-embedding-278m-multilingual`, dim 768) — see ADR-001
 
-**What's missing (blockers for Phase 1):**
-- ❌ `models.json` empty (Gate G-1 blocker)
-- ❌ `requirements.txt` empty
-- ❌ All Python files are stubs
-- ❌ No sample data in `data/samples/`
-- ❌ Docker files empty
-- ❌ UI package.json empty
+**What's still missing (Phase 1 + 2 work ahead):**
+- ❌ Sample data in `data/samples/` (P1.3, blocked on Torx access)
+- ❌ `ingest/*.py` stubs (P1.4)
+- ❌ `analysis/zone_detector.py` (P2.1)
+- ❌ `Dockerfile` / `docker-compose.yml` (P3.7)
+- ❌ `ui/package.json` (P3.2)
 
 ---
 
 ## Phase 1 Execution Plan
 
-### P1.1 Setup & Onboarding (~2h)
+### P1.1 Setup & Onboarding (~2h) — COMPLETE
 
-**Objective:** Green local environment, verified model tags, dependencies installed.
+> Migration note: P1.1 originally pulled Granite via local Ollama. After 12 GB of pulls, CPU latency was prohibitive (~1 min per inference vs. our 30 s pipeline budget). Migrated to watsonx.ai 2026-05-08; rationale in `docs/adrs/ADR-001-watsonx-runtime.md`.
+
+**Objective:** Green local environment, watsonx.ai connectivity verified, deps installed.
 
 **Tasks:**
 
-1. **Verify Granite Model Tags** (Gate G-1 - CRITICAL)
-   - Visit `github.com/ibm-granite-community` to find current Granite 4.x Instruct tags
-   - Visit `github.com/ibm-granite-community` to find current Granite Guardian tags
-   - Record exact tags with SHA hashes in `models.json`
-   - Test: `ollama pull <verified-instruct-tag>` and `ollama run <tag> "Hello"`
-   - Test: `ollama pull <verified-guardian-tag>` and `ollama run <tag> "Test"`
-   - **Gate G-1 passes when:** `models.json` contains verified tags with hashes
+1. **watsonx.ai connectivity** (Gate G-1)
+   - Provision watsonx.ai project (US-South region used for this build)
+   - Fill `.env` from `.env.example`: `WATSONX_API_KEY`, `WATSONX_URL`, `WATSONX_PROJECT_ID`, `GRANITE_INSTRUCT`, `GRANITE_GUARDIAN`
+   - If project lookup fails, run `scripts/find_watsonx_region.py` to probe all regions
+   - Run: `.venv/bin/python scripts/test_watsonx.py` — must return ✓ for both Granite Instruct and Guardian
+   - Pin model IDs + region + project-id-var in `models.json` (`runtime: "watsonx"`)
 
-2. **Install Python Dependencies**
-   - Create `requirements.txt` with pinned versions:
-     ```
-     docling>=1.0.0
-     langflow>=1.0.0
-     fastf1>=3.0.0
-     huggingface_hub>=0.20.0
-     transformers>=4.36.0
-     fastapi>=0.109.0
-     uvicorn>=0.27.0
-     pandas>=2.1.0
-     pydantic>=2.5.0
-     pytest>=7.4.0
-     python-dotenv>=1.0.0
-     ```
-   - Run: `pip install -r requirements.txt`
-   - Verify: `python -c "import docling, fastapi, pandas, pydantic"`
+2. **Install Python dependencies**
+   - Create venv: `/opt/homebrew/bin/python3.12 -m venv .venv`
+   - Install: `.venv/bin/pip install -r requirements.txt`
+   - Lock: `.venv/bin/pip freeze` (header preserved on top)
+   - Smoke-test imports: `.venv/bin/python -c "import docling, fastapi, pandas, pydantic, transformers, huggingface_hub, fastf1, uvicorn, matplotlib, pyarrow, ibm_watsonx_ai"`
+   - Note: Langflow is in a separate Python 3.11 venv (`.venv-langflow`) per `requirements-langflow.txt`. The langflow constraint `Python<3.12` is the reason for the split. Per `docs/04-langflow-canvas.md` it's the design + demo layer, not the runtime.
 
-3. **Download TTM-R2 Model**
-   - Run: `huggingface-cli download ibm-granite/granite-timeseries-ttm-r2`
-   - Record model hash in `models.json`
-   - Verify: Model files exist in HF cache
+3. **Download TTM-R2** (the one model that runs locally)
+   - Run: `.venv/bin/hf download ibm-granite/granite-timeseries-ttm-r2`
+   - Record HuggingFace revision in `models.json` (`huggingface.granite_ttm_r2.revision`)
 
-4. **Repository Setup**
-   - Verify repo is public
-   - Verify LICENSE is Apache 2.0
-   - Create `.env.example` with required vars
-   - Create `.gitignore` if missing (ignore `.env`, `*.pyc`, `__pycache__/`, `data/regs/*.pdf`)
+4. **Repository setup**
+   - Verify repo public, Apache 2.0 LICENSE present
+   - `.env.example` covers all required vars
+   - `.gitignore` covers `.env`, `__pycache__/`, `data/regs/*.pdf`, `data/sessions/`, etc.
 
 **Deliverables:**
-- `models.json` with verified tags (Gate G-1)
+- `models.json` with watsonx model IDs + TTM-R2 revision (Gate G-1)
 - `requirements.txt` with pinned versions
-- `.env.example`
-- All dependencies installed and verified
+- `requirements-langflow.txt` for the design/demo venv
+- `.env.example` covering watsonx + reasoning + TTM-R2 + session limits
+- `scripts/test_watsonx.py`, `scripts/find_watsonx_region.py`
 
 **Done When:**
-- [ ] `models.json` is not empty and contains verified Granite tags with hashes
-- [ ] `ollama run <instruct-tag> "Hello"` returns output
-- [ ] `ollama run <guardian-tag> "Test"` returns output
-- [ ] `huggingface-cli download ibm-granite/granite-timeseries-ttm-r2` completes
-- [ ] All Python deps install without errors
-- [ ] Repo is public with Apache 2.0 license
+- [x] `models.json` has `runtime: "watsonx"` and both Granite model IDs
+- [x] `scripts/test_watsonx.py` exits 0 (both models reachable)
+- [x] TTM-R2 downloaded; HF revision recorded
+- [x] Python deps install without errors (127 packages locked)
+- [x] Repo public with Apache 2.0 license
 
 ---
 
@@ -93,7 +85,7 @@
 **Tasks:**
 
 1. **Craft Pitch Message**
-   - Use positioning from `docs/00-thesis.md`
+   - Reference existing draft in `@docs/00-abstract.md` §Discord Pitch (lines 200-219)
    - Format: Problem → Solution → Why IBM Granite → Differentiator
    - Keep under 500 words
    - Include: "Explainable AI race-strategy copilot for 2026 F1 hybrid energy decisions"
@@ -114,8 +106,8 @@
 - `docs/plans/discord-pitch-feedback.md` with captured feedback
 
 **Done When:**
-- [ ] Pitch posted in Discord with timestamp
-- [ ] Any organizer replies captured in `docs/plans/discord-pitch-feedback.md`
+- [x] Pitch posted in Discord with timestamp (2026-05-08)
+- [x] Communications log captured in `docs/plans/discord-pitch-feedback.md`; access-request thread to Makenna acknowledged (queue delay only). GitHub-invite follow-up scheduled for May 11 — see `docs/plans/quick-follow-up-on-github-invite.md`.
 
 ---
 
@@ -130,7 +122,7 @@
    - Run baseline AI driver on a simple track
    - Export session logs (JSON format)
    - Save to `data/samples/torx-baseline-run-1.json`
-   - Complete `results.md` (required for submission eligibility)
+   - Complete `results.md` in project root (required for submission eligibility)
 
 2. **Analyze Torx Telemetry Schema**
    - Inspect exported JSON structure
@@ -139,6 +131,7 @@
      - Fuel/energy proxies
      - **Critical:** Does Torx expose battery SoC directly?
    - Create `docs/plans/torx-telemetry-map.md`
+   - **Note:** FastF1 data is pre-2026, so 2026-specific features (Override Mode, super-clipping, X-Mode/Z-Mode) don't exist in source. FastF1-derived `override_uses`, `boost_uses` will be 0/approximated. Parser exists to demo pipeline against open historical data, not argue real 2026 strategy.
 
 3. **SoC Derivation Decision (Gate G-2)**
    - **If Torx exposes SoC directly:** Use it, set `soc_source: "measured"`
@@ -185,16 +178,17 @@
    - Read Torx JSON
    - Extract per-lap data
    - Apply SoC derivation if needed (per G-2 decision)
-   - Return list of `LapFeatures` keyed on `lap_number`
+   - Return list of `LapFeatures` sorted by `lap_number` ascending
    - Handle errors gracefully (invalid JSON, missing fields)
 
 3. **Implement `ingest/fastf1_parser.py`**
-   - Function: `parse_fastf1_session(session_id: str) -> list[LapFeatures]`
-   - Use FastF1 library to load session
+   - Function: `parse_fastf1_session(year: int, gp: str, session_type: str) -> list[LapFeatures]`
+   - Use FastF1 library: `fastf1.get_session(year, gp, session_type)` (e.g., `2024, 'Monza', 'R'`)
    - Derive energy state from telemetry (throttle/brake)
    - Set `soc_source: "derived"` (FastF1 doesn't expose battery directly)
    - Return same `LapFeatures` schema
    - Document derivation in code comments
+   - **Note:** Pre-2026 data means `override_uses`, `boost_uses` will be 0/approximated
 
 4. **Create Test Fixtures**
    - `tests/fixtures/torx-sample.json` (minimal valid Torx session)
@@ -216,17 +210,18 @@
 - Test fixtures in `tests/fixtures/`
 
 **Done When:**
-- [ ] `torx_parser.py` reads Torx JSON and returns DataFrame with canonical schema
-- [ ] `fastf1_parser.py` reads FastF1 session and returns same schema
-- [ ] Both parsers tested against at least one real input each
-- [ ] All tests in `tests/test_ingest.py` pass
-- [ ] SoC derivation documented in code comments
+- [ ] `torx_parser.py` reads Torx JSON and returns `list[LapFeatures]` with canonical schema (blocked on Torx access)
+- [x] `fastf1_parser.py` reads FastF1 session and returns `list[LapFeatures]` with same schema
+- [x] FastF1 parser tested via synthetic LapInputs fixtures (real-network test deferred until cache pre-warmed)
+- [x] All tests in `tests/test_ingest.py` pass — 36/36 green
+- [x] SoC derivation documented in code comments + `ingest/fastf1_parser.py` module docstring
+- [x] Pydantic validation constraints added: `Field(ge=1)` for `lap_number`, `Field(ge=0, le=1)` for SoC, `Field(gt=0)` for times, `Field(ge=0)` for energies/counts
 
 ---
 
 ### P1.5 Exploratory Analysis (~2h)
 
-**Objective:** Understand data patterns, identify 3 inefficient-zone patterns for detector.
+**Objective:** Understand data patterns, identify 4 inefficient-zone patterns for detector.
 
 **Tasks:**
 
@@ -247,28 +242,30 @@
      - Identify low-ROI deploy moments
 
 3. **Identify Inefficient-Zone Patterns**
-   - Document 3 patterns in `docs/plans/zone-patterns.md`:
+   - Document **4 patterns** in `docs/plans/zone-patterns.md`:
      1. **Low-ROI deploy:** Battery used in slow corners (low time gain per MJ)
-     2. **Late-lap recharge:** Harvest opportunity used too late or in low-recovery window
+     2. **Late-recharge:** Harvest opportunity used too late or in low-recovery window
      3. **Over-harvest:** Lap harvest approaches cap with no strategic need
+     4. **Unused-override:** Close-following window where Override Mode could have been triggered but wasn't
    - For each pattern, specify:
      - Detection heuristic (e.g., `deploy_mj > threshold AND corner_speed < threshold`)
      - Severity thresholds (low/medium/high)
      - Required metrics for `Zone` object
 
 4. **Save Plots**
-   - Export plots to `analysis/exploratory-plots/`
-   - Include in `docs/plans/zone-patterns.md` as references
+   - Export plots to `assets/screenshots/` (portfolio assets, not throwaway)
+   - Add `analysis/exploratory-plots/` to `.gitignore` if using for scratch work
+   - Include plot references in `docs/plans/zone-patterns.md`
 
 **Deliverables:**
 - `analysis/explore.py` (or notebook)
 - Three exploratory plots saved
-- `docs/plans/zone-patterns.md` with 3 identified patterns
+- `docs/plans/zone-patterns.md` with 4 identified patterns
 
 **Done When:**
-- [ ] Plotted: SoC over lap, harvest distribution by sector, lap-time vs deploy correlation
-- [ ] Identified 3 inefficient-zone patterns
-- [ ] Patterns documented in `docs/plans/zone-patterns.md` with detection heuristics
+- [ ] Plotted: SoC over lap, harvest distribution by sector, lap-time vs deploy correlation (deferred — not gating downstream work; produce on demand from FastF1 fixture)
+- [x] Identified **4 inefficient-zone patterns** (low-roi-deploy, late-recharge, over-harvest, unused-override)
+- [x] Patterns documented in `docs/plans/zone-patterns.md` with detection heuristics, severity thresholds, schema-required metrics keys, and FastF1-data caveats; calibration plan recorded for the post-G-2 sweep
 
 ---
 
@@ -282,7 +279,7 @@ Phase 1 is complete when:
 4. ✅ Torx baseline run completed, `results.md` submitted
 5. ✅ 3-4 Torx sample sessions in `data/samples/`
 6. ✅ Ingestion parsers implemented and tested
-7. ✅ 3 zone patterns identified and documented
+7. ✅ 4 zone patterns identified and documented
 8. ✅ All Phase 1 tests passing
 
 **Next Phase:** Phase 2 - Core AI Pipeline (~28h)

@@ -1,0 +1,64 @@
+{
+  "runtime": "watsonx",
+  "watsonx": {
+    "url": "https://us-south.ml.cloud.ibm.com",
+    "region": "us-south",
+    "project_id_var": "WATSONX_PROJECT_ID",
+    "api_key_var": "WATSONX_API_KEY",
+    "granite_instruct": {
+      "model_id": "ibm/granite-4-h-small",
+      "role": "reasoning + Fan Mode translation",
+      "api": "/ml/v1/text/chat",
+      "verified_at": "2026-05-08",
+      "smoke_test": "scripts/test_watsonx.py",
+      "license": "Apache-2.0"
+    },
+    "granite_guardian": {
+      "model_id": "ibm/granite-guardian-3-8b",
+      "role": "Pass-2 BYOC scoring (energy_safety, regulation_consistency)",
+      "api": "/ml/v1/text/chat",
+      "verified_at": "2026-05-08",
+      "smoke_test": "scripts/test_watsonx.py",
+      "license": "Apache-2.0",
+      "deprecation": {
+        "deprecated_from": "2026-05-05",
+        "withdrawn_from": "2026-08-08",
+        "notes": "Submission window (May 31, 2026) is inside the deprecation window. Migrate to the Guardian replacement IBM publishes after submission."
+      }
+    },
+    "granite_embedding": {
+      "model_id": "ibm/granite-embedding-278m-multilingual",
+      "role": "Regulation chunk embeddings for P2.5 retrieval",
+      "api": "/ml/v1/text/embeddings",
+      "dimensions": 768,
+      "verified_at": "2026-05-08",
+      "smoke_test": "scripts/test_watsonx_embedding.py",
+      "license": "Apache-2.0",
+      "notes": "Replaces the slate-30m-english-rtrvr candidate; slate-30m is deprecated. Multilingual model handles English regulation text well and stays consistent with the rest of the watsonx Granite stack."
+    }
+  },
+  "huggingface": {
+    "granite_ttm_r2": {
+      "repo": "ibm-granite/granite-timeseries-ttm-r2",
+      "role": "optional 5-lap SoC forecasting (P2.2)",
+      "revision": "d6a79570cac0f33d526601cd3a0fc7c80a8f9a2f",
+      "last_modified": "2025-02-26T13:33:01Z",
+      "downloaded_at": "2026-05-08",
+      "source_url": "https://huggingface.co/ibm-granite/granite-timeseries-ttm-r2",
+      "license": "Apache-2.0",
+      "wrapper": "git+https://github.com/ibm-granite/granite-tsfm",
+      "runs_locally": true
+    }
+  },
+  "local_libraries": {
+    "docling": {
+      "role": "FIA regulation PDF parsing → DocTags chunks (P2.5)",
+      "package": "docling",
+      "version_pin": "see requirements.txt",
+      "runs_locally": true
+    }
+  },
+  "verified_at": "2026-05-08",
+  "verified_against": "https://us-south.ml.cloud.ibm.com (project successfully resolved; both Granite models smoke-tested via scripts/test_watsonx.py)",
+  "supersedes": "Previous Ollama-based pinning, see docs/adrs/ADR-001-watsonx-runtime.md"
+}

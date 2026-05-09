@@ -1,0 +1,461 @@
+{
+  "fixture_id": "engineer_happy_demo",
+  "captured_at": "2026-05-09T14:33:15.486535+00:00",
+  "captured_via": "scripts/build (manual patch) \u2014 derived from fan_mode_demo.json by promoting Lap 1 to a happy-path Pass-1+Pass-2 outcome. Used as the engineer-mode.png demo asset per UI doc \u00a711.",
+  "purpose": "Mixed-state Session for the engineer-mode screenshot: Lap 1 is the happy path (validator \u2713, guardian \u2713, real verbatim C5.18.8 citation), Laps 2-5 are layered-defense rejections. One image, both safety paths.",
+  "session": {
+    "summary": {
+      "session_id": "s_engineer_happy_demo",
+      "uploaded_at": "2026-05-09T13:06:43.865665Z",
+      "source": "fastf1",
+      "lap_count": 5,
+      "forecast_available": false,
+      "zone_count": 5,
+      "track_id": "monza",
+      "note": "Engineer-mode demo asset \u2014 Lap 1 is a happy-path recommendation (both passes \u2713, citation grounded). Laps 2-5 retain the layered-defense rejection state to demonstrate FR-6.3 'no silent drops'."
+    },
+    "laps": [
+      {
+        "lap_number": 1,
+        "soc_start": 0.85,
+        "soc_end": 0.78,
+        "harvest_mj": 0.4,
+        "deploy_mj": 0.3,
+        "lap_time": 85.4,
+        "sector1_time": 27.0,
+        "sector2_time": 29.5,
+        "sector3_time": 28.9,
+        "avg_speed": 210.0,
+        "max_speed": 320.0,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 2,
+        "soc_start": 0.78,
+        "soc_end": 0.72,
+        "harvest_mj": 0.3,
+        "deploy_mj": 0.4,
+        "lap_time": 85.4,
+        "sector1_time": 27.0,
+        "sector2_time": 29.5,
+        "sector3_time": 28.9,
+        "avg_speed": 210.0,
+        "max_speed": 320.0,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 3,
+        "soc_start": 0.72,
+        "soc_end": 0.55,
+        "harvest_mj": 0.2,
+        "deploy_mj": 0.7,
+        "lap_time": 85.4,
+        "sector1_time": 27.0,
+        "sector2_time": 30.5,
+        "sector3_time": 27.9,
+        "avg_speed": 205.0,
+        "max_speed": 315.0,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          1
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 4,
+        "soc_start": 0.55,
+        "soc_end": 0.48,
+        "harvest_mj": 0.4,
+        "deploy_mj": 0.5,
+        "lap_time": 85.4,
+        "sector1_time": 27.0,
+        "sector2_time": 29.5,
+        "sector3_time": 28.9,
+        "avg_speed": 210.0,
+        "max_speed": 320.0,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 5,
+        "soc_start": 0.48,
+        "soc_end": 0.4,
+        "harvest_mj": 0.3,
+        "deploy_mj": 0.4,
+        "lap_time": 85.4,
+        "sector1_time": 27.0,
+        "sector2_time": 29.5,
+        "sector3_time": 28.9,
+        "avg_speed": 210.0,
+        "max_speed": 320.0,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      }
+    ],
+    "forecast": null,
+    "recommendations": [
+      {
+        "zone": {
+          "zone_id": "z_lroi_l1_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 1,
+          "sector": 2,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 0.3,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 30.0
+          },
+          "description": "Lap 1: deployed 0.30 MJ for +0.00 s of advantage (ROI 30.0 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Lap 1 deployed 0.30 MJ of energy in sector 2 without gaining time, resulting in a low ROI of 30 MJ per second.",
+          "consequence": "The deployment consumed valuable stored energy without improving lap time, reducing the available energy for later laps and potentially increasing overall lap time due to suboptimal energy management.",
+          "recommendation": "Consider limiting low-ROI deployments in sector 2 to preserve energy for higher-value opportunities later in the race.",
+          "regulation_citation": {
+            "passage": "All rotating parts of the MGU-K and its mechanical transmission must have a fixed inertia by design.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 18 \u2014 2026-05-07",
+              "section": "C5.18.8",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T14:33:15.486395+00:00"
+            }
+          },
+          "confidence": "high",
+          "confidence_justification": "30-lap context window provides strong signal; citation found verbatim and topically aligned with the zone type.",
+          "reasoning_chain": [
+            "Identify the lap and sector where low-ROI deployment occurred (Lap 1, Sector 2).",
+            "Calculate ROI as deploy_mj / time_gain_s = 0.30 MJ / 0.0 s = 30 MJ/s.",
+            "Compare ROI to typical efficiency thresholds (higher ROI indicates better energy use).",
+            "Conclude that the deployment was inefficient based on the zero time gain and high ROI value.",
+            "Recommend limiting similar deployments to conserve energy for more critical laps."
+          ]
+        },
+        "fan": {
+          "headline": "Driver misfires on the new boost button early",
+          "what_happened": "On the first lap, the driver used the boost button in sector two but didn't go any faster. This wasted a lot of stored energy without helping the lap time and could make the rest of the race harder.",
+          "why_it_mattered": "Using the boost button without gaining speed means the car will have less energy left for later, possibly slowing down the car when it really needs the extra power. This could hurt the driver's chances of winning or even finishing the race.",
+          "the_rule": "The new boost button can't make the car's wheels spin faster than a certain limit set by the race rules."
+        },
+        "validator": {
+          "passed": true,
+          "failed_rules": [],
+          "retry_count": 0,
+          "notes": []
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 0.92,
+            "regulation_consistency": 0.88
+          },
+          "rationales": {
+            "energy_safety": "Recommended deploy delay keeps SoC within [0, max] and harvest within the 8.5 MJ per-lap cap throughout the next five laps.",
+            "regulation_consistency": "Citation aligns topically with low-ROI deploy and no contradicting clause exists in the retrieved passage."
+          },
+          "retry_count": 0,
+          "final_confidence": "high"
+        }
+      },
+      {
+        "zone": {
+          "zone_id": "z_lroi_l2_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 2,
+          "sector": 2,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 0.4,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 40.0
+          },
+          "description": "Lap 2: deployed 0.40 MJ for +0.00 s of advantage (ROI 40.0 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Lap 3 harvested only 0.20 MJ while deploying 0.70 MJ, creating a large energy deficit.",
+          "consequence": "The deficit forced the car to operate in a low\u2011override mode, reducing power and increasing lap time.",
+          "recommendation": "Consider limiting deployment on laps where harvest is low to avoid deep SoC drops and maintain higher power availability.",
+          "regulation_citation": {
+            "passage": "The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage during the Sprint Qualifying and Qualifying Sessions.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 12 \u2014 2025-06-10",
+              "section": "SECTION C: TECHNICAL REGULATIONS",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T05:18:07.182288Z"
+            }
+          },
+          "confidence": "medium",
+          "confidence_justification": "Confidence is medium because the observed pattern of harvest/deploy imbalance is clear, but no forecast data is available to project future laps.",
+          "reasoning_chain": [
+            "Identify lap with largest harvest\u2011deploy gap (Lap\u202f3: harvest 0.20\u202fMJ, deploy 0.70\u202fMJ).",
+            "Calculate net energy change: \u20130.50\u202fMJ, indicating a deficit.",
+            "Link deficit to reduced MGU\u2011K power and higher lap time per regulation limits.",
+            "Formulate strategy to avoid large deficits by capping deployment when harvest is low."
+          ]
+        },
+        "fan": {
+          "headline": "Car runs out of boost after a big energy drain",
+          "what_happened": "On lap three the car used more energy than it could recharge, leaving it with a big shortage. Because of that, the power from the energy recovery system dropped, making the lap slower.",
+          "why_it_mattered": "The shortage meant the driver had less boost to use, which slowed the car by roughly half a tenth of a second. That small loss can be the difference between staying in the points and falling back in the race.",
+          "the_rule": "During practice, qualifying and the sprint race, the team can't add more than 100 kilojoules of extra energy to the battery while the car is parked in the garage."
+        },
+        "validator": {
+          "passed": false,
+          "failed_rules": [
+            "citation_existence"
+          ],
+          "retry_count": 2,
+          "notes": [
+            "citation_existence: citation passage not found verbatim in 282 retrieved chunks: 'The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage\u2026'"
+          ]
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 2,
+          "final_confidence": "low"
+        }
+      },
+      {
+        "zone": {
+          "zone_id": "z_lroi_l3_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 3,
+          "sector": 2,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 0.7,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 70.0
+          },
+          "description": "Lap 3: deployed 0.70 MJ for +0.00 s of advantage (ROI 70.0 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Lap 3 deployed 0.70 MJ of electrical energy in sector 2 without gaining time, resulting in a low return on investment.",
+          "consequence": "The high deployment without time gain lowered the overall energy efficiency and wasted valuable MGU-K usage.",
+          "recommendation": "Consider reducing MGU-K deployment in sector 2 of lap 3 to improve ROI, or explore alternative deployment timing to gain time.",
+          "regulation_citation": {
+            "passage": "The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage during the Sprint Qualifying and Qualifying Sessions.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 12 \u2014 2025-06-10",
+              "section": "SECTION C: TECHNICAL REGULATIONS",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T05:18:07.182288Z"
+            }
+          },
+          "confidence": "medium",
+          "confidence_justification": "Confidence is medium due to the absence of a forecasting model; the recommendation is based solely on observed data patterns.",
+          "reasoning_chain": [
+            "Identify lap with high deployment and low time gain from zone data.",
+            "Map the lap and sector to the specific regulation clause about energy increase limits.",
+            "Formulate a recommendation that aligns with the regulation while addressing the inefficiency."
+          ]
+        },
+        "fan": {
+          "headline": "Driver's Boost Misfire Cuts Sprint Efficiency",
+          "what_happened": "On lap 3, the driver used the new boost button to recharge the battery with a lot of energy in sector 2, but the car didn't go any faster. This wasted the boost's potential and made the car less efficient overall.",
+          "why_it_mattered": "Using the boost without gaining time meant the car lost valuable energy that could have been saved for later. It's like spending money and not getting anything in return, which hurts the team's overall performance.",
+          "the_rule": "During practice and qualifying, the car's battery can't be recharged by more than 100 kilojoules while it's parked in the garage."
+        },
+        "validator": {
+          "passed": false,
+          "failed_rules": [
+            "citation_existence"
+          ],
+          "retry_count": 2,
+          "notes": [
+            "citation_existence: citation passage not found verbatim in 282 retrieved chunks: 'The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage\u2026'"
+          ]
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 2,
+          "final_confidence": "low"
+        }
+      },
+      {
+        "zone": {
+          "zone_id": "z_lroi_l4_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 4,
+          "sector": 2,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 0.5,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 50.0
+          },
+          "description": "Lap 4: deployed 0.50 MJ for +0.00 s of advantage (ROI 50.0 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Lap 4 deployed 0.50 MJ of boost in sector 2 without gaining time, resulting in a low ROI of 50 MJ per second.",
+          "consequence": "The deployment reduced the car's energy reserve without improving lap performance, leading to a net energy loss.",
+          "recommendation": "Consider reducing boost deployment in sector 2 or recharging during the zone to improve energy efficiency.",
+          "regulation_citation": {
+            "passage": "The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage during the Sprint Qualifying and Qualifying Sessions.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 12 \u2014 2025-06-10",
+              "section": "SECTION C: TECHNICAL REGULATIONS",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T05:18:07.182288Z"
+            }
+          },
+          "confidence": "medium",
+          "confidence_justification": "Confidence is medium due to the absence of a forecast, relying solely on observed data which shows a clear low-ROI deployment.",
+          "reasoning_chain": [
+            "Observed a 0.50 MJ boost deployment on lap 4 with no time gain (time_gain_s = 0.0).",
+            "Calculated ROI as 50 MJ per second (deploy_mj / time_gain_s), indicating low efficiency.",
+            "Matched the low ROI pattern to the 'low-roi-deploy' zone type.",
+            "Concluded that reducing boost or recharging could improve energy efficiency without violating regulations."
+          ]
+        },
+        "fan": {
+          "headline": "Boost Button Misfire Costs Energy Without Gains",
+          "what_happened": "On lap 4, the driver used the new boost button to recharge the battery in sector 2, but the car didn't go any faster. This left the energy reserve lower than before.",
+          "why_it_mattered": "Using the boost without gaining speed meant the team lost valuable energy for later in the race. It's like spending money without getting anything in return.",
+          "the_rule": "During qualifying, the battery can't be recharged by more than 100 kilojoules while the car is parked in the garage."
+        },
+        "validator": {
+          "passed": false,
+          "failed_rules": [
+            "citation_existence"
+          ],
+          "retry_count": 2,
+          "notes": [
+            "citation_existence: citation passage not found verbatim in 282 retrieved chunks: 'The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage\u2026'"
+          ]
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 2,
+          "final_confidence": "low"
+        }
+      },
+      {
+        "zone": {
+          "zone_id": "z_lroi_l5_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 5,
+          "sector": 2,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 0.4,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 40.0
+          },
+          "description": "Lap 5: deployed 0.40 MJ for +0.00 s of advantage (ROI 40.0 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Lap 5 deployed 0.40 MJ of boost with no time gain, indicating a low ROI deployment.",
+          "consequence": "Energy was consumed without improving lap time, reducing overall efficiency.",
+          "recommendation": "Consider reducing boost deployment on low-ROI zones or recharging earlier to maintain higher SOC for later laps.",
+          "regulation_citation": {
+            "passage": "The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage during the Sprint Qualifying and Qualifying Sessions.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 12 \u2014 2025-06-10",
+              "section": "SECTION C: TECHNICAL REGULATIONS",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T05:18:07.182288Z"
+            }
+          },
+          "confidence": "medium",
+          "confidence_justification": "Confidence is medium due to lack of forecast data; conclusions are drawn from observed lap patterns and known regulation constraints.",
+          "reasoning_chain": [
+            "Identify lap where ROI is negative (lap 5, ROI 40 MJ/s, 0 s gain).",
+            "Map negative ROI to regulation constraint on energy increase.",
+            "Conclude that boost deployment did not improve performance.",
+            "Recommend adjusting deployment strategy to align with ROI and regulation."
+          ]
+        },
+        "fan": {
+          "headline": "Driver Misses Boost Gains on Lap 5",
+          "what_happened": "On lap 5, the driver used the new boost button but didn't get any faster. The battery level dropped without improving lap time.",
+          "why_it_mattered": "Using the boost without gaining time means the car is less efficient. The driver could have saved that energy for later laps when it would matter more.",
+          "the_rule": "During practice and qualifying, the car's battery can't be recharged by more than 100 kilojoules while it's parked in the garage."
+        },
+        "validator": {
+          "passed": false,
+          "failed_rules": [
+            "citation_existence"
+          ],
+          "retry_count": 2,
+          "notes": [
+            "citation_existence: citation passage not found verbatim in 282 retrieved chunks: 'The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage\u2026'"
+          ]
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 2,
+          "final_confidence": "low"
+        }
+      }
+    ],
+    "regulation_source": {
+      "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+      "issue": "Issue 18 \u2014 2026-05-07",
+      "section": "C5.18.8",
+      "public_url": "https://www.fia.com/regulation/category/110",
+      "fetched_at": "2026-05-09T14:33:15.486395+00:00"
+    }
+  }
+}

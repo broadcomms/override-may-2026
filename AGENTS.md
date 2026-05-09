@@ -16,7 +16,7 @@ This file provides guidance to agents when working with code in this repository.
 
 **Two-pass validation architecture**: Pass 1 (deterministic `core/validator.yaml`) always runs first. Pass 2 (Granite Guardian BYOC `guardian/byoc_criteria.yaml`) scores after. Both results shown to user.
 
-**Model version verification**: Exact Ollama tags for Granite 4.x Instruct and Guardian recorded in `models.json` at gate G-1 (roadmap P1.1). Never assume tag strings—verify from `github.com/ibm-granite-community` first.
+**Model version verification**: Granite Instruct + Guardian are served via **watsonx.ai** (US-South), not local Ollama. Model IDs (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`) and project ID are pinned in `models.json` at gate G-1. See `docs/adrs/ADR-001-watsonx-runtime.md` for the migration rationale. Smoke-test via `scripts/test_watsonx.py`. Use the watsonx **chat** API (`/ml/v1/text/chat`) — the legacy `/ml/v1/text/generation` is deprecated.
 
 **Schema conventions**: Times in seconds (float), energies in MJ (float), powers in kW (float), speeds in km/h (float). `lap_number` is 1-indexed. Use `Optional[T]` with `None` for unknowns—never sentinel strings like "N/A". All JSON keys `snake_case`.
 

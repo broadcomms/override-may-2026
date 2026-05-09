@@ -1,0 +1,21 @@
+# OVERRIDE — Langflow design/demo layer (separate venv)
+#
+# Why a separate venv: Langflow currently ships with its own packaging
+# constraints. The production runtime targets Python 3.12 (see
+# requirements.txt), so we keep Langflow isolated.
+#
+# Per docs/04-langflow-canvas.md, Langflow is the **design + demo layer**, not
+# the production runtime. It powers the canvas screenshot and a one-shot demo
+# flow during the video recording. FastAPI carries the production path.
+#
+# Setup:
+#   /opt/homebrew/bin/python3.12 -m venv .venv-langflow
+#   .venv-langflow/bin/pip install -r requirements-langflow.txt
+#
+# Pinning rationale: the OVERRIDE custom components target the Langflow 1.9.x
+# / lfx 0.4.x schema (use `from lfx.custom import Component`, `from lfx.io
+# import DataInput, ...`). The lfx submodule layout has churned across minor
+# versions — pin to avoid breakage right before the demo. Bump only if the
+# components are re-validated against the new version.
+
+langflow==1.9.2

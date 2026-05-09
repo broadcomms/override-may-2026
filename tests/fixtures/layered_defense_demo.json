@@ -1,0 +1,99 @@
+{
+  "fixture_id": "layered_defense_demo",
+  "captured_at": "2026-05-09T04:30:04.380014+00:00",
+  "captured_via": "scripts/capture_layered_defense.py (one-shot, pre-P2.7 orchestrator)",
+  "purpose": "Demonstrates the two-pass safety architecture catching its own mistake. Reasoning fabricated a citation; Pass-1 deterministic validator flagged citation_existence; Pass-2 Guardian (semantic) passed both criteria. The system surfaces the failure rather than silently dropping it.",
+  "watsonx_models": {
+    "instruct": "ibm/granite-4-h-small",
+    "guardian": "ibm/granite-guardian-3-8b",
+    "embedding": "ibm/granite-embedding-278m-multilingual"
+  },
+  "input": {
+    "session_id": "s_layered_defense_demo",
+    "soc_max_mj": 4.0,
+    "track_id": "monza",
+    "n_laps": 5
+  },
+  "stages": {
+    "detection": {
+      "n_zones": 5,
+      "target_zone_id": "z_lroi_l1_s2",
+      "target_zone_type": "low-roi-deploy"
+    },
+    "retrieval": {
+      "g4_status": "closed",
+      "n_chunks_in_corpus": 48,
+      "retrieved_chunk_id": "c_023_03",
+      "retrieved_section": "C5.21.2",
+      "retrieval_score": 0.5575
+    },
+    "reasoning": {
+      "elapsed_ms": 3686,
+      "output": {
+        "cause": "Lap 1 deployed 0.30 MJ in sector 2 with no time gain, yielding a low ROI of 30 MJ/s.",
+        "consequence": "Energy was consumed without improving lap time, reducing overall efficiency and potentially limiting later deployment opportunities.",
+        "recommendation": "Consider reducing or skipping deployment in low-ROI zones like sector 2 to preserve energy for higher-gain opportunities.",
+        "regulation_citation": {
+          "passage": "The ES Main Enclosure, MGU-K and any HV box must be marked with a \"Danger High Voltage\" symbol and at least 70% orange.",
+          "source": {
+            "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+            "issue": "Issue 12 \u2014 2025-06-10",
+            "section": "C5.21.2",
+            "public_url": "https://www.fia.com/regulation/category/110",
+            "fetched_at": "2026-05-09T04:03:38.260523Z"
+          }
+        },
+        "confidence": "medium",
+        "confidence_justification": "Confidence is medium due to lack of forecast data; the recommendation is based solely on observed low ROI in the current lap.",
+        "reasoning_chain": [
+          "Identify sector with high severity low-ROI deployment (lap 1, sector 2).",
+          "Calculate ROI (0.3 MJ deployed, 0.0 s gain \u2192 30 MJ/s).",
+          "Compare ROI to typical high-gain thresholds (usually > 100 MJ/s).",
+          "Conclude that energy was wasted without time benefit.",
+          "Recommend conserving energy in similar low-ROI zones."
+        ]
+      }
+    },
+    "pass_1_validator": {
+      "passed": false,
+      "failed_rules": [
+        "citation_existence"
+      ],
+      "retry_count": 0,
+      "notes": [
+        "citation_existence: citation passage not found verbatim in 1 retrieved chunks: 'The ES Main Enclosure, MGU-K and any HV box must be marked with a \"Danger High Voltage\" symbol and at least 70% orange.\u2026'"
+      ]
+    },
+    "pass_2_guardian": {
+      "elapsed_ms": 524,
+      "result": {
+        "passed": true,
+        "pass_threshold": 0.7,
+        "scores": {
+          "energy_safety": 1.0,
+          "regulation_consistency": 1.0
+        },
+        "rationales": {
+          "energy_safety": "no risk detected",
+          "regulation_consistency": "no risk detected"
+        },
+        "retry_count": 0,
+        "final_confidence": "medium"
+      }
+    }
+  },
+  "key_observations": {
+    "reasoning_emitted_citation": true,
+    "citation_passage_appears_in_chunk": false,
+    "pass_1_passed": false,
+    "pass_1_failed_rules": [
+      "citation_existence"
+    ],
+    "pass_2_passed": true,
+    "pass_2_scores": {
+      "energy_safety": 1.0,
+      "regulation_consistency": 1.0
+    },
+    "layered_defense_fired": true
+  }
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "session_id": "s_20260509_9e5c",
+    "uploaded_at": "2026-05-09T20:15:43.320442Z",
+    "source": "torx",
+    "lap_count": 5,
+    "forecast_available": false,
+    "zone_count": 5,
+    "track_id": null,
+    "note": null
+  },
+  {
+    "session_id": "s_20260509_eebe",
+    "uploaded_at": "2026-05-09T19:45:31.646111Z",
+    "source": "torx",
+    "lap_count": 5,
+    "forecast_available": false,
+    "zone_count": 5,
+    "track_id": null,
+    "note": null
+  },
+  {
+    "session_id": "s_20260509_7210",
+    "uploaded_at": "2026-05-09T19:43:03.791994Z",
+    "source": "fastf1",
+    "lap_count": 5,
+    "forecast_available": false,
+    "zone_count": 5,
+    "track_id": "monza",
+    "note": "Energy state derived from throttle/brake telemetry (FastF1 has no native MGU-K data)."
+  }
+]

@@ -22,6 +22,6 @@ This file provides guidance to agents when working with code in this repository.
 
 **Language safety**: Never use "decides/autonomously/optimal/you must/always/definitely will" in generated text. Use "supports/explains/highlights/recommends/could explore/consider". This is decision support, not replacement.
 
-**Model tags**: Exact Ollama tags for Granite models recorded in `models.json` after G-1 gate. Never assume tag strings—read from `models.json` or verify from `github.com/ibm-granite-community`.
+**Model tags**: Granite models served via **watsonx.ai** (US-South), not local Ollama. Model IDs (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`) and project ID pinned in `models.json` after G-1. See `docs/adrs/ADR-001-watsonx-runtime.md`. Smoke test via `scripts/test_watsonx.py`.
 
 **No MCP or Browser tools**: Code mode does not have access to MCP servers or browser automation tools.

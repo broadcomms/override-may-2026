@@ -27,8 +27,8 @@ This is our submission to the **IBM SkillsBuild AI Builders Challenge** (theme: 
 
 | Component | Role | Source — verify Day 1 |
 |---|---|---|
-| Granite 4.x Instruct (8B family) | Core reasoning + Fan Mode translation | `ollama pull <verified-tag>` from ibm-granite-community; HuggingFace fallback `ibm-granite/granite-3.3-8b-instruct` or current 4.x equivalent |
-| Granite Guardian (latest) | Pass 2 AI-based safety + regulation-consistency scoring (BYOC) | `ollama pull <verified-tag>`; HF fallback `ibm-granite/granite-guardian-3.x-8b` (current latest) |
+| Granite 4 Hybrid Small | Core reasoning + Fan Mode translation | watsonx.ai US-South, `ibm/granite-4-h-small`. Credentials in `.env`; smoke test via `scripts/test_watsonx.py`. See `docs/adrs/ADR-001-watsonx-runtime.md` |
+| Granite Guardian 3-8b | Pass 2 AI-based safety + regulation-consistency scoring (BYOC) | watsonx.ai US-South, `ibm/granite-guardian-3-8b`. Deprecated 2026-05-05 → withdrawn 2026-08-08; submission window is inside the safe period |
 | Granite Time Series TTM-R2 | **Optional** lap-aggregated SoC/harvest/deploy forecasting | HuggingFace `ibm-granite/granite-timeseries-ttm-r2` |
 | Docling | Parse FIA energy-management regulation, extract relevant section | `pip install docling` |
 | Langflow | **Design + demo layer**, mirrors the production pipeline | `pip install langflow` |

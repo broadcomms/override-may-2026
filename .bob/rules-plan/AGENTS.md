@@ -26,4 +26,4 @@ This file provides guidance to agents when working with code in this repository.
 
 **Branch strategy**: `main` = stable/demoable only. `dev` = daily work. Plan features to land on `dev` first, merge to `main` only when demoable.
 
-**Model version verification**: Exact Ollama tags recorded in `models.json` at G-1. Never plan assuming tag strings—verification gate exists because tags change.
+**Model version verification**: Granite served via watsonx.ai (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`); IDs pinned in `models.json` at G-1. Original Ollama path superseded by `docs/adrs/ADR-001-watsonx-runtime.md`. Plan around the watsonx chat API, not local model serving.
