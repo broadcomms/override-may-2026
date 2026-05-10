@@ -14,6 +14,18 @@
   --color-danger: #D32F2F;
   --color-granite-blue: #052FAD;
 
+  /* RGB-triplet variants — required for Tailwind's `bg-color/N` opacity
+     modifier syntax to work. Tailwind 3.x cannot slice an alpha channel
+     out of a hex value referenced via var(); it needs the modern
+     rgb(R G B / <alpha-value>) form. The triplets below mirror the hex
+     palette above. Update both when changing a colour. */
+  --color-accent-rgb: 255 69 0;
+  --color-success-rgb: 0 200 83;
+  --color-warning-rgb: 249 168 37;
+  --color-danger-rgb: 211 47 47;
+  --color-granite-blue-rgb: 5 47 173;
+  --color-text-muted-rgb: 154 154 154;
+
   /* Motion — honor prefers-reduced-motion in components.
      The cubic-bezier curve is a "natural" decelerator (variant of iOS-spring)
      that feels snappier than ease-out without feeling abrupt. */
