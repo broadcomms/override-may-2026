@@ -68,3 +68,6 @@ data/fastf1-cache/
 ui/node_modules/
 ui/dist/
 ui/.env.*.local
+
+# Local video render too large for GitHub
+assets/graphics/RACE-TRACK.mp4

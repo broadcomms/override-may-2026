@@ -88,23 +88,22 @@ export function EnergyCurve({ laps, forecast, recommendations = [], onZoneClick 
           </span>
         )}
       </div>
-      <div style={{ width: "100%", height: 220 }}>
+      <div style={{ width: "100%", height: 232 }}>
         <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 18 }}>
+          {/* bottom margin reserves space for: tick labels (~14px) +
+              zone-marker chevrons (~14px) with a small breather between. */}
+          <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 36 }}>
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 2" />
+            {/* X axis caption ("lap") intentionally omitted — the integer
+                tick labels are self-describing and competing for space with
+                the zone-marker row below them. */}
             <XAxis
               dataKey="lap"
               type="number"
               domain={["dataMin", "dataMax"]}
               tick={{ fill: "var(--color-text-muted)", fontSize: 11, fontFamily: "JetBrains Mono" }}
               tickLine={{ stroke: "var(--color-border)" }}
-              label={{
-                value: "lap",
-                position: "insideBottom",
-                offset: -8,
-                fill: "var(--color-text-muted)",
-                fontSize: 11,
-              }}
+              tickMargin={8}
             />
             <YAxis
               type="number"
@@ -219,12 +218,21 @@ function ZoneTriangle({
       : severity === "medium"
       ? "var(--color-warning)"
       : "var(--color-text-muted)";
-  // Triangle pointing UP, anchored just below the x axis row
-  const yBase = cy + 14;
-  const points = `${cx - 5},${yBase + 8} ${cx + 5},${yBase + 8} ${cx},${yBase}`;
+  // Anchor below the tick labels with a small gap so the lap numbers stay
+  // legible. cy is the data point at y=2; offset down past axis + label.
+  // Geometry: small upward-pointing chevron — half-width 4, height 7.
+  const tipY = cy + 30;
+  const baseY = tipY + 7;
+  const points = `${cx - 4},${baseY} ${cx + 4},${baseY} ${cx},${tipY}`;
   return (
     <g onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
-      <polygon points={points} fill={fill} stroke="var(--color-bg)" strokeWidth="1" />
+      <polygon
+        points={points}
+        fill={fill}
+        stroke="var(--color-bg)"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
     </g>
   );
 }
