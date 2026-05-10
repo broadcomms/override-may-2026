@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="OVERRIDE — Explainable AI Race-Strategy Copilot" width="100%"/>
 </p>
 
-<h1 align="center"> 🏁 OVERRIDE</h1>
+<h1 align="center"> OVERRIDE</h1>
 
 <p align="center">
   <strong>An explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.</strong>
@@ -35,13 +35,39 @@
 ## What it looks like
 
 <table>
-<tr>
-<td width="50%"><strong>Engineer mode — full reasoning + verbatim citation</strong><br/><img src="assets/screenshots/engineer_mode.png" alt="Engineer mode card showing cause/consequence/recommendation, reasoning chain, citation block, validator and Guardian badges"/></td>
-<td width="50%"><strong>Fan mode — same intelligence, plain language</strong><br/><img src="assets/screenshots/fan-mode.png" alt="Fan mode card with headline, what happened, why it mattered, the rule"/></td>
+<tr >
+<td width="50%" valign=top>
+<strong>Override demo loop</strong><br/>
+<img src="assets/demo.gif" alt="Override demo loop"/>
+<br/><br/><br/>
+<strong>Langflow canvas demo layer</strong><br/><img src="assets/screenshots/langflow-canvas.png" alt="Langflow canvas with 9 OVERRIDE custom components wired end-to-end"/>
+<br/><br/>
+
+<a href="docs/user/documentation.md">📖 Manual Test Plan</a>
+
+</td>
+
+
+
+
+<td width="50%" valign="top">
+
+<strong>Engineer mode with citation</strong><br/><img src="assets/screenshots/engineer_mode.png" alt="Engineer mode card showing cause/consequence/recommendation, reasoning chain, citation block, validator and Guardian badges"/>
+
+
+
+
+
+
+
+</td>
 </tr>
 <tr>
-<td><strong>Layered defense — system catches itself</strong><br/><img src="assets/screenshots/guardian-rejection.png" alt="Validator-failed card showing the failed rules and a red-bordered status panel"/></td>
-<td><strong>Langflow canvas — design + demo layer</strong><br/><img src="assets/screenshots/langflow-canvas.png" alt="Langflow canvas with 9 OVERRIDE custom components wired end-to-end"/></td>
+<td><strong>Layered defense - system catches itself</strong><br/><img src="assets/screenshots/guardian-rejection.png" alt="Validator-failed card showing the failed rules and a red-bordered status panel"/></td>
+<td>
+<strong>Fan mode - same intelligence, plain language</strong><br/><img src="assets/screenshots/fan-mode.png" alt="Fan mode card with headline, what happened, why it mattered, the rule"/>
+
+</td>
 </tr>
 </table>
 
