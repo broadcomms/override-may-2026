@@ -40,9 +40,12 @@
 
 set -euo pipefail
 
-IMAGE=${IMAGE:-docker.io/johnsloe/torcs-competition:amd64}
-NAME=${NAME:-torcs}
-WORKSPACE=${WORKSPACE:-${PWD}/RaceYourCode}
+# Use namespaced env-var names — bare `NAME` collides with the user's shell
+# env (where it's often set to the hostname by default), causing the
+# container to land with the wrong name and breaking `podman exec NAME ...`.
+IMAGE=${TORCS_IMAGE:-docker.io/johnsloe/torcs-competition:amd64}
+TORCS_NAME=${TORCS_NAME:-torcs}
+WORKSPACE=${TORCS_WORKSPACE:-${PWD}/RaceYourCode}
 
 # Sanity check — RaceYourCode/gym_torcs must exist so the bind-mount lands
 # something useful at /home/student/workspace.
@@ -55,7 +58,7 @@ fi
 mkdir -p "${WORKSPACE}/gym_torcs/telemetry"
 
 # Stop any leftover container with the same name (idempotent).
-podman rm -f "${NAME}" >/dev/null 2>&1 || true
+podman rm -f "${TORCS_NAME}" >/dev/null 2>&1 || true
 
 # The fix:
 # 1. Pre-create the markers start.sh greps for in step [1/6]. Persist them
@@ -75,7 +78,7 @@ podman rm -f "${NAME}" >/dev/null 2>&1 || true
 #                   routes OVERRIDE_LLM_RUNTIME=ollama via service-to-service
 #                   DNS on override-net, not via host port forwarding.
 exec podman run -it --rm \
-    --name "${NAME}" \
+    --name "${TORCS_NAME}" \
     -p 5900:5900 \
     -p 6080:6080 \
     -p 3001:3001/udp \
