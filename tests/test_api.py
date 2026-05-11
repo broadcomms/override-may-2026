@@ -414,6 +414,80 @@ def test_get_zone_fan_mode_triggers_translation(tmp_path):
     assert len(chat.calls) > upload_calls
 
 
+def _synthetic_torcs_jsonl(*, n_laps: int = 2, ticks_per_lap: int = 120) -> bytes:
+    """Mimic what RaceYourCode/gym_torcs/torcs_jm_par.py:parse_server_str emits
+    when OVERRIDE_LOG_TELEMETRY is set. Two laps with deploy-in-S2 + brake-in-S3
+    structure so derive_lap_energy produces non-zero harvest + deploy.
+    """
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / ticks_per_lap
+    wall_t = 1_700_000_000.0
+    lines: list[str] = []
+    s1_end = track_length / 3.0
+    s2_end = 2.0 * track_length / 3.0
+    for _lap in range(n_laps):
+        for tick_i in range(ticks_per_lap):
+            cur_lap_time = tick_i * dt
+            dist = (tick_i / ticks_per_lap) * track_length
+            if dist < s1_end:
+                accel, brake = 0.7, 0.0
+            elif dist < s2_end:
+                accel, brake = 1.0, 0.0
+            else:
+                accel, brake = 0.0, 0.6
+            lines.append(json.dumps({
+                "t": wall_t,
+                "curLapTime": [cur_lap_time],
+                "distFromStart": [dist],
+                "speedX": [60.0 if accel >= 0.95 else 30.0],
+                "accel": [accel],
+                "brake": [brake],
+                "fuel": [90.0],
+            }))
+            wall_t += dt
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def test_create_session_torcs_jsonl_round_trips_through_pipeline(tmp_path):
+    """Closes v6 plan task 1.6 spec: POST a synthetic TORCS JSONL replay with
+    source=torcs, verify clean Session round-trips through the full pipeline
+    (zone detection → reasoning → validator → Guardian → save_session).
+    Mocked watsonx clients; the test exercises api/main:_parse_upload's
+    content-sniffing dispatch and the new ingest/torcs_parser path end-to-end.
+    """
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    payload = _synthetic_torcs_jsonl()
+    r = client.post(
+        "/api/sessions",
+        files={"file": ("baseline.jsonl", payload, "application/x-ndjson")},
+        data={"source": "torcs", "track_id": "synthetic", "soc_max": 4.0},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["summary"]["source"] == "torcs"
+    assert body["summary"]["lap_count"] == 2
+    assert all(L["soc_source"] == "derived" for L in body["laps"])
+
+
+def test_create_session_torcs_dispatch_sniffs_content_not_just_filename(tmp_path):
+    """Regression test: a .json-suffixed (no `l`) TORCS replay must still
+    route through ingest.torcs_parser via content-sniffing, not fall through
+    to canonical-schema passthrough. Review caught this — fixtures named
+    data/samples/torcs_*.json would have crashed otherwise.
+    """
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    payload = _synthetic_torcs_jsonl(n_laps=1, ticks_per_lap=120)
+    r = client.post(
+        "/api/sessions",
+        # filename is .json — content sniffing has to detect the tick signature
+        files={"file": ("torcs_baseline.json", payload, "application/json")},
+        data={"source": "torcs"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["summary"]["lap_count"] == 1
+
+
 def test_get_zone_fan_mode_concurrent_different_zones_all_persist(tmp_path):
     """Regression test for the lazy fan-mode save race (v6 plan task 1.8 / hard floor).
 

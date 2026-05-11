@@ -439,20 +439,23 @@ def _extract_region(url: str) -> str:
 def _parse_upload(body: bytes, *, source: str, filename: str) -> list[LapFeatures]:
     """Parse uploaded bytes into LapFeatures.
 
-    TORCS path (post-v6 1.3): if the upload is a JSONL telemetry log (filename
-    endswith ``.jsonl``), ``ingest.torcs_parser.parse_torcs_session`` produces
-    LapFeatures from the raw per-tick sensor stream. Otherwise we fall back to
-    the canonical lap-features JSON shape — preserves backward compatibility
-    with ``data/sessions/sample_torcs.json`` (pre-parsed) and any clients that
-    pass already-shaped session JSON.
+    TORCS path (post-v6 1.3): dispatch is content-sniffing, not filename-only.
+    If the first parseable line of the body is a gym_torcs-shaped tick (has
+    ``curLapTime`` / ``distFromStart`` / ``speedX`` keys), route to
+    ``ingest.torcs_parser.parse_torcs_session``. Otherwise treat as the
+    canonical ``LapFeatures``-list shape. Suffix-only dispatch was fragile —
+    review caught that a fixture committed as ``data/samples/torcs_*.json``
+    (no `l` in the suffix) would fall through to canonical-schema passthrough
+    and crash on the wrong shape. Sniffing lets either filename work; the
+    `.jsonl` extension hint is preserved as a fast-path for the live-ingest
+    endpoint.
 
     FastF1 path: accepts a parquet cache file or the canonical JSON.
     """
     import json
 
     if source == "torcs":
-        # JSONL telemetry log → run through the TORCS parser.
-        if filename.endswith(".jsonl"):
+        if _is_torcs_jsonl(body, filename=filename):
             import tempfile
 
             with tempfile.NamedTemporaryFile(
@@ -467,7 +470,7 @@ def _parse_upload(body: bytes, *, source: str, filename: str) -> list[LapFeature
                     os.unlink(tmp_path)
                 except OSError:
                     pass
-        # Anything else: assume already-parsed canonical shape (passthrough).
+        # Already-parsed canonical shape (passthrough).
         return _parse_lap_features_json(body)
     if source == "fastf1":
         # Accept either a parquet file (cached FastF1 lap features) or
@@ -479,6 +482,43 @@ def _parse_upload(body: bytes, *, source: str, filename: str) -> list[LapFeature
             return [LapFeatures.model_validate(row) for row in df.to_dict(orient="records")]
         return _parse_lap_features_json(body)
     raise ValueError(f"unknown source: {source!r}")
+
+
+# Sentinel gym_torcs keys — a tick has these even when other sensors are absent.
+# Used by _is_torcs_jsonl to distinguish per-tick replays from canonical shape.
+_TORCS_TICK_SIGNATURE_KEYS = ("curLapTime", "distFromStart", "speedX")
+
+
+def _is_torcs_jsonl(body: bytes, *, filename: str) -> bool:
+    """Decide whether the upload is a raw TORCS JSONL replay vs a canonical
+    ``{"laps": [...]}`` payload. Filename hint is a fast-path; content
+    sniffing is the source of truth.
+    """
+    import json as _json
+
+    # Fast-path: explicit .jsonl suffix → trust the user.
+    if filename.endswith(".jsonl"):
+        return True
+    # Content sniff: peek the first non-empty line.
+    head = body[:8192]
+    try:
+        first_line = head.decode("utf-8", errors="replace").splitlines()
+    except Exception:
+        return False
+    for line in first_line:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = _json.loads(line)
+        except _json.JSONDecodeError:
+            return False
+        if isinstance(obj, dict) and any(k in obj for k in _TORCS_TICK_SIGNATURE_KEYS):
+            return True
+        # First parseable JSON wasn't a tick → it's the canonical wrapper
+        # (a {"laps": [...]} dict or a [...] list).
+        return False
+    return False
 
 
 def _parse_lap_features_json(body: bytes) -> list[LapFeatures]:
