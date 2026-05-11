@@ -1,7 +1,7 @@
 """ingest — turn session replays into typed LapFeatures.
 
 Entry points:
-  - parse_torx_session(json_path) → list[LapFeatures]    (P1.4 second half, after G-2)
+  - parse_torcs_session(json_path) → list[LapFeatures]    (P1.4 second half, after G-2)
   - parse_fastf1_session(year, gp, session_type) → list[LapFeatures]
   - parse_fastf1_lap(inputs, prior_soc_end) → LapFeatures   (pure, testable)
 

@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class LapFeatures(BaseModel):
-    """One row per completed lap, produced by ingest/{torx,fastf1}_parser.py.
+    """One row per completed lap, produced by ingest/{torcs,fastf1}_parser.py.
 
     See docs/04-schema.md §3 for the canonical contract. The `soc_source`
     field carries provenance (R1 mitigation) — measured directly when the
@@ -308,7 +308,7 @@ class SessionSummary(BaseModel):
 
     session_id: str
     uploaded_at: datetime
-    source: Literal["torx", "fastf1"]
+    source: Literal["torcs", "fastf1"]
     lap_count: int = Field(ge=0, description="post-truncation, if any")
     forecast_available: bool
     zone_count: int = Field(ge=0)

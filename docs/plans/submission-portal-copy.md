@@ -69,7 +69,7 @@ The publicly visible AI in this space — AWS F1 Insights, Oracle's Red Bull str
 ## 5. Solution statement (portal field: **Solution** / **What it does**)
 
 ```
-OVERRIDE is a copilot, not a strategist. It takes a session replay (Torx Lab simulator export or FastF1 historical), aggregates lap-level energy features, detects inefficient deployment zones, then explains each one with a verbatim citation from the 2026 FIA technical regulations parsed by Docling.
+OVERRIDE is a copilot, not a strategist. It takes a session replay (TORCS Lab simulator export or FastF1 historical), aggregates lap-level energy features, detects inefficient deployment zones, then explains each one with a verbatim citation from the 2026 FIA technical regulations parsed by Docling.
 
 Two modes:
 • Engineer Mode — full reasoning chains, regulation citations, validator + Guardian safety scores, what-if exploration.
@@ -99,7 +99,7 @@ Quick start — local, ~3 minutes after credentials are set:
 4. Run the gate G-1 sanity check: python scripts/test_watsonx.py — confirms credentials work and the three Granite models respond.
 5. Start the API: uvicorn api.main:app --reload --port 8000
 6. In a second terminal: cd ui && npm install && npm run dev
-7. Open http://localhost:3000 and drag data/sessions/sample_torx.json onto the upload zone.
+7. Open http://localhost:3000 and drag data/sessions/sample_torcs.json onto the upload zone.
 
 The pipeline runs end-to-end in about 8 seconds. The recommendation card shows cause / consequence / recommendation with a verbatim FIA citation, plus validator and Guardian safety badges.
 
@@ -180,7 +180,7 @@ License text in `LICENSE` at repo root. All code original. Brand assets (logo, i
 ## 11. Acknowledgments (portal field: **Acknowledgements** / **Credits** — usually optional but improves judging signal)
 
 ```
-Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM Torx Learning Lab simulator. Grounded in IBM Granite 4.x Instruct, Granite Guardian 3-8b, Granite Embedding 278m-multilingual, with Docling for FIA regulation extraction and Langflow for the visual design canvas.
+Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab simulator. Grounded in IBM Granite 4.x Instruct, Granite Guardian 3-8b, Granite Embedding 278m-multilingual, with Docling for FIA regulation extraction and Langflow for the visual design canvas.
 
 All visuals original. No F1 broadcast footage, no team livery, no FIA trademark imagery. Regulations parsed from the publicly published 2026 FIA Formula 1 Technical Regulations (Section C, Issue 18, dated 2026-05-07).
 
@@ -244,7 +244,7 @@ If a judge or organizer asks any of these post-submission, here are the pre-appr
 |---|---|
 | "Why didn't you ship TTM-R2 forecasting?" | "TTM-R2 is documented as optional in the FR-3 graceful degradation guarantee. The pipeline runs end-to-end without it. Sessions that lack a forecast lower their reported confidence accordingly. Shipping it would have added ~5 hours of build time without changing the explainability story, which is the rubric-relevant feature." |
 | "Why FastAPI runtime, not Langflow?" | "Langflow is the design + demo layer. Production runtime is FastAPI for performance, type safety (Pydantic v2 throughout), and observability. Langflow visually documents the architecture and powers the demo recording; it does not gate the production code path. See ADR-001." |
-| "Where's the test data from?" | "Synthetic Torx-shaped JSON committed in `data/sessions/sample_torx.json` plus FastF1 historical replays from public sources. No live team telemetry. No broadcast video. No proprietary feeds. Reproducible end-to-end." |
+| "Where's the test data from?" | "Synthetic TORCS-shaped JSON committed in `data/sessions/sample_torcs.json` plus FastF1 historical replays from public sources. No live team telemetry. No broadcast video. No proprietary feeds. Reproducible end-to-end." |
 | "How do you handle regulations changing?" | "We never hardcode article numbers. The validator's `citation_existence` rule requires the cited passage to appear character-for-character in the source chunk. When the FIA ships a new Issue, only `data/regs/extracted_chunks.json` regenerates via `scripts/build_chunks.py`. Code doesn't move." |
 | "What's the safety story?" | "Two-pass: deterministic Pass-1 (5 rule classes including verbatim citation existence + banned-language filter) plus Granite Guardian Pass-2 (two BYOC criteria: energy_safety and regulation_consistency). Below threshold triggers regeneration; after retries exhausted, ships with `final_confidence: low` plus a 'Treat as exploratory' banner. The layered defense rejection card is a demo asset, not a hidden failure mode." |
 | "What's the cost per session?" | "On watsonx.ai Essentials tier, ~$0.05 per session for the full 5-zone pipeline including Pass-2 retries and Fan translation. Verified end-to-end at 8.2 seconds for a single zone in the live Langflow demo." |

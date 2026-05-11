@@ -87,7 +87,7 @@ OVERRIDE is the open-source answer: a copilot that takes a session replay, ident
 
 - **Engineer Mode** — full reasoning chains, regulation citations, confidence scores, what-if simulation.
 - **Fan Mode** — same intelligence, plain language, no acronyms. *"The car used battery power too aggressively in low-return corners, leaving less energy available for the long straight."*
-- **Upload-first.** Drop in a Torx-lab session, a FastF1 export, or a 2026 race replay. Get a debrief in under 30 seconds.
+- **Upload-first.** Drop in a TORCS lab session, a FastF1 export, or a 2026 race replay. Get a debrief in under 30 seconds.
 - **Regulation-grounded.** Every recommendation cites the relevant clause from the 2026 F1 energy-management regulations, parsed with Docling and rendered dynamically — never hardcoded.
 - **Explainable.** Granite Guardian scores every recommendation on energy-safety and regulation-consistency dimensions before it's shown to the user.
 
@@ -97,7 +97,7 @@ OVERRIDE is the open-source answer: a copilot that takes a session replay, ident
 
 | Stage | Component | Tech |
 |---|---|---|
-| Ingest | `torx_parser` / `fastf1_parser` | Python, Pandas |
+| Ingest | `torcs_parser` / `fastf1_parser` | Python, Pandas |
 | Aggregate | Lap-level energy features | Custom (see `analysis/`) |
 | Forecast | 5-lap SoC trajectory | **IBM Granite Time Series TTM-R2** |
 | Detect | Inefficient deploy / harvest / recharge zones | Pure-Python heuristics |
@@ -146,7 +146,7 @@ cp .env.example .env
 
 # 4. In a second terminal, run the UI
 cd ui && npm install && npm run dev
-# Open http://localhost:3000 → upload data/sessions/sample_torx.json
+# Open http://localhost:3000 → upload data/sessions/sample_torcs.json
 ```
 
 Granite Instruct + Guardian + Embedding all run on watsonx.ai (US-South); only Docling chunk extraction runs locally. No 12 GB local model download. See [`docs/adrs/ADR-001-watsonx-runtime.md`](docs/adrs/ADR-001-watsonx-runtime.md) for the runtime split rationale.
@@ -168,11 +168,11 @@ The canvas mirrors the production pipeline as 9 visual nodes — useful for step
 
 ## Sample data
 
-`data/sessions/sample_torx.json` ships with a 5-lap synthetic replay that fires the `low-roi-deploy` zone detector reliably — drop it into the upload field for an end-to-end demo. No live data, no broadcast video, no proprietary feeds. Reproducible from public sources.
+`data/sessions/sample_torcs.json` ships with a 5-lap synthetic replay that fires the `low-roi-deploy` zone detector reliably — drop it into the upload field for an end-to-end demo. No live data, no broadcast video, no proprietary feeds. Reproducible from public sources.
 
 `data/regs/` ships with the FIA 2026 Technical Regulations (Section C, Issue 18) and pre-built Docling-extracted chunks (`extracted_chunks.sample.json`, 384 chunks across 112 unique sections). The system parses the 8.5 MJ harvest cap directly from the regulation text — never hardcoded.
 
-> **Note**: full Torx Learning Lab integration (additional sample replays in `data/samples/`) is pending IBM Torx GitHub access; the synthetic sample + FastF1 path cover the demo end-to-end without it.
+> **Note**: full TORCS Learning Lab integration (additional sample replays in `data/samples/`) is pending IBM TORCS GitHub access; the synthetic sample + FastF1 path cover the demo end-to-end without it.
 
 ## Live performance (today, 2026-05-09)
 
@@ -202,7 +202,7 @@ Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bun
 
 ## Limitations
 
-- Demo data uses synthetic Torx-shaped JSON and FastF1 historical replays; this is not authoritative team telemetry.
+- Demo data uses synthetic TORCS-shaped JSON and FastF1 historical replays; this is not authoritative team telemetry.
 - The 2026 regulations evolve via FIA-published Issues (currently grounded in Section C, Issue 18, dated 2026-05-07). Newer amendments require re-ingestion via `scripts/build_chunks.py`. Section B (Sporting) integration deferred to post-submission.
 - TTM-R2 forecasting (optional per FR-3) is not yet shipped — the pipeline runs end-to-end without it; sessions that lack a forecast lower their reported confidence accordingly.
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
@@ -216,7 +216,7 @@ Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bun
 
 ## Acknowledgements
 
-Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM Torx Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Time Series TTM-R2, Docling, and Langflow.
+Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Time Series TTM-R2, Docling, and Langflow.
 
 ## License
 

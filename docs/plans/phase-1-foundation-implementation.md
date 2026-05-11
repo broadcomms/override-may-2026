@@ -21,7 +21,7 @@
 - ✅ Embedding model decided (`ibm/granite-embedding-278m-multilingual`, dim 768) — see ADR-001
 
 **What's still missing (Phase 1 + 2 work ahead):**
-- ❌ Sample data in `data/samples/` (P1.3, blocked on Torx access)
+- ❌ Sample data in `data/samples/` (P1.3, blocked on TORCS access)
 - ❌ `ingest/*.py` stubs (P1.4)
 - ❌ `analysis/zone_detector.py` (P2.1)
 - ❌ `Dockerfile` / `docker-compose.yml` (P3.7)
@@ -111,58 +111,58 @@
 
 ---
 
-### P1.3 Torx Lab + Telemetry Mapping (~4h)
+### P1.3 TORCS Lab + Telemetry Mapping (~4h)
 
-**Objective:** Run Torx baseline, understand telemetry schema, decide SoC derivation strategy.
+**Objective:** Run TORCS baseline, understand telemetry schema, decide SoC derivation strategy.
 
 **Tasks:**
 
-1. **Run Torx Baseline**
-   - Access IBM Torx Learning Lab
+1. **Run TORCS Baseline**
+   - Access IBM TORCS Learning Lab
    - Run baseline AI driver on a simple track
    - Export session logs (JSON format)
-   - Save to `data/samples/torx-baseline-run-1.json`
+   - Save to `data/samples/torcs-baseline-run-1.json`
    - Complete `results.md` in project root (required for submission eligibility)
 
-2. **Analyze Torx Telemetry Schema**
+2. **Analyze TORCS Telemetry Schema**
    - Inspect exported JSON structure
    - Document available fields:
      - Speed, throttle, brake, position, lap_time
      - Fuel/energy proxies
-     - **Critical:** Does Torx expose battery SoC directly?
-   - Create `docs/plans/torx-telemetry-map.md`
+     - **Critical:** Does TORCS expose battery SoC directly?
+   - Create `docs/plans/torcs-telemetry-map.md`
    - **Note:** FastF1 data is pre-2026, so 2026-specific features (Override Mode, super-clipping, X-Mode/Z-Mode) don't exist in source. FastF1-derived `override_uses`, `boost_uses` will be 0/approximated. Parser exists to demo pipeline against open historical data, not argue real 2026 strategy.
 
 3. **SoC Derivation Decision (Gate G-2)**
-   - **If Torx exposes SoC directly:** Use it, set `soc_source: "measured"`
-   - **If Torx doesn't expose SoC:** Derive from throttle/brake integrals
-     - Document derivation formula in `docs/plans/torx-telemetry-map.md`
+   - **If TORCS exposes SoC directly:** Use it, set `soc_source: "measured"`
+   - **If TORCS doesn't expose SoC:** Derive from throttle/brake integrals
+     - Document derivation formula in `docs/plans/torcs-telemetry-map.md`
      - Set `soc_source: "derived"` in schema
      - Add code comments explaining derivation
    - **Gate G-2 passes when:** Decision documented and derivation (if needed) is specified
 
 4. **Collect Additional Samples**
-   - Run 2-3 more Torx sessions with different strategies
-   - Save to `data/samples/torx-*.json`
+   - Run 2-3 more TORCS sessions with different strategies
+   - Save to `data/samples/torcs-*.json`
    - Aim for variety: aggressive deploy, conservative harvest, mixed
 
 **Deliverables:**
-- `data/samples/torx-baseline-run-1.json` (and 2-3 more samples)
+- `data/samples/torcs-baseline-run-1.json` (and 2-3 more samples)
 - `results.md` completed
-- `docs/plans/torx-telemetry-map.md` with SoC decision (Gate G-2)
+- `docs/plans/torcs-telemetry-map.md` with SoC decision (Gate G-2)
 
 **Done When:**
-- [ ] Baseline Torx run produces logs
-- [ ] Confirmed which fields Torx exposes
-- [ ] SoC source decision recorded in `docs/plans/torx-telemetry-map.md`
+- [ ] Baseline TORCS run produces logs
+- [ ] Confirmed which fields TORCS exposes
+- [ ] SoC source decision recorded in `docs/plans/torcs-telemetry-map.md`
 - [ ] Gate G-2 passes: derivation documented if synthetic
-- [ ] 3-4 sample Torx sessions saved to `data/samples/`
+- [ ] 3-4 sample TORCS sessions saved to `data/samples/`
 
 ---
 
 ### P1.4 Data Ingestion Layer (~5h)
 
-**Objective:** Implement parsers that convert Torx/FastF1 to canonical `LapFeatures` schema.
+**Objective:** Implement parsers that convert TORCS/FastF1 to canonical `LapFeatures` schema.
 
 **Tasks:**
 
@@ -173,9 +173,9 @@
    - Add validation rules (lap_number >= 1, SoC in [0,1], etc.)
    - Include `soc_source: Literal["measured", "derived"]`
 
-2. **Implement `ingest/torx_parser.py`**
-   - Function: `parse_torx_session(json_path: str) -> list[LapFeatures]`
-   - Read Torx JSON
+2. **Implement `ingest/torcs_parser.py`**
+   - Function: `parse_torcs_session(json_path: str) -> list[LapFeatures]`
+   - Read TORCS JSON
    - Extract per-lap data
    - Apply SoC derivation if needed (per G-2 decision)
    - Return list of `LapFeatures` sorted by `lap_number` ascending
@@ -191,12 +191,12 @@
    - **Note:** Pre-2026 data means `override_uses`, `boost_uses` will be 0/approximated
 
 4. **Create Test Fixtures**
-   - `tests/fixtures/torx-sample.json` (minimal valid Torx session)
+   - `tests/fixtures/torcs-sample.json` (minimal valid TORCS session)
    - `tests/fixtures/fastf1-sample.json` (minimal valid FastF1 export)
 
 5. **Write Unit Tests**
    - `tests/test_ingest.py`:
-     - Test Torx parser on real sample
+     - Test TORCS parser on real sample
      - Test FastF1 parser on real sample
      - Test schema validation (invalid lap_number, SoC out of bounds)
      - Test error handling (malformed JSON)
@@ -204,13 +204,13 @@
 
 **Deliverables:**
 - `ingest/schema.py` with Pydantic models
-- `ingest/torx_parser.py` with parser function
+- `ingest/torcs_parser.py` with parser function
 - `ingest/fastf1_parser.py` with parser function
 - `tests/test_ingest.py` with passing tests
 - Test fixtures in `tests/fixtures/`
 
 **Done When:**
-- [ ] `torx_parser.py` reads Torx JSON and returns `list[LapFeatures]` with canonical schema (blocked on Torx access)
+- [ ] `torcs_parser.py` reads TORCS JSON and returns `list[LapFeatures]` with canonical schema (blocked on TORCS access)
 - [x] `fastf1_parser.py` reads FastF1 session and returns `list[LapFeatures]` with same schema
 - [x] FastF1 parser tested via synthetic LapInputs fixtures (real-network test deferred until cache pre-warmed)
 - [x] All tests in `tests/test_ingest.py` pass — 36/36 green
@@ -227,7 +227,7 @@
 
 1. **Create Analysis Script**
    - `analysis/explore.py` or Jupyter notebook
-   - Load parsed Torx samples using `ingest/torx_parser.py`
+   - Load parsed TORCS samples using `ingest/torcs_parser.py`
    - Generate exploratory plots
 
 2. **Generate Three Key Plots**
@@ -276,8 +276,8 @@ Phase 1 is complete when:
 1. ✅ **Gate G-1 passed:** `models.json` contains verified Granite tags
 2. ✅ **Gate G-2 passed:** SoC derivation strategy documented
 3. ✅ All dependencies installed and verified
-4. ✅ Torx baseline run completed, `results.md` submitted
-5. ✅ 3-4 Torx sample sessions in `data/samples/`
+4. ✅ TORCS baseline run completed, `results.md` submitted
+5. ✅ 3-4 TORCS sample sessions in `data/samples/`
 6. ✅ Ingestion parsers implemented and tested
 7. ✅ 4 zone patterns identified and documented
 8. ✅ All Phase 1 tests passing

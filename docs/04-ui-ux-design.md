@@ -91,13 +91,13 @@ Wireframes are described in text — we are not blocking implementation on figma
 │         │        ⤓  Drag a .json or .parquet    │                  │
 │         │           file here, or browse        │                  │
 │         │                                       │                  │
-│         │       Supported: Torx, FastF1         │                  │
+│         │       Supported: TORCS, FastF1         │                  │
 │         │       Max 25 MB, up to 120 laps       │                  │
 │         │                                       │                  │
 │         └───────────────────────────────────────┘                  │
 │                                                                    │
 │         Or try a sample replay:                                    │
-│         [ Monza 2024 (FastF1) ]  [ Torx demo session ]             │
+│         [ Monza 2024 (FastF1) ]  [ TORCS demo session ]             │
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -345,4 +345,4 @@ The following screenshots are required at 2× DPI in `assets/screenshots/`:
 
 - **Heatmap density**: at >60 laps the cells get crowded; either add horizontal scroll or aggregate to 2-lap bins. Decide during P3.5.
 - **What-if catalog**: only three perturbations in v1; expand list is a P3.5 follow-up tied to API §12 open items.
-- **Sample replays**: need to choose which Torx + FastF1 sessions ship as one-click samples; coordinate with `data/samples/` curation.
+- **Sample replays**: need to choose which TORCS + FastF1 sessions ship as one-click samples; coordinate with `data/samples/` curation.

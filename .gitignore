@@ -41,6 +41,8 @@ data/regs/*.pdf
 data/regs/*.md
 data/regs/raw/
 data/sessions/*/
+data/sessions/_index.json
+data/sessions/s_*.json
 analysis/exploratory-plots/
 
 # OS

@@ -1,8 +1,8 @@
 """OVERRIDE — Langflow Custom Component #2: Ingest & Aggregate.
 
-Wraps the production Torx / FastF1 parser and emits a `LapWindow` (per
+Wraps the production TORCS / FastF1 parser and emits a `LapWindow` (per
 `ingest/schema.py`) for downstream nodes. This component is a thin
-adapter — all parsing logic lives in `ingest/{torx_parser,fastf1_parser}.py`
+adapter — all parsing logic lives in `ingest/{torcs_parser,fastf1_parser}.py`
 and is shared with the FastAPI runtime.
 
 The Langflow canvas is the design + demo layer (per ADR-001 + docs/04-langflow-canvas.md).
@@ -26,7 +26,7 @@ from lfx.schema import Data
 class OverrideIngest(Component):
     display_name = "Ingest & Aggregate"
     description = (
-        "Parse a Torx JSON or FastF1 export into a typed LapWindow "
+        "Parse a TORCS JSON or FastF1 export into a typed LapWindow "
         "(per ingest/schema.py). Mirrors the production runtime."
     )
     documentation: str = "https://github.com/anthropics/overdrive-may-2026"
@@ -36,16 +36,16 @@ class OverrideIngest(Component):
         StrInput(
             name="file_path",
             display_name="File path",
-            info="Absolute path to the Torx JSON or FastF1 cache export. "
+            info="Absolute path to the TORCS JSON or FastF1 cache export. "
                  "Wire from a File component or paste a path during demo.",
             required=True,
         ),
         DropdownInput(
             name="source",
             display_name="Source",
-            options=["torx", "fastf1"],
-            value="torx",
-            info="Parser to use. 'torx' for Torx JSON, 'fastf1' for FastF1.",
+            options=["torcs", "fastf1"],
+            value="torcs",
+            info="Parser to use. 'torcs' for TORCS JSON, 'fastf1' for FastF1.",
         ),
         StrInput(
             name="track_id",
@@ -85,9 +85,9 @@ class OverrideIngest(Component):
         session_id = str(self.session_id) or f"langflow_{file_path.stem}"
 
         # Mirror api/main.py::_parse_upload: accept the canonical lap-features
-        # JSON shape (bare list or {"laps":[...]}). The dedicated torx_parser
+        # JSON shape (bare list or {"laps":[...]}). The dedicated torcs_parser
         # is post-G-2 (empty stub today); FastF1 parquet path uses pandas.
-        if source in {"torx", "fastf1"}:
+        if source in {"torcs", "fastf1"}:
             if file_path.suffix == ".parquet" and source == "fastf1":
                 import io, pandas as pd
                 df = pd.read_parquet(io.BytesIO(file_path.read_bytes()))

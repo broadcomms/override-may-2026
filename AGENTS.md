@@ -20,7 +20,7 @@ This file provides guidance to agents when working with code in this repository.
 
 **Schema conventions**: Times in seconds (float), energies in MJ (float), powers in kW (float), speeds in km/h (float). `lap_number` is 1-indexed. Use `Optional[T]` with `None` for unknowns—never sentinel strings like "N/A". All JSON keys `snake_case`.
 
-**SoC derivation flag**: When battery state-of-charge not directly exposed by source, derive from throttle/brake integrals and set `soc_source: "derived"` in `LapFeatures`. Document derivation in code comments and `docs/plans/torx-telemetry-map.md`.
+**SoC derivation flag**: When battery state-of-charge not directly exposed by source, derive from throttle/brake integrals and set `soc_source: "derived"` in `LapFeatures`. Document derivation in code comments and `docs/plans/torcs-telemetry-map.md`.
 
 **Branch strategy**: `main` = stable/demoable only. `dev` = daily working branch. Plans go in `docs/plans/`, delete when feature ships. ADRs in `docs/adrs/` are cumulative—edit existing ADR, don't append "but actually".
 

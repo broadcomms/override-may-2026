@@ -18,7 +18,7 @@ This is our submission to the **IBM SkillsBuild AI Builders Challenge** (theme: 
 - **Upload-first / replay-first architecture.** Deterministic demos, no live-data fragility.
 - **2:55 video, not 3:01.** Hard cutoff. Judges stop watching at 3:00.
 - **Don't hardcode regulation article numbers in user-facing text.** Use generic phrasing until Day 10 verification confirms the exact document and section. After verification, render the citation dynamically from the Docling extraction — never as a literal string.
-- **All visuals are original.** No F1 broadcast footage. No paddock photography. No team livery. Torx, UI, generated graphics, original animations only.
+- **All visuals are original.** No F1 broadcast footage. No paddock photography. No team livery. TORCS, UI, generated graphics, original animations only.
 - **Pipeline must run end-to-end without TTM.** TTM enhances; it doesn't gate.
 
 
@@ -53,13 +53,13 @@ override-may-2026/
 │
 ├── assets/                        # banner, logo, architecture render, screenshots
 ├── data/
-│   ├── samples/                   # Torx + FastF1 demo replays
+│   ├── samples/                   # TORCS + FastF1 demo replays
 │   ├── regs/                      # FIA PDFs fetched via scripts/, not committed
 │   └── README.md
 ├── scripts/
 │   └── download_regulations.py
 │
-├── ingest/                        # Torx + FastF1 parsers, Pydantic schemas
+├── ingest/                        # TORCS + FastF1 parsers, Pydantic schemas
 ├── analysis/                      # heuristic zone detector, feature engineering
 ├── core/                          # pipeline, reasoning, fan_mode, regs,
 │                                  #   guardian, forecasting, validator
@@ -107,7 +107,7 @@ override-may-2026/
 
 ## Sample data
 
-`data/samples/` ships with three Torx replays and one FastF1-derived 2024 GP replay. No live data, no broadcast video, no proprietary feeds. Everything reproducible from public sources.
+`data/samples/` ships with three TORCS replays and one FastF1-derived 2024 GP replay. No live data, no broadcast video, no proprietary feeds. Everything reproducible from public sources.
  
 `data/regs/` ships with sample Docling-extracted chunks from the FIA's public 2026 energy-management regulations (small, derivative). Full PDFs are *not* committed; use `scripts/download_regulations.py` to fetch them.
 

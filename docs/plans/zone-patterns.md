@@ -23,7 +23,7 @@ LapFeatures: lap_number, soc_start, soc_end, harvest_mj, deploy_mj,
 
 Plus the session-level `soc_max` from `LapWindow.soc_max` (battery capacity MJ).
 
-**Caveat — FastF1-derived data.** Pre-2026 historical data has no native MGU-K telemetry. `ingest/fastf1_parser.py` derives `harvest_mj` / `deploy_mj` / `soc_*` from throttle/brake integrals (with `soc_source="derived"`), and emits **`override_uses=0`** and **`boost_uses=0`** for every row (those are 2026-only concepts). This means heuristics that depend on `override_uses` or `boost_uses` will exhibit different statistics on FastF1 vs Torx. Heuristics below are written so they remain *meaningful* on Torx truth, *plausible* on FastF1-derived data, and *honest* about their limits.
+**Caveat — FastF1-derived data.** Pre-2026 historical data has no native MGU-K telemetry. `ingest/fastf1_parser.py` derives `harvest_mj` / `deploy_mj` / `soc_*` from throttle/brake integrals (with `soc_source="derived"`), and emits **`override_uses=0`** and **`boost_uses=0`** for every row (those are 2026-only concepts). This means heuristics that depend on `override_uses` or `boost_uses` will exhibit different statistics on FastF1 vs TORCS. Heuristics below are written so they remain *meaningful* on TORCS truth, *plausible* on FastF1-derived data, and *honest* about their limits.
 
 ## Per-lap feature engineering (precomputed in `analysis/feature_engineering.py`)
 
@@ -60,7 +60,7 @@ The `roi_mj_per_s > 1.0` floor avoids firing on laps that genuinely deployed ene
 - **medium**: 3.0 ≤ roi < 10.0
 - **high**: roi ≥ 10.0 (very wasteful — many MJ for ~0s gain)
 
-**Sector assignment.** Use the slowest sector vs. the lap's median sector time as a proxy for *where* the deploy was spent inefficiently. (We can't pinpoint exactly without per-corner telemetry, which Torx will eventually give us; the sector resolution is honest about that.)
+**Sector assignment.** Use the slowest sector vs. the lap's median sector time as a proxy for *where* the deploy was spent inefficiently. (We can't pinpoint exactly without per-corner telemetry, which TORCS will eventually give us; the sector resolution is honest about that.)
 
 **Required `metrics` keys** (per `04-schema.md` §4):
 - `deploy_mj`
@@ -102,7 +102,7 @@ Both variants emit `zone_type=late-recharge`. The `description` distinguishes wh
   - **medium**: 0.10 ≤ soc_start < 0.20
   - **high**: soc_start < 0.10
 
-**Sector assignment.** Variant 1 → first sector with non-zero harvest in `recharge_zones` (the harvest started when full; that's where it happened). Variant 2 → sector with longest brake-time but no harvest (would need the brake-time-per-sector signal, which we have in `LapInputs` for FastF1 but not in `LapFeatures` directly). For v1 we **default to sector 1** for variant 2 with a code comment; refined when we add per-sector brake telemetry to LapFeatures (post-G-2 with Torx).
+**Sector assignment.** Variant 1 → first sector with non-zero harvest in `recharge_zones` (the harvest started when full; that's where it happened). Variant 2 → sector with longest brake-time but no harvest (would need the brake-time-per-sector signal, which we have in `LapInputs` for FastF1 but not in `LapFeatures` directly). For v1 we **default to sector 1** for variant 2 with a code comment; refined when we add per-sector brake telemetry to LapFeatures (post-G-2 with TORCS).
 
 **Required `metrics` keys**:
 - `harvest_mj`
@@ -158,7 +158,7 @@ AND deploy_mj < 0.10 MJ              # almost nothing was deployed this lap
 
 The `deploy_mj < 0.10` floor distinguishes "had energy and used it inefficiently elsewhere" (caught by `low-roi-deploy`) from "had energy and didn't use it at all" (this pattern). Over-conservative laps are the target.
 
-**FastF1-data caveat.** This heuristic is **expected to fire frequently on FastF1 sessions** because every row has `override_uses=0` and `boost_uses=0`. That over-firing is *intentional* in v1 — it surfaces "didn't deploy meaningfully" laps for downstream reasoning, even when the original 2014–2025 data didn't have a boost concept. Calibrate to Torx truth post-G-2.
+**FastF1-data caveat.** This heuristic is **expected to fire frequently on FastF1 sessions** because every row has `override_uses=0` and `boost_uses=0`. That over-firing is *intentional* in v1 — it surfaces "didn't deploy meaningfully" laps for downstream reasoning, even when the original 2014–2025 data didn't have a boost concept. Calibrate to TORCS truth post-G-2.
 
 **Severity thresholds** (by `available_override_mj`):
 - **low**: 2.8 ≤ available < 3.2 MJ (= soc_start ≥ 0.70 with soc_max ≈ 4.0)
@@ -168,7 +168,7 @@ The `deploy_mj < 0.10` floor distinguishes "had energy and used it inefficiently
 **Sector assignment.** Default to the sector with the highest `avg_speed` proxy (we don't have per-sector speed in `LapFeatures`, so we default to **sector 2** — the typical longest-straight sector at most circuits). Comment in code; refined when LapFeatures gains per-sector speed.
 
 **Required `metrics` keys**:
-- `gap_to_leader_s` — **0.0 placeholder** for v1 (FastF1 doesn't expose; Torx may)
+- `gap_to_leader_s` — **0.0 placeholder** for v1 (FastF1 doesn't expose; TORCS may)
 - `available_override_mj`
 - `straight_length_m` — **0.0 placeholder** for v1 (would require track metadata)
 
@@ -182,7 +182,7 @@ The `deploy_mj < 0.10` floor distinguishes "had energy and used it inefficiently
 **Default thresholds above are educated guesses**, not measured. They will be re-tuned in two passes:
 
 1. **Post-FastF1 sweep (after P2.1 lands).** Run the detector against 3 FastF1 sessions (Monza/Silverstone/Monaco — varying degrees of energy-strategic tracks). If a pattern fires on 0% of laps or > 60% of laps, the threshold is wrong; adjust until firing rate is in the 5–25% sensible range.
-2. **Post-Torx sweep (after G-2).** Re-tune against Torx truth where `soc_source="measured"`. The Torx run is where we calibrate `cap_mj` to the regulation value pinned at G-4.
+2. **Post-TORCS sweep (after G-2).** Re-tune against TORCS truth where `soc_source="measured"`. The TORCS run is where we calibrate `cap_mj` to the regulation value pinned at G-4.
 
 Threshold values in this doc are the **starting point**, not the final answer. Code references this doc; tuning happens by editing both together.
 
@@ -192,16 +192,16 @@ Threshold values in this doc are the **starting point**, not the final answer. C
 
 - **Which corner** within a sector triggered an inefficient deploy. We don't have per-corner data in `LapFeatures` v1; the `Zone.sector` field is the resolution we ship. ADR-002-candidate (per-`zone_type` discriminated unions) might add per-corner detail later.
 - **Cross-lap reasoning.** "Forecast indicates SoC headroom narrows by L25" is a Granite-reasoning concern, not a heuristic concern. The detector is per-lap; reasoning ties laps together.
-- **Severity for the `unused-override` pattern on Torx-truth data.** When real `override_uses` exist, the threshold logic flips (we'd compare *missed* opportunities against *taken* ones). v1 ships the FastF1-friendly logic above; v2 lands at G-2.
+- **Severity for the `unused-override` pattern on TORCS-truth data.** When real `override_uses` exist, the threshold logic flips (we'd compare *missed* opportunities against *taken* ones). v1 ships the FastF1-friendly logic above; v2 lands at G-2.
 
 ## Status
 
 - [x] Four patterns specified with heuristics and severity thresholds
 - [x] Required `metrics` keys mapped to each pattern (matches `04-schema.md` §4)
 - [x] FastF1-data caveats surfaced honestly (especially `unused-override`)
-- [x] Calibration plan documented (post-FastF1 sweep + post-Torx sweep)
+- [x] Calibration plan documented (post-FastF1 sweep + post-TORCS sweep)
 - [ ] Implemented in `analysis/zone_detector.py` (P2.1 — next step)
 - [ ] Validated against FastF1 fixtures (P2.1 tests)
-- [ ] Re-calibrated against Torx truth (post-G-2)
+- [ ] Re-calibrated against TORCS truth (post-G-2)
 
 This file is **deleted in the same PR that ships P2.1's `analysis/zone_detector.py`**. The heuristic spec then lives in code comments + the test fixtures.

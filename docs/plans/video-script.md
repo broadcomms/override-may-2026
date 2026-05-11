@@ -59,7 +59,7 @@ This is the **scoring section** — longest single shot, most cursor work. Pract
 
 | Time | Action | What renders |
 |---|---|---|
-| 0:50–0:55 | Drag-drop `data/sessions/sample_torx.json` onto the upload zone | Loading shimmer (~5s) |
+| 0:50–0:55 | Drag-drop `data/sessions/sample_torcs.json` onto the upload zone | Loading shimmer (~5s) |
 | 0:55–1:02 | Pause on shimmer — VO covers the wait | "Reasoning over zones · running safety review" copy visible |
 | 1:02–1:10 | Energy curve renders, zone heatmap appears below | Recharts SoC line + 5 sector cells colored by zone severity |
 | 1:10–1:20 | Cursor moves to a `low-roi-deploy` zone in the heatmap (Lap 1, Sector 2), clicks | Smooth scroll to recommendation card; card snap-out hover lift on arrival |

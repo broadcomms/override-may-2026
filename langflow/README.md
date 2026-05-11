@@ -97,7 +97,7 @@ Drop these 11 nodes onto the canvas, left-to-right, top-to-bottom (per
 | # | Node label | Component | Notes |
 |---|---|---|---|
 | 1 | Upload Session File | Built-in **File Input** (Langflow stock) | |
-| 2 | Ingest & Aggregate | OVERRIDE custom (`ingest.py`) | source=torx, soc_max=4.0 |
+| 2 | Ingest & Aggregate | OVERRIDE custom (`ingest.py`) | source=torcs, soc_max=4.0 |
 | 3 | Zone Detector | OVERRIDE custom (`zone_detector.py`) | |
 | 4 | TTM-R2 Forecast | OVERRIDE custom (`ttm_forecast.py`) | enabled=False (graceful degradation) |
 | 5 | Docling Reg Retriever | OVERRIDE custom (`reg_retriever.py`) | |
@@ -145,8 +145,8 @@ Group nodes into 5 colored subgraphs in Langflow's group panel:
 
 ## 4. Run the demo flow once
 
-1. Click the **File Input** node and pick `data/sessions/sample_torx.json`
-   (or any Torx export from `data/sessions/`).
+1. Click the **File Input** node and pick `data/sessions/sample_torcs.json`
+   (or any TORCS export from `data/sessions/`).
 2. In the **Mode Router** node, set the routing key to `"engineer"` for
    the first capture.
 3. Click **Run** on the canvas.
@@ -215,7 +215,7 @@ shared with the FastAPI runtime. Total custom-component LoC: ~600.
 
 | Component | File | Underlying production function |
 |---|---|---|
-| Ingest & Aggregate | `components/ingest.py` | Mirrors `api/main.py::_parse_upload` (canonical lap-features JSON or FastF1 parquet). Switches to `ingest.torx_parser.parse_torx` once G-2 lands. |
+| Ingest & Aggregate | `components/ingest.py` | Mirrors `api/main.py::_parse_upload` (canonical lap-features JSON or FastF1 parquet). Switches to `ingest.torcs_parser.parse_torcs` once G-2 lands. |
 | Zone Detector | `components/zone_detector.py` | `analysis.zone_detector.detect_zones` |
 | TTM-R2 Forecast | `components/ttm_forecast.py` | `core.forecasting.forecast_soc` (optional, post-G-3 — component emits null when module is empty) |
 | Docling Reg Retriever | `components/reg_retriever.py` | `core.regs.retrieve_chunk` + `core.regs.load_chunks` |

@@ -63,7 +63,7 @@ export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props)
               Drop a <span className="font-mono">.json</span> or <span className="font-mono">.parquet</span> file, or click to browse
             </div>
             <div className="text-xs text-muted">
-              Supported: Torx, FastF1 — max 25 MB, up to 120 laps
+              Supported: TORCS, FastF1 — max 25 MB, up to 120 laps
             </div>
           </>
         )}

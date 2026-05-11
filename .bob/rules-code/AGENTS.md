@@ -14,7 +14,7 @@ This file provides guidance to agents when working with code in this repository.
 
 **TTM-R2 optional path**: All forecasting code must handle `forecast=None` gracefully. Sessions <30 laps skip TTM; reasoning continues from observed data only. Never gate pipeline on TTM availability.
 
-**SoC derivation**: When `soc_start`/`soc_end` not directly available, derive from throttle/brake integrals. Set `soc_source: "derived"` in `LapFeatures`. Document derivation in code comments and `docs/plans/torx-telemetry-map.md`.
+**SoC derivation**: When `soc_start`/`soc_end` not directly available, derive from throttle/brake integrals. Set `soc_source: "derived"` in `LapFeatures`. Document derivation in code comments and `docs/plans/torcs-telemetry-map.md`.
 
 **Prompt output contracts**: JSON shapes in `prompts/*.system.md` must match Pydantic schemas exactly. Reasoning output → `ReasoningOutput`, Fan Mode → `FanOutput`, Grounding → see `docs/04-schema.md` §5.
 

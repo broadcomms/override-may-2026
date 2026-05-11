@@ -8,7 +8,7 @@ downstream pipeline can be exercised end-to-end against historical races.
 Two important caveats — surfaced everywhere it matters:
 
   1. `soc_source` is always **'derived'** here (FR-1.2). Real numbers
-     come from Torx (P1.3 / G-2). FastF1 SoC values are demonstrative,
+     come from TORCS (P1.3 / G-2). FastF1 SoC values are demonstrative,
      not authoritative.
   2. 2026-only concepts (`override_uses`, `boost_uses`) **do not exist**
      in pre-2026 source data — they are 0 in every row this parser
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # pipeline. They will diverge from real 2026 numbers — that's why this
 # parser sets soc_source="derived" and the SessionSummary carries a note.
 #
-# The Torx parser (P1.4 second half) will use measured values from the
+# The TORCS parser (P1.4 second half) will use measured values from the
 # simulator log directly when the simulator exposes them.
 
 SOC_INITIAL = 1.0  # full battery at session start

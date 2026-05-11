@@ -1,5 +1,5 @@
 flowchart TB
-    A[Session Upload<br/>Torx replay or FastF1 export] --> B[Ingest Layer<br/>torx_parser / fastf1_parser]
+    A[Session Upload<br/>TORCS replay or FastF1 export] --> B[Ingest Layer<br/>torcs_parser / fastf1_parser]
     B --> C[Lap-Aggregated Features<br/>SoC, harvest, deploy, lap_time, speed]
     C -.->|optional, if 30+ laps| D[TTM-R2 Forecaster<br/>5-lap SoC trajectory]
     C --> E[Zone Detector<br/>Heuristics — always runs]

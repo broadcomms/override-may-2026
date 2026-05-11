@@ -273,7 +273,7 @@ async def run_pipeline(
     chat_client: WatsonxChatClient,
     embedding_client: WatsonxEmbeddingClient,
     guardian_client: WatsonxGuardianClient,
-    source: Literal["torx", "fastf1"],
+    source: Literal["torcs", "fastf1"],
     track_id: Optional[str] = None,
     chunks_path: Path = DEFAULT_CHUNKS_PATH,
     forecast_fn: Optional[ForecastFn] = None,
@@ -284,13 +284,13 @@ async def run_pipeline(
     """Run the full OVERRIDE pipeline on one session.
 
     Args:
-        laps: Per-lap features from `ingest/{torx,fastf1}_parser.py`. The
+        laps: Per-lap features from `ingest/{torcs,fastf1}_parser.py`. The
             list is truncated to MAX_SESSION_LAPS (default 120) — per FR-1.3
             — with a note recorded on the session summary.
         soc_max: Battery capacity (MJ) for `LapWindow.soc_max`.
         chat_client/embedding_client/guardian_client: Injected watsonx
             clients. Tests pass fakes; production passes the real impls.
-        source: 'torx' or 'fastf1' — recorded on SessionSummary.
+        source: 'torcs' or 'fastf1' — recorded on SessionSummary.
         track_id: Informational only.
         chunks_path: Where regulation chunks live. Default points at the
             committed sample JSON.

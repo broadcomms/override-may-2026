@@ -12,5 +12,5 @@ Two modes share one engine:
 > - **Engineer Mode** — full reasoning chains, regulation citations, confidence scores, what-if simulation.
 > - **Fan Mode** — same intelligence in plain language, designed for broadcasters and viewers trying to follow the new energy chess match.
 
-Extending the IBM Torx Learning Lab simulator. Open source under Apache 2.0.
+Extending the IBM TORCS Learning Lab simulator. Open source under Apache 2.0.
  

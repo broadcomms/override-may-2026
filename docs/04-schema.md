@@ -46,7 +46,7 @@ The reasoning, fan, and grounding **prompt contracts** (in `prompts/*.system.md`
 
 ### `LapFeatures`
 
-Produced by `ingest/torx_parser.py` and `ingest/fastf1_parser.py`. One row per completed lap.
+Produced by `ingest/torcs_parser.py` and `ingest/fastf1_parser.py`. One row per completed lap.
 
 ```python
 class LapFeatures(BaseModel):
@@ -67,7 +67,7 @@ class LapFeatures(BaseModel):
     soc_source: Literal["measured", "derived"]    # provenance flag (risk R1)
 ```
 
-**Derivation flag.** When `soc_start` / `soc_end` / `harvest_mj` / `deploy_mj` are not directly exposed by the source (Torx may not), they are derived from throttle/brake integrals and `soc_source` is set to `"derived"`. The derivation routine is documented in code comments and in `docs/plans/torx-telemetry-map.md`.
+**Derivation flag.** When `soc_start` / `soc_end` / `harvest_mj` / `deploy_mj` are not directly exposed by the source (TORCS may not), they are derived from throttle/brake integrals and `soc_source` is set to `"derived"`. The derivation routine is documented in code comments and in `docs/plans/torcs-telemetry-map.md`.
 
 ### `LapWindow`
 
@@ -305,7 +305,7 @@ Lightweight session-level metadata (returned by `GET /api/sessions`).
 class SessionSummary(BaseModel):
     session_id: str
     uploaded_at: datetime
-    source: Literal["torx", "fastf1"]
+    source: Literal["torcs", "fastf1"]
     lap_count: int                     # post-truncation, if any
     forecast_available: bool
     zone_count: int

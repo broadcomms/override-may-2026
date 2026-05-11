@@ -21,7 +21,7 @@ export function UploadPage() {
       try {
         const session = await api.createSession({
           file,
-          source: file.name.endsWith(".parquet") ? "fastf1" : "torx",
+          source: file.name.endsWith(".parquet") ? "fastf1" : "torcs",
           socMax: 4.0,
         });
         navigate(`/session/${session.summary.session_id}`);

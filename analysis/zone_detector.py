@@ -184,7 +184,7 @@ def _detect_late_recharge_missed(e: EnrichedLap) -> Optional[Zone]:
         else "low"
     )
     # No per-sector brake telemetry in LapFeatures v1 — default to S1.
-    # Refined post-G-2 when Torx adds per-sector brake-time.
+    # Refined post-G-2 when TORCS adds per-sector brake-time.
     sector = 1
     description = (
         f"Lap {lap.lap_number}: only {lap.harvest_mj:.2f} MJ harvested with "
@@ -279,7 +279,7 @@ def _detect_unused_override(e: EnrichedLap) -> Optional[Zone]:
         sector=sector,
         severity=severity,
         metrics={
-            # Placeholders — FastF1 doesn't expose these; Torx may.
+            # Placeholders — FastF1 doesn't expose these; TORCS may.
             "gap_to_leader_s": 0.0,
             "available_override_mj": e.available_override_mj,
             "straight_length_m": 0.0,

@@ -154,7 +154,7 @@ export interface Recommendation {
 export interface SessionSummary {
   session_id: string;
   uploaded_at: string;          // ISO-8601
-  source: "torx" | "fastf1";
+  source: "torcs" | "fastf1";
   lap_count: number;
   forecast_available: boolean;
   zone_count: number;

@@ -238,7 +238,7 @@ def create_app() -> FastAPI:
     async def create_session(
         request: Request,
         file: UploadFile = File(...),
-        source: Annotated[Literal["torx", "fastf1"], Form()] = "torx",
+        source: Annotated[Literal["torcs", "fastf1"], Form()] = "torcs",
         track_id: Annotated[Optional[str], Form()] = None,
         soc_max: Annotated[float, Form()] = 4.0,
         chat_client: WatsonxChatClient = Depends(get_chat_client),
@@ -410,15 +410,15 @@ def _parse_upload(body: bytes, *, source: str, filename: str) -> list[LapFeature
     """Parse uploaded bytes into LapFeatures.
 
     For Tier-1 we accept TWO concrete shapes — the canonical schema's
-    `laps` field as JSON. The Torx parser and the live FastF1 path both
+    `laps` field as JSON. The TORCS parser and the live FastF1 path both
     produce this shape; an upload is treated as already-parsed lap rows
-    in JSON form. Real Torx-JSON ingestion plugs in once `ingest/torx_parser.py`
+    in JSON form. Real TORCS-JSON ingestion plugs in once `ingest/torcs_parser.py`
     is implemented (post-G-2).
     """
     import json
 
-    if source == "torx":
-        # Expect Torx-shaped JSON. Until torx_parser.py is implemented,
+    if source == "torcs":
+        # Expect TORCS-shaped JSON. Until torcs_parser.py is implemented,
         # accept the canonical schema shape directly.
         return _parse_lap_features_json(body)
     if source == "fastf1":

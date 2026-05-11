@@ -20,7 +20,7 @@ See `docs/03-architecture.md` (folder tree, legend) and `docs/03-architecture.mm
 
     npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png
 
-The pipeline: ingest (Torx / FastF1 → lap features) → analysis (zone detection, feature engineering) → forecasting (Granite TTM-R2, **optional**) → reasoning (Granite 4.x Instruct) → grounding (Docling over FIA regs, retrieval via Granite Embedding) → guardian (Granite Guardian BYOC scoring) → fan-mode translation. Langflow is the design/demo layer; FastAPI (`api/`) is the production runtime.
+The pipeline: ingest (TORCS / FastF1 → lap features) → analysis (zone detection, feature engineering) → forecasting (Granite TTM-R2, **optional**) → reasoning (Granite 4.x Instruct) → grounding (Docling over FIA regs, retrieval via Granite Embedding) → guardian (Granite Guardian BYOC scoring) → fan-mode translation. Langflow is the design/demo layer; FastAPI (`api/`) is the production runtime.
 
 **Runtime split.** Granite Instruct, Guardian, and Embedding all run on **IBM watsonx.ai** (US-South); only TTM-R2 and Docling run locally. See `docs/adrs/ADR-001-watsonx-runtime.md`.
 

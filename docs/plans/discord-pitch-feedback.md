@@ -8,7 +8,7 @@
 
 - **Channel:** Email to BeMyApp Communications Coordinator
 - **Sent:** 2026-05-08
-- **Purpose:** Resolve the GitHub-invite delay blocking IBM Torx Learning Lab access (which gates roadmap P1.3).
+- **Purpose:** Resolve the GitHub-invite delay blocking IBM TORCS Learning Lab access (which gates roadmap P1.3).
 
 ```text
 Dear Makenna,

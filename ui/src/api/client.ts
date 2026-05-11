@@ -261,7 +261,7 @@ export const api = {
   },
 
   async createSession(
-    args: { file: File; source: "torx" | "fastf1"; trackId?: string; socMax?: number },
+    args: { file: File; source: "torcs" | "fastf1"; trackId?: string; socMax?: number },
     opts?: ApiOpts,
   ): Promise<Session> {
     if (resolveFixture(opts)) {

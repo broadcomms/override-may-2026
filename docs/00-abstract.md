@@ -41,7 +41,7 @@ Frame the system
 
 
 # Demo Script
-- Torx simulator
+- TORCS simulator
 - UI screen recording
 - generated charts
 - Langflow canvas
@@ -88,7 +88,7 @@ Text overlay: "Today's tools show data, not reasoning."
 **0:50–1:40 — OVERRIDE Live Demo (Engineer-Mode)**
 
 - **Visual:** 
-Browser. Drag a Torx replay file onto the upload area. 
+Browser. Drag a TORCS replay file onto the upload area. 
 Loading shimmer. 
 Energy curve renders. 
 Zone heatmap appears with three flagged zones.
@@ -197,11 +197,11 @@ Safer wording in the product:
 
 You should NEVER position OVERRIDE as:
 
-❌ “A Torx project”
+❌ “A TORCS project”
 
 or
 
-❌ “Built on Torx”
+❌ “Built on TORCS”
 
 That lowers perceived value immediately.
 
@@ -209,7 +209,7 @@ Instead position it as:
 
 > “OVERRIDE uses replay/session telemetry generated from simulation and public racing data sources to validate explainable energy-strategy reasoning.”
 
-Torx becomes:
+TORCS becomes:
 
 * infrastructure,
 * tooling,

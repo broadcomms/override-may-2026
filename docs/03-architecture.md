@@ -44,7 +44,7 @@ override-may-2026/
 │       └── jaeger-trace.png
 │
 ├── data/
-│   ├── samples/                   # 3–5 small Torx replay JSONs for demo
+│   ├── samples/                   # 3–5 small TORCS replay JSONs for demo
 │   ├── regs/                      # FIA public PDFs — fetched via scripts/, not committed
 │   │                              # canonical document selected at G-4 verification gate
 │   └── README.md                  # Data sources + licensing note
@@ -54,7 +54,7 @@ override-may-2026/
 │
 ├── ingest/
 │   ├── __init__.py
-│   ├── torx_parser.py             # Torx simulator log → lap features
+│   ├── torcs_parser.py             # TORCS simulator log → lap features
 │   ├── fastf1_parser.py           # FastF1 session → lap features
 │   └── schema.py                  # Pydantic cross-cutting schemas
 │

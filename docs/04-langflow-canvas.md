@@ -8,7 +8,7 @@
 
 | # | Node label | Component type | Purpose |
 |---|---|---|---|
-| 1 | `Upload Session File` | Custom Component (FileInput) | Accepts Torx JSON or FastF1 export |
+| 1 | `Upload Session File` | Custom Component (FileInput) | Accepts TORCS JSON or FastF1 export |
 | 2 | `Ingest & Aggregate` | Custom Component (Python) | Parse + lap-level features (`LapFeatures`) |
 | 3 | `Zone Detector` | Custom Component (Python) | Heuristic inefficient-zone detection (`Zone[]`) |
 | 4 | `TTM-R2 Forecast` | Custom Component (HuggingFace model wrapper) | 5-lap SoC trajectory (optional) |
@@ -46,5 +46,5 @@ Loops:
 
 ## Demo behavior
 
-- The canvas executes one end-to-end sample flow for the demo recording (one Torx replay → one `Recommendation`).
+- The canvas executes one end-to-end sample flow for the demo recording (one TORCS replay → one `Recommendation`).
 - The canvas does **not** serve user uploads in production. The Next.js UI calls FastAPI per [`04-api.md`](./04-api.md).

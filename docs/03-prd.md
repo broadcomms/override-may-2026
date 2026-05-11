@@ -8,7 +8,7 @@
 
 **OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.**
 
-A user uploads a session replay (Torx simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: **Engineer Mode** for race engineers and analysts who need full reasoning + citations + what-if; **Fan Mode** for broadcasters and viewers who need plain language.
+A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: **Engineer Mode** for race engineers and analysts who need full reasoning + citations + what-if; **Fan Mode** for broadcasters and viewers who need plain language.
 
 OVERRIDE competes on *can it explain why*, not on *more data, faster models*. It is a copilot, not a strategist — every output is reviewed by a human.
 
@@ -74,7 +74,7 @@ Stories are tagged `[E]` Engineer, `[A]` Analyst/Broadcaster, `[F]` Fan. Accepta
 
 ### Upload + debrief
 
-- `[E][A][F]` As a user, I drop a Torx JSON or FastF1 export onto the upload page and within 30 seconds I see a debrief I can read.
+- `[E][A][F]` As a user, I drop a TORCS JSON or FastF1 export onto the upload page and within 30 seconds I see a debrief I can read.
 - `[E][A][F]` If my session is shorter than 30 laps, I still get zones and reasoning; only the forecast is gracefully hidden.
 - `[E][A][F]` If parsing fails, I see *why* (`INVALID_FILE_FORMAT` or `PARSE_FAILED` with a human-readable message), not a generic 500.
 
@@ -111,7 +111,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 
 ### 5.1 Ingest
 
-- **FR-1.1 (MUST)** Parse Torx replay JSON into `LapFeatures` rows per [`04-schema.md` §3](./04-schema.md#3-lap-level-features).
+- **FR-1.1 (MUST)** Parse TORCS replay JSON into `LapFeatures` rows per [`04-schema.md` §3](./04-schema.md#3-lap-level-features).
 - **FR-1.2 (MUST)** Parse FastF1 export into the same `LapFeatures` schema. Energy state may be derived from throttle/brake integrals when not natively exposed; provenance flagged in `LapFeatures.soc_source`.
 - **FR-1.3 (MUST)** Reject uploads larger than 25 MB with `FILE_TOO_LARGE`. Truncate sessions over 120 laps to the most recent 120, with a note in `SessionSummary`.
 - **FR-1.4 (MUST)** Never persist the raw uploaded file after parsing. Only derived artifacts in `data/sessions/{session_id}/`.
@@ -182,7 +182,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 | Property | Target |
 |---|---|
 | **Latency** | Median `POST /api/sessions` response ≤ 30 s on a laptop with a healthy watsonx.ai connection. p95 ≤ 60 s. Stage budget in [`04-api.md` §5](./04-api.md#5-pipeline-timing-budget). |
-| **Determinism** | Same input → same output across runs (LLM temperature pinned). End-to-end QA verifies this on 5 Torx + 2 FastF1 replays. |
+| **Determinism** | Same input → same output across runs (LLM temperature pinned). End-to-end QA verifies this on 5 TORCS + 2 FastF1 replays. |
 | **Reliability** | Pipeline runs end-to-end **without TTM**. Forecasting enhances; never gates. Pipeline runs end-to-end **even if Pass 2 is loosened** to a lower threshold — Pass 1 always functions. |
 | **Portability** | One-command setup: `docker compose up`. Verified on a clean machine before submission. No GPU required — Granite reasoning happens on watsonx.ai. The clean machine only needs a network connection and a working `.env`. |
 | **Accessibility** | WCAG 2.1 AA. Per FR-9.3. |
@@ -215,7 +215,7 @@ OVERRIDE is **not**:
 - **Submission surface.** BeMyApp project page on the IBM SkillsBuild Challenge platform with banner, logo, summary, video, and repo link.
 - **Demo path.** `docker compose up` → drop a sample replay (shipped under `data/samples/`) → land on the debrief view.
 - **Models.** watsonx.ai-served Granite Instruct (`ibm/granite-4-h-small`) + Granite Guardian (`ibm/granite-guardian-3-8b`), pinned with project ID and region in `models.json`. TTM-R2 stays local from HuggingFace. Docling runs locally.
-- **Data.** No live data, no broadcast video, no licensed feeds. Sample replays from Torx and FastF1; FIA PDFs fetched via `scripts/download_regulations.py` (PDFs are *not* committed).
+- **Data.** No live data, no broadcast video, no licensed feeds. Sample replays from TORCS and FastF1; FIA PDFs fetched via `scripts/download_regulations.py` (PDFs are *not* committed).
 
 There is no licensing, paywall, or telemetry on the user.
 
@@ -238,12 +238,12 @@ The challenge rubric scores on Technical Execution, Innovation, Challenge Fit, a
 
 | Metric | Target |
 |---|---|
-| End-to-end run on 5 Torx + 2 FastF1 replays | 7 / 7 produce a valid debrief |
+| End-to-end run on 5 TORCS + 2 FastF1 replays | 7 / 7 produce a valid debrief |
 | Median upload → debrief latency on a 47-lap session, watsonx warm | ≤ 30 s |
 | Pass-1 validator pass rate on first attempt | ≥ 70% |
 | Guardian pass rate on first attempt (after threshold calibration) | ≥ 60% |
 | Reasoning eval harness (10 scenarios × 3 attempts, manual scoring) | average accuracy ≥ 4 / 5 |
-| Forecast MAE (held-out Torx replay, when laps ≥ 30) | recorded and shipped, not gated |
+| Forecast MAE (held-out TORCS replay, when laps ≥ 30) | recorded and shipped, not gated |
 | One-command Docker setup on a clean machine | works first attempt |
 | Video runtime | ≤ 2:55 |
 
@@ -255,8 +255,8 @@ Questions that must be resolved before or during implementation but which do not
 
 - **OQ-1** Which exact FIA document grounds the recommendations? Resolved at gate G-4 (roadmap P2.5). Until then, prompts use generic phrasing and the `regulation_source` API field is null.
 - **OQ-2** ~~Which exact Ollama tags are stable for Granite 4.x Instruct and Granite Guardian?~~ **Resolved 2026-05-08:** migrated off Ollama to watsonx.ai. Models pinned: `ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`. See `docs/adrs/ADR-001-watsonx-runtime.md`.
-- **OQ-3** Does the Torx simulator expose battery SoC directly, or do we derive it from throttle/brake integrals? Resolved at gate G-2 (roadmap P1.3).
+- **OQ-3** Does the TORCS simulator expose battery SoC directly, or do we derive it from throttle/brake integrals? Resolved at gate G-2 (roadmap P1.3).
 - **OQ-4** SSE streaming endpoint (API §4.10) — keep for the demo recording, or cut as scope creep? Decide during P3.5.
 - **OQ-5** Heatmap density at >60 laps — horizontal scroll vs. 2-lap aggregation. Decide during P3.5.
-- **OQ-6** Sample-replay selection — which 3 Torx + 1 FastF1 ship as one-click samples? Curate during data-prep alongside P1.4.
+- **OQ-6** Sample-replay selection — which 3 TORCS + 1 FastF1 ship as one-click samples? Curate during data-prep alongside P1.4.
 - **OQ-7** ContextForge vs direct OpenTelemetry — decided at roadmap P3.6 based on remaining time budget.

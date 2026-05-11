@@ -192,7 +192,7 @@ Doc system is internally consistent and aligned with the rest of the repo. The t
   │ 9   │ Success metrics            │ judging-rubric alignment + 8 functional metrics with targets                                           │
   ├─────┼────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤   
   │ 10  │ Open questions             │ 7 OQs each tied to a verification or phase gate                                                        │
-  └─────┴────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘     Honored guardrails                                                                                                                              Decision-support language ("supports / explains / highlights / recommends"); no "decides / optimal / autonomously."TTM-optional asserted at FR-3 and as a non-functional reliability target.No hardcoded reg article numbers; FR-4.2 makes this a launch-blocking MUST.Pass-1 validator must remain functional regardless of Guardian (FR-6.1) — directly answers gate G-5.Ollama tag verification (G-1), regulation source verification (G-4), Torx SoC source (G-2), and ContextForge decision (P3.6) all surface in   
+  └─────┴────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘     Honored guardrails                                                                                                                              Decision-support language ("supports / explains / highlights / recommends"); no "decides / optimal / autonomously."TTM-optional asserted at FR-3 and as a non-functional reliability target.No hardcoded reg article numbers; FR-4.2 makes this a launch-blocking MUST.Pass-1 validator must remain functional regardless of Guardian (FR-6.1) — directly answers gate G-5.Ollama tag verification (G-1), regulation source verification (G-4), TORCS SoC source (G-2), and ContextForge decision (P3.6) all surface in   
 §10 Open Questions with their gate references.Engineer↔Fan asymmetry honored (Fan Mode never coaches; redirects what-if to Engineer).                                                       
                                                                                                                                               
 Removed                                                   
@@ -435,9 +435,9 @@ Phase 1 Plan Created
 Detailed plan saved to docs/plans/phase-1-foundation-implementation.md
 Phase 1 breakdown (P1.1 → P1.5):P1.1 Setup & Onboarding (~2h) - Gate G-1
 Verify Granite model tags from github.com/ibm-granite-communityPopulate models.json with verified tags + hashesCreate requirements.txt with pinned dependenciesInstall all Python packagesP1.2 Discord Pitch (~1h)
-Post pitch in #may-challenge-and-labCapture organizer feedbackP1.3 Torx Lab + Telemetry Mapping (~4h) - Gate G-2
-Run Torx baseline AI driverAnalyze telemetry schemaDecide SoC derivation strategy (measured vs derived)Collect 3-4 sample sessionsP1.4 Data Ingestion Layer (~5h)
-Implement ingest/schema.py (Pydantic models)Implement ingest/torx_parser.pyImplement ingest/fastf1_parser.pyWrite unit tests in tests/test_ingest.pyP1.5 Exploratory Analysis (~2h)
+Post pitch in #may-challenge-and-labCapture organizer feedbackP1.3 TORCS Lab + Telemetry Mapping (~4h) - Gate G-2
+Run TORCS baseline AI driverAnalyze telemetry schemaDecide SoC derivation strategy (measured vs derived)Collect 3-4 sample sessionsP1.4 Data Ingestion Layer (~5h)
+Implement ingest/schema.py (Pydantic models)Implement ingest/torcs_parser.pyImplement ingest/fastf1_parser.pyWrite unit tests in tests/test_ingest.pyP1.5 Exploratory Analysis (~2h)
 Generate 3 key plots (SoC trajectory, harvest distribution, deploy correlation)Identify 3 inefficient-zone patternsDocument in docs/plans/zone-patterns.md
 Ready to Start Building
 The plan follows the roadmap's verification gates and hour budgets. All tasks have clear deliverables and "Done When" criteria.# Phase 1 Foundation - Implementation Plan
@@ -561,57 +561,57 @@ The plan follows the roadmap's verification gates and hour budgets. All tasks ha
 
 ---
 
-### P1.3 Torx Lab + Telemetry Mapping (~4h)
+### P1.3 TORCS Lab + Telemetry Mapping (~4h)
 
-**Objective:** Run Torx baseline, understand telemetry schema, decide SoC derivation strategy.
+**Objective:** Run TORCS baseline, understand telemetry schema, decide SoC derivation strategy.
 
 **Tasks:**
 
-1. **Run Torx Baseline**
-   - Access IBM Torx Learning Lab
+1. **Run TORCS Baseline**
+   - Access IBM TORCS Learning Lab
    - Run baseline AI driver on a simple track
    - Export session logs (JSON format)
-   - Save to `data/samples/torx-baseline-run-1.json`
+   - Save to `data/samples/torcs-baseline-run-1.json`
    - Complete `results.md` (required for submission eligibility)
 
-2. **Analyze Torx Telemetry Schema**
+2. **Analyze TORCS Telemetry Schema**
    - Inspect exported JSON structure
    - Document available fields:
      - Speed, throttle, brake, position, lap_time
      - Fuel/energy proxies
-     - **Critical:** Does Torx expose battery SoC directly?
-   - Create `docs/plans/torx-telemetry-map.md`
+     - **Critical:** Does TORCS expose battery SoC directly?
+   - Create `docs/plans/torcs-telemetry-map.md`
 
 3. **SoC Derivation Decision (Gate G-2)**
-   - **If Torx exposes SoC directly:** Use it, set `soc_source: "measured"`
-   - **If Torx doesn't expose SoC:** Derive from throttle/brake integrals
-     - Document derivation formula in `docs/plans/torx-telemetry-map.md`
+   - **If TORCS exposes SoC directly:** Use it, set `soc_source: "measured"`
+   - **If TORCS doesn't expose SoC:** Derive from throttle/brake integrals
+     - Document derivation formula in `docs/plans/torcs-telemetry-map.md`
      - Set `soc_source: "derived"` in schema
      - Add code comments explaining derivation
    - **Gate G-2 passes when:** Decision documented and derivation (if needed) is specified
 
 4. **Collect Additional Samples**
-   - Run 2-3 more Torx sessions with different strategies
-   - Save to `data/samples/torx-*.json`
+   - Run 2-3 more TORCS sessions with different strategies
+   - Save to `data/samples/torcs-*.json`
    - Aim for variety: aggressive deploy, conservative harvest, mixed
 
 **Deliverables:**
-- `data/samples/torx-baseline-run-1.json` (and 2-3 more samples)
+- `data/samples/torcs-baseline-run-1.json` (and 2-3 more samples)
 - `results.md` completed
-- `docs/plans/torx-telemetry-map.md` with SoC decision (Gate G-2)
+- `docs/plans/torcs-telemetry-map.md` with SoC decision (Gate G-2)
 
 **Done When:**
-- [ ] Baseline Torx run produces logs
-- [ ] Confirmed which fields Torx exposes
-- [ ] SoC source decision recorded in `docs/plans/torx-telemetry-map.md`
+- [ ] Baseline TORCS run produces logs
+- [ ] Confirmed which fields TORCS exposes
+- [ ] SoC source decision recorded in `docs/plans/torcs-telemetry-map.md`
 - [ ] Gate G-2 passes: derivation documented if synthetic
-- [ ] 3-4 sample Torx sessions saved to `data/samples/`
+- [ ] 3-4 sample TORCS sessions saved to `data/samples/`
 
 ---
 
 ### P1.4 Data Ingestion Layer (~5h)
 
-**Objective:** Implement parsers that convert Torx/FastF1 to canonical `LapFeatures` schema.
+**Objective:** Implement parsers that convert TORCS/FastF1 to canonical `LapFeatures` schema.
 
 **Tasks:**
 
@@ -622,9 +622,9 @@ The plan follows the roadmap's verification gates and hour budgets. All tasks ha
    - Add validation rules (lap_number >= 1, SoC in [0,1], etc.)
    - Include `soc_source: Literal["measured", "derived"]`
 
-2. **Implement `ingest/torx_parser.py`**
-   - Function: `parse_torx_session(json_path: str) -> list[LapFeatures]`
-   - Read Torx JSON
+2. **Implement `ingest/torcs_parser.py`**
+   - Function: `parse_torcs_session(json_path: str) -> list[LapFeatures]`
+   - Read TORCS JSON
    - Extract per-lap data
    - Apply SoC derivation if needed (per G-2 decision)
    - Return list of `LapFeatures` keyed on `lap_number`
@@ -639,12 +639,12 @@ The plan follows the roadmap's verification gates and hour budgets. All tasks ha
    - Document derivation in code comments
 
 4. **Create Test Fixtures**
-   - `tests/fixtures/torx-sample.json` (minimal valid Torx session)
+   - `tests/fixtures/torcs-sample.json` (minimal valid TORCS session)
    - `tests/fixtures/fastf1-sample.json` (minimal valid FastF1 export)
 
 5. **Write Unit Tests**
    - `tests/test_ingest.py`:
-     - Test Torx parser on real sample
+     - Test TORCS parser on real sample
      - Test FastF1 parser on real sample
      - Test schema validation (invalid lap_number, SoC out of bounds)
      - Test error handling (malformed JSON)
@@ -652,13 +652,13 @@ The plan follows the roadmap's verification gates and hour budgets. All tasks ha
 
 **Deliverables:**
 - `ingest/schema.py` with Pydantic models
-- `ingest/torx_parser.py` with parser function
+- `ingest/torcs_parser.py` with parser function
 - `ingest/fastf1_parser.py` with parser function
 - `tests/test_ingest.py` with passing tests
 - Test fixtures in `tests/fixtures/`
 
 **Done When:**
-- [ ] `torx_parser.py` reads Torx JSON and returns DataFrame with canonical schema
+- [ ] `torcs_parser.py` reads TORCS JSON and returns DataFrame with canonical schema
 - [ ] `fastf1_parser.py` reads FastF1 session and returns same schema
 - [ ] Both parsers tested against at least one real input each
 - [ ] All tests in `tests/test_ingest.py` pass
@@ -674,7 +674,7 @@ The plan follows the roadmap's verification gates and hour budgets. All tasks ha
 
 1. **Create Analysis Script**
    - `analysis/explore.py` or Jupyter notebook
-   - Load parsed Torx samples using `ingest/torx_parser.py`
+   - Load parsed TORCS samples using `ingest/torcs_parser.py`
    - Generate exploratory plots
 
 2. **Generate Three Key Plots**
@@ -721,8 +721,8 @@ Phase 1 is complete when:
 1. ✅ **Gate G-1 passed:** `models.json` contains verified Granite tags
 2. ✅ **Gate G-2 passed:** SoC derivation strategy documented
 3. ✅ All dependencies installed and verified
-4. ✅ Torx baseline run completed, `results.md` submitted
-5. ✅ 3-4 Torx sample sessions in `data/samples/`
+4. ✅ TORCS baseline run completed, `results.md` submitted
+5. ✅ 3-4 TORCS sample sessions in `data/samples/`
 6. ✅ Ingestion parsers implemented and tested
 7. ✅ 3 zone patterns identified and documented
 8. ✅ All Phase 1 tests passing
@@ -762,7 +762,7 @@ Note in the plan that P1.1 starts with >= for resolution and snapshots to == onc
 
 This is a real gap because reproducibility on a clean machine (FR-NFR Portability target, Implementation & Feasibility judging signal) depends on it.
 Gap-3 — DataFrame vs list[LapFeatures] ambiguity in P1.4.
-Plan §2 function signature says parse_torx_session(json_path: str) -> list[LapFeatures] (Pydantic) — correct per 04-schema.md §3 which declares LapFeatures(BaseModel). But the Done When check on line 219 still says "reads Torx JSON and returns DataFrame with canonical schema". Roadmap P1.4 line 81 has the same DataFrame wording. The two are not the same thing. Resolve to one of:
+Plan §2 function signature says parse_torcs_session(json_path: str) -> list[LapFeatures] (Pydantic) — correct per 04-schema.md §3 which declares LapFeatures(BaseModel). But the Done When check on line 219 still says "reads TORCS JSON and returns DataFrame with canonical schema". Roadmap P1.4 line 81 has the same DataFrame wording. The two are not the same thing. Resolve to one of:
 
 Parsers return list[LapFeatures] (Pydantic) — what the schema doc actually defines.
 Parsers return pd.DataFrame — what the roadmap implies for ergonomic exploratory analysis.
@@ -778,7 +778,7 @@ Schema-as-source-of-truth says four. Cleaner fix: P1.5 documents all four.
 Gap-5 — FastF1 parser semantics need one clarifying sentence.
 
 Plan §3 signature parse_fastf1_session(session_id: str) is ambiguous. FastF1's actual API takes (year, gp, session_type) — e.g. fastf1.get_session(2024, 'Monza', 'R'). session_id: str could mean a slug like "2024-monza-R" that the parser unpacks, or a FastF1 internal handle. Either is fine, but the plan should pick one.
-More important: FastF1 data is pre-2026, so the 2026 hybrid features (50/50 split, Override Mode, super-clipping, X-Mode/Z-Mode) don't exist in the source data. The "derived" energy state from FastF1 is genuinely a synthetic proxy on rules that didn't apply at the time. Worth one sentence in docs/plans/torx-telemetry-map.md (or a new docs/plans/fastf1-derivation-map.md) noting that FastF1-derived LapFeatures.override_uses, boost_uses, etc. will always be 0 / approximated; the parser exists to demo the pipeline against open historical data, not to argue about real 2026 strategy.
+More important: FastF1 data is pre-2026, so the 2026 hybrid features (50/50 split, Override Mode, super-clipping, X-Mode/Z-Mode) don't exist in the source data. The "derived" energy state from FastF1 is genuinely a synthetic proxy on rules that didn't apply at the time. Worth one sentence in docs/plans/torcs-telemetry-map.md (or a new docs/plans/fastf1-derivation-map.md) noting that FastF1-derived LapFeatures.override_uses, boost_uses, etc. will always be 0 / approximated; the parser exists to demo the pipeline against open historical data, not to argue about real 2026 strategy.
 
 Smaller items (won't block but worth fixing inline)
 
@@ -1021,7 +1021,7 @@ Task 2: Install Python DependenciesRun: pip install -r requirements.txtThen lock
 Task 3: Download TTM-R2 ModelRun: huggingface-cli download ibm-granite/granite-timeseries-ttm-r2Record model hash in models.json
 Next Steps
 To complete P1.1:Run pip install -r requirements.txt locallyRun pip freeze > requirements.txt to lock versionsRun huggingface-cli download ibm-granite/granite-timeseries-ttm-r2Run ollama pull ibm/granite4.1:8b and ollama pull ibm/granite3.3-guardian:8bGet SHA256 hashes and update models.json
-Then proceed to P1.2 (Discord pitch) and P1.3 (Torx lab).                                                                                                                      
+Then proceed to P1.2 (Discord pitch) and P1.3 (TORCS lab).                                                                                                                      
 ⏺ Ollama and jq installed. That's everything I can do without your local network: P1.1 is now ~80% complete. Here's   
   the state and the handoff.                                                                                            Done in this round                                                                                                    ┌─────────────────────────────────────────────┬────────┬────────────────────────────────────────────────────────┐   
   │                    Task                     │ Status │                        Evidence                        │   
@@ -1071,22 +1071,22 @@ Then proceed to P1.2 (Discord pitch) and P1.3 (Torx lab).
   │ P1.2 │ Discord pitch     │ ~1h    │ docs/plans/discord-pitch-feedback.md. Draft already in                    │
   │      │                   │        │ docs/00-abstract.md §Discord Pitch                                        │   
   ├──────┼───────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤
-  │      │ Torx lab +        │        │ Run baseline AI driver → save logs to data/samples/ → decide SoC source → │   
-  │ P1.3 │ telemetry mapping │ ~4h    │  record in docs/plans/torx-telemetry-map.md                               │   
+  │      │ TORCS lab +        │        │ Run baseline AI driver → save logs to data/samples/ → decide SoC source → │   
+  │ P1.3 │ telemetry mapping │ ~4h    │  record in docs/plans/torcs-telemetry-map.md                               │   
   │      │  (G-2)            │        │                                                                           │
   ├──────┼───────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤   
-  │      │ Data ingestion    │        │ Implement ingest/schema.py, ingest/torx_parser.py,                        │
+  │      │ Data ingestion    │        │ Implement ingest/schema.py, ingest/torcs_parser.py,                        │
   │ P1.4 │ layer             │ ~5h    │ ingest/fastf1_parser.py, tests/test_ingest.py. Schema is fully specified  │   
   │      │                   │        │ in docs/04-schema.md §3 — mostly transcription work                       │
   ├──────┼───────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤   
   │ P1.5 │ Exploratory       │ ~2h    │ Three plots + docs/plans/zone-patterns.md with the four detection         │
   │      │ analysis          │        │ heuristics                                                                │   
-  └──────┴───────────────────┴────────┴───────────────────────────────────────────────────────────────────────────┘  P1.4 is the first big code-writing block. Once you've got Torx samples in data/samples/ from P1.3, I can write the  
-  Pydantic schema + parsers + tests in one pass — the contract is locked and the docs do all the design work for me.  Want me to start P1.4 now using a synthetic Torx-shaped fixture (so we have a runnable parser even before your real 
-  Torx run lands), or wait until you have the real samples from P1.3?Show moreClaude responded: Phase 1 — Status & Path Forward (Torx blocker noted)Used 6 tools, ran a commandUsed 6 tools, ran a commandPhase 1 — Status & Path Forward (Torx blocker noted)
-Verified the repo state. P1.1 is genuinely ~80% done — the only outstanding parts are local commands you have to run on your machine (Ollama daemon + two pulls + the digest script). Beyond that, the Torx access blocker affects P1.3 and part of P1.4/P1.5, but a meaningful slice of work is fully unblocked and worth running in parallel while you chase Torx access.
+  └──────┴───────────────────┴────────┴───────────────────────────────────────────────────────────────────────────┘  P1.4 is the first big code-writing block. Once you've got TORCS samples in data/samples/ from P1.3, I can write the  
+  Pydantic schema + parsers + tests in one pass — the contract is locked and the docs do all the design work for me.  Want me to start P1.4 now using a synthetic TORCS-shaped fixture (so we have a runnable parser even before your real 
+  TORCS run lands), or wait until you have the real samples from P1.3?Show moreClaude responded: Phase 1 — Status & Path Forward (TORCS blocker noted)Used 6 tools, ran a commandUsed 6 tools, ran a commandPhase 1 — Status & Path Forward (TORCS blocker noted)
+Verified the repo state. P1.1 is genuinely ~80% done — the only outstanding parts are local commands you have to run on your machine (Ollama daemon + two pulls + the digest script). Beyond that, the TORCS access blocker affects P1.3 and part of P1.4/P1.5, but a meaningful slice of work is fully unblocked and worth running in parallel while you chase TORCS access.
 P1.1 — what's actually in the repo right now
-ItemStatemodels.json (1,778 bytes)✅ verified tags, manifest_digest for granite4.1:8b, TTM-R2 revision SHA d6a79570cac0f33d526601cd3a0fc7c80a8f9a2f, sources, licenses, Guardian-4.1-revisit noterequirements.txt (144 lines)✅ pip-frozen, header preserved, >= → == lock donerequirements-langflow.txt (685 bytes)✅ separate venv for Langflow's 3.10–3.12 constraint.env.example (1,088 bytes)✅ Ollama + HF + OVERRIDE vars.gitignore (49 lines)✅ Python/Node/data/secretsscripts/record_ollama_digests.sh (2,492 bytes, executable)✅ ready to populate the missing digest fieldsdata/samples/empty — gated on Torxingest/*.pyall 0 bytes — implementation pending
+ItemStatemodels.json (1,778 bytes)✅ verified tags, manifest_digest for granite4.1:8b, TTM-R2 revision SHA d6a79570cac0f33d526601cd3a0fc7c80a8f9a2f, sources, licenses, Guardian-4.1-revisit noterequirements.txt (144 lines)✅ pip-frozen, header preserved, >= → == lock donerequirements-langflow.txt (685 bytes)✅ separate venv for Langflow's 3.10–3.12 constraint.env.example (1,088 bytes)✅ Ollama + HF + OVERRIDE vars.gitignore (49 lines)✅ Python/Node/data/secretsscripts/record_ollama_digests.sh (2,492 bytes, executable)✅ ready to populate the missing digest fieldsdata/samples/empty — gated on TORCSingest/*.pyall 0 bytes — implementation pending
 Three local commands close G-1 fully (these stay yours; my session can't reach localhost:11434):
 bashbrew services start ollama                     # daemon
 ollama pull ibm/granite4.1:8b                  # ~5.3 GB
@@ -1095,21 +1095,21 @@ scripts/record_ollama_digests.sh               # paste output into models.json
 ollama run ibm/granite4.1:8b           "Hello"
 ollama run ibm/granite3.3-guardian:8b  "Test prompt"
 Run those during a coffee or while reading the rest of this. ~12 GB of download is the slow part.
-Torx Lab — getting access
-You don't have Torx access yet. The challenge brief (docs/00-ibm-skillsbuild-challage-may-2026.md) doesn't link the Torx Learning Lab directly, and 01-resources-link.md covers Granite/Docling/Langflow but not Torx. Three places to look or ask, in order:
+TORCS Lab — getting access
+You don't have TORCS access yet. The challenge brief (docs/00-ibm-skillsbuild-challage-may-2026.md) doesn't link the TORCS Learning Lab directly, and 01-resources-link.md covers Granite/Docling/Langflow but not TORCS. Three places to look or ask, in order:
 
-BeMyApp challenge hub — https://ibmskillsbuildchallenge-hub.bemyapp.com — the project page or Resources tab usually carries the Torx invite link or signup. Look there first.
-Discord #may-challenge-and-lab — ask Sydney/Lucas directly. The roadmap-fixed P1.2 pitch is the perfect vehicle: post the pitch and in the same message ask: "What's the route to access the IBM Torx Learning Lab? I'd like to start the baseline run for P1.3." This burns one message, gets two answers (fit-check + Torx access).
-IBM SkillsBuild portal — your account on skillsbuild.org may have Torx as a learning-lab item gated behind challenge enrollment. Check after login.
+BeMyApp challenge hub — https://ibmskillsbuildchallenge-hub.bemyapp.com — the project page or Resources tab usually carries the TORCS invite link or signup. Look there first.
+Discord #may-challenge-and-lab — ask Sydney/Lucas directly. The roadmap-fixed P1.2 pitch is the perfect vehicle: post the pitch and in the same message ask: "What's the route to access the IBM TORCS Learning Lab? I'd like to start the baseline run for P1.3." This burns one message, gets two answers (fit-check + TORCS access).
+IBM SkillsBuild portal — your account on skillsbuild.org may have TORCS as a learning-lab item gated behind challenge enrollment. Check after login.
 
-The May 11 IBM Tech Talk (per roadmap §0) is also a natural moment to ask if Torx isn't sorted by then.
+The May 11 IBM Tech Talk (per roadmap §0) is also a natural moment to ask if TORCS isn't sorted by then.
 Work that's blocked vs. unblocked
-P1 unitStatusWhyP1.1 finish (G-1)⏳ ~30 min, you-only3 local commands aboveP1.2 Discord pitch✅ fully unblockedDraft already in docs/00-abstract.md §Discord Pitch (lines 200–219). Post + ask about Torx in same threadP1.3 Torx baseline + G-2🚫 blockedNeeds Torx Learning Lab accessP1.4 ingest/schema.py✅ fully unblockedSchema fully spec'd in 04-schema.md §3; pure transcription with Field(ge=1) etc.P1.4 ingest/fastf1_parser.py✅ fully unblockedFastF1 always derives SoC; doesn't depend on G-2. parse_fastf1_session(year, gp, session_type) signature is lockedP1.4 tests/test_ingest.py (schema + fastf1)✅ unblockedFastF1 fixture can be a real 2024 Monza pullP1.4 ingest/torx_parser.py🚫 partially blockedCan stub against synthetic Torx-shaped JSON; rewrite when real shape lands. Risk: ~1h rework if real Torx differsP1.4 tests/fixtures/torx-sample.json🚫 blockedNeed real Torx export to know the shapeP1.5 exploratory analysis⚠️ partiallyCan run all three plots against FastF1 data only; revisit with Torx data when available. The four zone patterns can be drafted from FastF1 + telemetry intuition; finalize after Torx
+P1 unitStatusWhyP1.1 finish (G-1)⏳ ~30 min, you-only3 local commands aboveP1.2 Discord pitch✅ fully unblockedDraft already in docs/00-abstract.md §Discord Pitch (lines 200–219). Post + ask about TORCS in same threadP1.3 TORCS baseline + G-2🚫 blockedNeeds TORCS Learning Lab accessP1.4 ingest/schema.py✅ fully unblockedSchema fully spec'd in 04-schema.md §3; pure transcription with Field(ge=1) etc.P1.4 ingest/fastf1_parser.py✅ fully unblockedFastF1 always derives SoC; doesn't depend on G-2. parse_fastf1_session(year, gp, session_type) signature is lockedP1.4 tests/test_ingest.py (schema + fastf1)✅ unblockedFastF1 fixture can be a real 2024 Monza pullP1.4 ingest/torcs_parser.py🚫 partially blockedCan stub against synthetic TORCS-shaped JSON; rewrite when real shape lands. Risk: ~1h rework if real TORCS differsP1.4 tests/fixtures/torcs-sample.json🚫 blockedNeed real TORCS export to know the shapeP1.5 exploratory analysis⚠️ partiallyCan run all three plots against FastF1 data only; revisit with TORCS data when available. The four zone patterns can be drafted from FastF1 + telemetry intuition; finalize after TORCS
 Recommended sequence — next 6–8 hours
 Step 1 — kick off P1.1's local downloads (~5 min of typing, ~30 min wait).
 The three Ollama commands above. They run in the background while you do step 2.
 Step 2 — P1.2 Discord pitch (~30 min).
-Take the draft from docs/00-abstract.md §Discord Pitch, paste it in #may-challenge-and-lab, and append one sentence asking how to access the Torx Learning Lab. Then create docs/plans/discord-pitch-feedback.md and timestamp the post. Maximum-leverage 30 minutes — closes P1.2, surfaces the Torx access route, gets the rubric fit-check rolling, and unlocks 21 days of correction window per R10.
+Take the draft from docs/00-abstract.md §Discord Pitch, paste it in #may-challenge-and-lab, and append one sentence asking how to access the TORCS Learning Lab. Then create docs/plans/discord-pitch-feedback.md and timestamp the post. Maximum-leverage 30 minutes — closes P1.2, surfaces the TORCS access route, gets the rubric fit-check rolling, and unlocks 21 days of correction window per R10.
 Step 3 — P1.4 schema + FastF1 (~2.5 h).
 Implement what's fully unblocked. Concretely:
 
@@ -1120,24 +1120,24 @@ Run: pytest tests/test_ingest.py -v — passing tests close ~70% of P1.4.
 
 This is pure transcription work; the contract is locked. The Code-mode agent can knock this out cleanly.
 Step 4 — P1.5 exploratory analysis on FastF1 data (~1.5h, partial credit).
-Run the three plots (SoC trajectory, harvest-by-sector, deploy↔lap-time) against FastF1 2024 data. Draft docs/plans/zone-patterns.md with the four detection heuristics. Mark it "FastF1-only baseline; revalidate with Torx samples when P1.3 lands".
-Step 5 — when Torx access arrives.
+Run the three plots (SoC trajectory, harvest-by-sector, deploy↔lap-time) against FastF1 2024 data. Draft docs/plans/zone-patterns.md with the four detection heuristics. Mark it "FastF1-only baseline; revalidate with TORCS samples when P1.3 lands".
+Step 5 — when TORCS access arrives.
 
 P1.3 baseline run + telemetry mapping + G-2 decision (~3–4h).
-Add ingest/torx_parser.py + tests/fixtures/torx-baseline.json (~1h).
-Re-run P1.5 plots with Torx data, finalize the four zone patterns (~30 min).
+Add ingest/torcs_parser.py + tests/fixtures/torcs-baseline.json (~1h).
+Re-run P1.5 plots with TORCS data, finalize the four zone patterns (~30 min).
 
-On the synthetic-Torx-fixture question
-I wouldn't write torx_parser.py against a synthetic fixture yet. Reasons:
+On the synthetic-TORCS-fixture question
+I wouldn't write torcs_parser.py against a synthetic fixture yet. Reasons:
 
-The Torx JSON shape is genuinely unknown. Guessing means rewriting later, plus the test fixture itself becomes wrong-data.
-The unblocked work in step 3 above already gives you a working schema + FastF1 path + a runnable parser. The pipeline can be exercised end-to-end on FastF1 data with no Torx dependency.
-P1.3 is only ~4h once Torx access lands. Better to wait and write the parser against the real shape in one pass than to half-build now and re-build later.
+The TORCS JSON shape is genuinely unknown. Guessing means rewriting later, plus the test fixture itself becomes wrong-data.
+The unblocked work in step 3 above already gives you a working schema + FastF1 path + a runnable parser. The pipeline can be exercised end-to-end on FastF1 data with no TORCS dependency.
+P1.3 is only ~4h once TORCS access lands. Better to wait and write the parser against the real shape in one pass than to half-build now and re-build later.
 
-If Torx access takes more than 2–3 days to arrive, reconsider — at that point a synthetic shape becomes worth the eventual rework.
+If TORCS access takes more than 2–3 days to arrive, reconsider — at that point a synthetic shape becomes worth the eventual rework.
 Bottom line
-After step 3 of this plan, you'll be ~85% of the way through P1.4 with G-1 closed and P1.2 done. Only P1.3 + the Torx half of P1.4 + the Torx half of P1.5 will be outstanding, all blocked on the same external dependency (Torx access). Phase 2 doesn't start until after P1.5, so closing the Torx loop is the single critical path. Hammer Discord and the BeMyApp portal for the access route — that's the most leveraged thing you can do today.
-Want me to draft the exact Discord message for P1.2 (pitch + Torx-access ask), or generate the ingest/schema.py + ingest/fastf1_parser.py source code now so you can paste it in Code mode?You said: so we have changed the ollama and removed it completely now working with watsonx.so we have changed the ollama and removed it completely now working with watsonx.ai so we have the intruct, guardian and embedding from watsonx, we have updated the documents but we want you to study everything completely and ensure that this is now what i reflected in the plan# ── watsonx.ai (required) ────────────────────────────────────────────────────
+After step 3 of this plan, you'll be ~85% of the way through P1.4 with G-1 closed and P1.2 done. Only P1.3 + the TORCS half of P1.4 + the TORCS half of P1.5 will be outstanding, all blocked on the same external dependency (TORCS access). Phase 2 doesn't start until after P1.5, so closing the TORCS loop is the single critical path. Hammer Discord and the BeMyApp portal for the access route — that's the most leveraged thing you can do today.
+Want me to draft the exact Discord message for P1.2 (pitch + TORCS-access ask), or generate the ingest/schema.py + ingest/fastf1_parser.py source code now so you can paste it in Code mode?You said: so we have changed the ollama and removed it completely now working with watsonx.so we have changed the ollama and removed it completely now working with watsonx.ai so we have the intruct, guardian and embedding from watsonx, we have updated the documents but we want you to study everything completely and ensure that this is now what i reflected in the plan# ── watsonx.ai (required) ────────────────────────────────────────────────────
 WATSONX_API_KEY=replace_me
 WATSONX_URL=https://us-south.ml.cloud.ibm.com
 WATSONX_PROJECT_ID=replace_me
@@ -1189,7 +1189,7 @@ What we have (post-P1.1):
 - ✅ LICENSE Apache 2.0; .gitignore correct
 
 What's still missing (Phase 1 + 2 work ahead):
-- ❌ Sample data in data/samples/ (P1.3, blocked on Torx access)
+- ❌ Sample data in data/samples/ (P1.3, blocked on TORCS access)
 - ❌ ingest/*.py stubs (P1.4)
 - ❌ analysis/zone_detector.py (P2.1)
 - ❌ Docker files / docker-compose.yml (P3.7)
@@ -1219,7 +1219,7 @@ After those six fixes, the doc system is end-to-end consistent on the watsonx-as
 Want me to write out the exact diffs for G1–G6 so you can apply them in one pass?You said: we have contacted the challage team but we have not yet gotten the access to the git hub data what should we do now docs/plans/discord-pitch-feedback.we have contacted the challage team but we have not yet gotten the access to the git hub data what should we do now docs/plans/discord-pitch-feedback.mdClaude responded: What to do while waiting for the GitHub inviteUsed 5 tools, read a file, ran a commandUsed 5 tools, read a file, ran a commandWhat to do while waiting for the GitHub invite
 Read the situation from discord-pitch-feedback.md. Three facts shape the plan:
 1. The blocker is real but bounded. Makenna confirmed the GitHub invitation queue is the bottleneck and committed to "the next few days." That's an external dependency on BeMyApp's invite-throttle, not on you. Realistic window: 1–4 more business days.
-2. The blocker chain is narrower than it looks. GitHub invite → IBM Torx Learning Lab access → Torx baseline run → results.md (submission eligibility) and Gate G-2. That's P1.3 + the Torx half of P1.4 + the Torx half of P1.5. Everything else in Phase 1 and the early part of Phase 2 can keep moving.
+2. The blocker chain is narrower than it looks. GitHub invite → IBM TORCS Learning Lab access → TORCS baseline run → results.md (submission eligibility) and Gate G-2. That's P1.3 + the TORCS half of P1.4 + the TORCS half of P1.5. Everything else in Phase 1 and the early part of Phase 2 can keep moving.
 3. The file currently conflates two tracks. The verbatim text in discord-pitch-feedback.md is the access-request email to Makenna, but the Discord pitch (the one in docs/00-abstract.md §Discord Pitch) hasn't been posted in #may-challenge-and-lab yet. Those are two separate communications with two different purposes. P1.2's actual deliverable is the fit-check pitch in Discord — it's not done yet, even though the access request is in flight.
 Recommended sequence — next 48 hours
 Track 1 — clear the doc system (today, ~40 min, then move on)
@@ -1249,33 +1249,33 @@ Then update discord-pitch-feedback.md to separate the two communications cleanly
 [track Sydney/Lucas/community feedback as it lands]
 Also two small fixes to the current file: Reply 1's date is May 8, 2025 (typo for 2026), and the "Posted at" / "Message link" fields for the Discord post are still blank because the post hasn't gone out.
 Track 3 — start the unblocked P1.4 work (today + tomorrow, ~3 hours)
-This is where the time goes. The schema doc has fully specified everything that needs to exist; this is mostly transcription work that doesn't touch Torx.
+This is where the time goes. The schema doc has fully specified everything that needs to exist; this is mostly transcription work that doesn't touch TORCS.
 P1.4 unblocked subset:
 
 ingest/schema.py — Pydantic v2 LapFeatures, LapWindow, ZoneType, Zone, RegulationChunk, RegulationSource, RegulationCitation per 04-schema.md §3–§6. Add Field(ge=1) for lap_number, Field(ge=0, le=1) for SoC. Pure transcription — no decisions left to make.
-ingest/fastf1_parser.py — parse_fastf1_session(year: int, gp: str, session_type: str) -> list[LapFeatures]. Always sets soc_source="derived". Doesn't depend on G-2 (G-2 only governs the Torx parser).
+ingest/fastf1_parser.py — parse_fastf1_session(year: int, gp: str, session_type: str) -> list[LapFeatures]. Always sets soc_source="derived". Doesn't depend on G-2 (G-2 only governs the TORCS parser).
 ingest/__init__.py — exports.
 tests/test_ingest.py — schema validation tests + a real FastF1 pull (e.g., fastf1.get_session(2024, 'Monza', 'R')) cached to tests/fixtures/fastf1-monza-2024.parquet so CI doesn't hit the network.
 pytest tests/test_ingest.py -v passing.
 
-This closes ~70% of P1.4 without any Torx dependency.
+This closes ~70% of P1.4 without any TORCS dependency.
 Track 4 — start P2.5 prep work (today, ~1 hour, optional but high-leverage)
-P2.5 is the Docling regulation grounding gate (G-4). It has nothing to do with Torx and is otherwise the longest-pole AI-pipeline item. You can stage it now:
+P2.5 is the Docling regulation grounding gate (G-4). It has nothing to do with TORCS and is otherwise the longest-pole AI-pipeline item. You can stage it now:
 
 scripts/download_regulations.py — write the function that fetches the public FIA PDF from fia.com and saves to data/regs/ (gitignored). The two FIA PDFs already exist locally; the script just formalizes the download path for a clean machine.
 Sketch the Docling extraction call against one of the existing PDFs in data/regs/ (you have FIA 2026 F1 Regulations - Section C [Technical] - Iss 12 - 2025-06-10.pdf already locally). Confirm Docling produces sensible DocTags chunks for the energy-management section. If it does, G-4's tooling is de-risked.
 Run scripts/test_watsonx_embedding.py against a sample chunk to confirm the embedding pipeline returns 768-d vectors. This locks in P2.5's third dependency.
 
-None of this commits PDFs to the repo (they're gitignored), and none of it requires Torx data. It just front-loads de-risking on the highest-uncertainty Phase-2 item.
+None of this commits PDFs to the repo (they're gitignored), and none of it requires TORCS data. It just front-loads de-risking on the highest-uncertainty Phase-2 item.
 Track 5 — follow up on the GitHub invite (Day 3, ~5 min)
 If no invite by end of day May 11 (Monday — IBM Tech Talk day, also natural escalation moment), send one polite reminder to Makenna. Suggested text:
 
-Hi Makenna — quick follow-up on the GitHub invitation for broadcomms (registered May 6 for the May Innovation Challenge). I know there's a queue and I'm not in a rush, just confirming I'm still in line. Building toward the May 31 deadline and want to start the Torx baseline run as soon as the invite arrives. Thanks again for your help!
+Hi Makenna — quick follow-up on the GitHub invitation for broadcomms (registered May 6 for the May Innovation Challenge). I know there's a queue and I'm not in a rush, just confirming I'm still in line. Building toward the May 31 deadline and want to start the TORCS baseline run as soon as the invite arrives. Thanks again for your help!
 
 One follow-up only. After May 11 is appropriate; before that is impatient.
 What stays blocked
-ItemWhyUnblock signalP1.3 Torx baseline runNeeds Torx Learning Lab accessGitHub invite → lab credentialsGate G-2 SoC source decisionNeeds Torx telemetry schemaAfter first Torx exportingest/torx_parser.pyNeeds real Torx JSON shapeAfter data/samples/torx-*.json existstests/fixtures/torx-sample.jsonSameSameresults.mdRequired for submission, depends on Torx baselineAfter Torx baseline runFinal P1.5 zone-pattern validation against real Torx dataSameSame
-P1.5 can run partially against FastF1-only data and produce a draft docs/plans/zone-patterns.md; revalidate when Torx data lands.
+ItemWhyUnblock signalP1.3 TORCS baseline runNeeds TORCS Learning Lab accessGitHub invite → lab credentialsGate G-2 SoC source decisionNeeds TORCS telemetry schemaAfter first TORCS exportingest/torcs_parser.pyNeeds real TORCS JSON shapeAfter data/samples/torcs-*.json existstests/fixtures/torcs-sample.jsonSameSameresults.mdRequired for submission, depends on TORCS baselineAfter TORCS baseline runFinal P1.5 zone-pattern validation against real TORCS dataSameSame
+P1.5 can run partially against FastF1-only data and produce a draft docs/plans/zone-patterns.md; revalidate when TORCS data lands.
 Concrete what-to-do-right-now
 
 Right now (~40 min): apply G1–G6 doc fixes. Want me to write the exact diffs?
@@ -1311,7 +1311,7 @@ You're not stuck. The GitHub invite delay narrows what you can do today, but ~5 
   What I did: docs/plans/quick-follow-up-on-github-invite.md — May 11 escalation, no duplicate created
   Key design choices worth flagging
   1. FastF1 parser is honest about its placeholders. Pre-2026 historical data has no native MGU-K/H telemetry, so SoC is derived via a documented battery model (constants in fastf1_parser.py lines
-  53–66). Every row gets soc_source="derived". 2026-only concepts (override_uses, boost_uses) emit as 0 with a comment explaining why. When Torx data arrives at G-2, torx_parser.py will use measured
+  53–66). Every row gets soc_source="derived". 2026-only concepts (override_uses, boost_uses) emit as 0 with a comment explaining why. When TORCS data arrives at G-2, torcs_parser.py will use measured
   values; FastF1 stays a placeholder demonstrator.
   2. Pure function + network function split — parse_fastf1_lap(LapInputs, prior_soc_end) is the unit-testable core; parse_fastf1_session(...) is the network layer. Tests exercise the pure path
   against synthetic LapInputs fixtures; the network path is reserved for @pytest.mark.network-marked tests later.
@@ -1319,7 +1319,7 @@ You're not stuck. The GitHub invite delay narrows what you can do today, but ~5 
   PDFs) — captured in the kicker plan so P2.5's implementation doesn't re-discover them.
   Key design choices worth flagging
   1. FastF1 parser is honest about its placeholders. Pre-2026 historical data has no native MGU-K/H telemetry, so SoC is derived via a documented battery model (constants in fastf1_parser.py lines
-  53–66). Every row gets soc_source="derived". 2026-only concepts (override_uses, boost_uses) emit as 0 with a comment explaining why. When Torx data arrives at G-2, torx_parser.py will use measured
+  53–66). Every row gets soc_source="derived". 2026-only concepts (override_uses, boost_uses) emit as 0 with a comment explaining why. When TORCS data arrives at G-2, torcs_parser.py will use measured
   values; FastF1 stays a placeholder demonstrator.
   2. Pure function + network function split — parse_fastf1_lap(LapInputs, prior_soc_end) is the unit-testable core; parse_fastf1_session(...) is the network layer. Tests exercise the pure path
   against synthetic LapInputs fixtures; the network path is reserved for @pytest.mark.network-marked tests later.
@@ -1329,31 +1329,31 @@ You're not stuck. The GitHub invite delay narrows what you can do today, but ~5 
   ┌─────────────────────────────────┬─────────────────────────────────────────┐
   │              Item               │             Unblock signal              │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ ingest/torx_parser.py           │ Real Torx JSON shape — needs lab access │
+  │ ingest/torcs_parser.py           │ Real TORCS JSON shape — needs lab access │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ Gate G-2 SoC source decision    │ First Torx export                       │
+  │ Gate G-2 SoC source decision    │ First TORCS export                       │
   PDFs) — captured in the kicker plan so P2.5's implementation doesn't re-discover them.
   What's still genuinely blocked (unchanged)
   ┌─────────────────────────────────┬─────────────────────────────────────────┐
   │              Item               │             Unblock signal              │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ ingest/torx_parser.py           │ Real Torx JSON shape — needs lab access │
+  │ ingest/torcs_parser.py           │ Real TORCS JSON shape — needs lab access │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ Gate G-2 SoC source decision    │ First Torx export                       │
+  │ Gate G-2 SoC source decision    │ First TORCS export                       │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ tests/fixtures/torx-sample.json │ Same                                    │
+  │ tests/fixtures/torcs-sample.json │ Same                                    │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ results.md                      │ Torx baseline run                       │
+  │ results.md                      │ TORCS baseline run                       │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ Gate G-2 SoC source decision    │ First Torx export                       │
+  │ Gate G-2 SoC source decision    │ First TORCS export                       │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ tests/fixtures/torx-sample.json │ Same                                    │
+  │ tests/fixtures/torcs-sample.json │ Same                                    │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ results.md                      │ Torx baseline run                       │
+  │ results.md                      │ TORCS baseline run                       │
   └─────────────────────────────────┴─────────────────────────────────────────┘
   Estimated waiting window: 1–4 business days; follow-up scheduled May 11.
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ results.md                      │ Torx baseline run                       │
+  │ results.md                      │ TORCS baseline run                       │
   └─────────────────────────────────┴─────────────────────────────────────────┘
   Estimated waiting window: 1–4 business days; follow-up scheduled May 11.
   What we could do next (your call)
@@ -1361,31 +1361,31 @@ You're not stuck. The GitHub invite delay narrows what you can do today, but ~5 
   What we could do next (your call)
   Option: Wait for invite
   Effort: passive
-  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need Torx
+  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need TORCS
   ────────────────────────────────────────
   Option: Start P2.1 (heuristic zone detector) against synthesized FastF1-derived sessions
   Option: Wait for invite
   Effort: passive
-  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need Torx
+  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need TORCS
   │              Item               │             Unblock signal              │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ ingest/torx_parser.py           │ Real Torx JSON shape — needs lab access │
+  │ ingest/torcs_parser.py           │ Real TORCS JSON shape — needs lab access │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ Gate G-2 SoC source decision    │ First Torx export                       │
+  │ Gate G-2 SoC source decision    │ First TORCS export                       │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ tests/fixtures/torx-sample.json │ Same                                    │
+  │ tests/fixtures/torcs-sample.json │ Same                                    │
   ├─────────────────────────────────┼─────────────────────────────────────────┤
-  │ results.md                      │ Torx baseline run                       │
+  │ results.md                      │ TORCS baseline run                       │
   └─────────────────────────────────┴─────────────────────────────────────────┘
   Estimated waiting window: 1–4 business days; follow-up scheduled May 11.
   What we could do next (your call)
   Option: Wait for invite
   Effort: passive
-  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need Torx
+  Why: Phase 1 is ~70% done; the rest of P1.4 + all of P1.5 + P1.3 need TORCS
   ────────────────────────────────────────
   Option: Start P2.1 (heuristic zone detector) against synthesized FastF1-derived sessions
   Effort: ~3h
-  Why: Validates analysis/zone_detector.py against the 4 patterns even before Torx data arrives. Code from P2.1 doesn't depend on Torx — only on LapFeatures rows, which we now produce.
+  Why: Validates analysis/zone_detector.py against the 4 patterns even before TORCS data arrives. Code from P2.1 doesn't depend on TORCS — only on LapFeatures rows, which we now produce.
   ────────────────────────────────────────
   Option: Start P2.5 implementation (core/regs.py)
   Effort: ~3h
@@ -1432,7 +1432,7 @@ Required metrics keys (already in schema §4 — copy them in for traceability)
 Skip the three FastF1 plots from P1.5 §2 unless they're useful for calibration — they're gating zero downstream work, and you can produce them later from the same FastF1 fixture if you ever want them.
 Step B — analysis/zone_detector.py + analysis/feature_engineering.py + tests/test_zone_detector.py (~3h).
 Implement the four heuristics. One fixture per pattern in tests/test_zone_detector.py. Function signature should be detect_zones(laps: list[LapFeatures], soc_max: float) -> list[Zone] (mirroring LapWindow semantics from schema §3.2). Pure-Python, deterministic, no LLM.
-Caveat that's worth noting and not blocking: FastF1 data has every 2026-only field zeroed (override_uses=0, boost_uses=0), so the unused-override heuristic will never fire on FastF1 sessions — it has no gap_to_leader_s/available_override_mj/straight_length_m signal to evaluate. The code and unit test for unused-override can still be written cleanly using synthetic fixtures in tests/test_zone_detector.py. End-to-end validation of unused-override against real data has to wait for Torx, but that's true regardless of what we do today.
+Caveat that's worth noting and not blocking: FastF1 data has every 2026-only field zeroed (override_uses=0, boost_uses=0), so the unused-override heuristic will never fire on FastF1 sessions — it has no gap_to_leader_s/available_override_mj/straight_length_m signal to evaluate. The code and unit test for unused-override can still be written cleanly using synthetic fixtures in tests/test_zone_detector.py. End-to-end validation of unused-override against real data has to wait for TORCS, but that's true regardless of what we do today.
 Why not the other two options
 
 P2.5 implementation (core/regs.py) — feasible but G-4 (which exact FIA section) hasn't passed. You'd be writing chunker/embedding wiring against the 2024 Issue 8 PDF that's already locally cached, and the section selection would need re-doing once G-4 closes. Front-loads de-risk but creates ~30 min of rework. Lower yield than P2.1.
@@ -1444,17 +1444,17 @@ After Step B lands:
 
 P1.1 ✅ done
 P1.2 ✅ done
-P1.3 🚫 blocked (Torx)
-P1.4 ✅ FastF1 half done; Torx half blocked
+P1.3 🚫 blocked (TORCS)
+P1.4 ✅ FastF1 half done; TORCS half blocked
 P1.5 ✅ design doc done; FastF1-only plots optional/skip
 P2.1 ✅ done — heuristic baseline running
 
-That's Phase 1 effectively closed except for the Torx-blocked items, and you've eaten the most valuable Phase 2 unit (P2.1) ahead of schedule. When the GitHub invite arrives, the Torx work becomes a focused 2–3-hour block: write torx_parser.py, populate tests/fixtures/torx-baseline.json, run results.md baseline, validate the four zone patterns against real Torx data, finalize.
+That's Phase 1 effectively closed except for the TORCS-blocked items, and you've eaten the most valuable Phase 2 unit (P2.1) ahead of schedule. When the GitHub invite arrives, the TORCS work becomes a focused 2–3-hour block: write torcs_parser.py, populate tests/fixtures/torcs-baseline.json, run results.md baseline, validate the four zone patterns against real TORCS data, finalize.
 Go ahead with P1.5 design doc → P2.1. Both can ship in one PR.You said: ⏺ Recap — what landed⏺ Recap — what landed
   Step: A — docs/plans/zone-patterns.md
   Status: ✅ shipped
   Files: 187 lines: per-pattern description, detection heuristic as LapFeatures inequality, severity thresholds, required metrics keys, sector-assignment rules, FastF1-data caveats (especially the
-    over-firing of unused-override on pre-2026 data), and a two-pass calibration plan (post-FastF1 sweep + post-Torx sweep)
+    over-firing of unused-override on pre-2026 data), and a two-pass calibration plan (post-FastF1 sweep + post-TORCS sweep)
   ────────────────────────────────────────
   Step: B — feature engineering
   Status: ✅ shipped
@@ -1490,23 +1490,23 @@ Go ahead with P1.5 design doc → P2.1. Both can ship in one PR.You said: ⏺ Re
   ├──────┼───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────┤
   │ P1.2 │ ✅ closed             │ Discord pitch posted, communications log captured, May 11 invite-follow-up scheduled                 │
   ├──────┼───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ P1.3 │ 🚫 blocked            │ Torx access pending; quick-follow-up-on-github-invite.md triggers May 11                             │
+  │ P1.3 │ 🚫 blocked            │ TORCS access pending; quick-follow-up-on-github-invite.md triggers May 11                             │
   ├──────┼───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ P1.4 │ ⚠️  FastF1 half closed │ Schemas + FastF1 parser + 36 tests green; Torx parser awaits data/samples/torx-*.json                │
+  │ P1.4 │ ⚠️  FastF1 half closed │ Schemas + FastF1 parser + 36 tests green; TORCS parser awaits data/samples/torcs-*.json                │
   ├──────┼───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────┤
   │ P1.5 │ ✅ closed             │ zone-patterns.md shipped; the three exploratory plots are deferred (not gating anything)             │
   ├──────┼───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────┤
   │ P2.1 │ ✅ closed early       │ Heuristic baseline complete and tested; pre-empts Phase 2 by ~3h since this work was unblocked today │
   └──────┴───────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  What's still genuinely waiting on Torx access
+  What's still genuinely waiting on TORCS access
   ┌──────────────────────────────────────────┬───────────────────────────────┐
   │                   Item                   │     Effort once unblocked     │
-  │ Calibration sweep on real Torx data      │ ~1h (re-tune zone thresholds) │
+  │ Calibration sweep on real TORCS data      │ ~1h (re-tune zone thresholds) │
   ├──────────────────────────────────────────┼───────────────────────────────┤
-  │ unused-override pattern truth-validation │ comes free with Torx samples  │
+  │ unused-override pattern truth-validation │ comes free with TORCS samples  │
   └──────────────────────────────────────────┴───────────────────────────────┘
   That's a focused 3–4 hour block once the GitHub invite arrives.
-  What's available to start next (still no Torx needed)
+  What's available to start next (still no TORCS needed)
   Option: P2.3 reasoning skeleton (core/reasoning.py + watsonx chat-API wrapper)
   Effort: ~3h
   Why: Granite Instruct is reachable on watsonx; Zone objects exist; the prompt contract is locked. Build the function reason_about_zone(zone, lap_window, forecast, regulation) → ReasoningOutput with
@@ -1527,7 +1527,7 @@ Go ahead with P1.5 design doc → P2.1. Both can ship in one PR.You said: ⏺ Re
   graceful-degradation
     guardrail
   My recommendation: P2.3 reasoning skeleton next. That's the first piece that produces user-visible text in the demo, and it closes the loop "schema → zone detector → reasoning over zones" — once
-  it's done, you can show a recognizable end-to-end debrief on synthetic FastF1 data without Torx, without TTM, without Docling. The remaining Phase 2 pieces become enhancements rather than
+  it's done, you can show a recognizable end-to-end debrief on synthetic FastF1 data without TORCS, without TTM, without Docling. The remaining Phase 2 pieces become enhancements rather than
   dependencies.
   Want me to start P2.3?
 ✻ Cogitated for 7m 33s · 1 shell still runningShow moreClaude responded: Verified — all of P1.Used 3 tools, ran a commandUsed 3 tools, ran a commandVerified — all of P1.5 and P2.1 landed cleanly. Strong endorse on P2.3 as next. One small addition that changes the framing slightly: pair P2.3 with P2.6 Pass-1 validator in the same work block for a complete validated demo cut.
@@ -1539,14 +1539,14 @@ Roadmap critical path from here:
 P2.3 reasoning → P2.4 refinement → P2.6 (Pass 1 + Pass 2 Guardian) → P2.7 pipeline glue
                                 ↑
                     P2.5 grounding (gated on G-4) — parallel
-P2.3 is on the critical path, unblocked, and has the highest demo-value-per-hour of anything in front of you — it's the first piece of the system that produces user-visible reasoning text. After P2.3 + P2.6 Pass 1, you can demo a complete debrief on FastF1-derived sessions without Torx, without TTM, without Docling — every Phase-2 piece below it becomes an enhancement layer rather than a blocker.
+P2.3 is on the critical path, unblocked, and has the highest demo-value-per-hour of anything in front of you — it's the first piece of the system that produces user-visible reasoning text. After P2.3 + P2.6 Pass 1, you can demo a complete debrief on FastF1-derived sessions without TORCS, without TTM, without Docling — every Phase-2 piece below it becomes an enhancement layer rather than a blocker.
 My one adjustment: pair P2.3 with P2.6 Pass-1 in the same PR
 P2.3 produces ReasoningOutput. Without the Pass-1 validator, you have no enforcement of the language_safety / citation_existence / source_consistency rules that core/validator.yaml already specifies. The validator is only ~2h of work, runs entirely in pure Python over the ReasoningOutput Pydantic object, and the YAML contract is fully locked. Doing it in the same block:
 
 closes the complete validated single-zone demo loop
 exercises both halves of the schema-to-code mapping at once
 lets you write test_validator.py against fixed ReasoningOutput fixtures rather than waiting for live watsonx output
-validator's harvest_cap rule already has pre_g4_behavior: noop — no Torx/G-4 dependency
+validator's harvest_cap rule already has pre_g4_behavior: noop — no TORCS/G-4 dependency
 
 Net effort: P2.3 ~3–4h + P2.6 Pass-1 only ~2h = ~5–6h, one sitting or split across two. Pass-2 Guardian stays deferred until after P2.5 (since regulation_consistency scoring needs real chunks to consume).
 P2.3 scope details that will save you backtracking
@@ -1724,7 +1724,7 @@ After the plumbing PR:
 Then unblocks P2.6 Pass-2 Guardian (separate PR, ~3-4h)
 Then P2.7 pipeline glue (separate PR, ~2h)
 
-By end of next two-PR sequence (P2.5 plumbing → G-4 → P2.6 Pass-2 → P2.7), you'll have a fully validated, watsonx-backed, regulation-grounded pipeline running on FastF1-derived data — Phase 2 effectively closed except for optional TTM-R2 (P2.2) and Torx-blocked items.
+By end of next two-PR sequence (P2.5 plumbing → G-4 → P2.6 Pass-2 → P2.7), you'll have a fully validated, watsonx-backed, regulation-grounded pipeline running on FastF1-derived data — Phase 2 effectively closed except for optional TTM-R2 (P2.2) and TORCS-blocked items.
 Phase trajectory
 UnitStatus after P2.5 landsP2.1 zone detector✅ doneP2.2 TTM-R2 forecastingoptional, ~5hP2.3 reasoning✅ doneP2.4 reasoning refinementunblocked, deferrableP2.5 grounding plumbing✅ doneP2.5 G-4 (regulation-source.md)⏳ ~30 min reading + commitP2.6 Pass 1✅ doneP2.6 Pass 2 Guardianunblocked after P2.5P2.7 pipeline glueunblocked after P2.6 Pass 2Phase 3 UIunblocked after P2.7
 Yes — start P2.5. Suggested PR scope: core/regs.py + tests/test_regs.py + initial data/regs/extracted_chunks.sample.json (with g4_status: pending) + a one-line update to the existing scripts/embed-watsonx.sh if needed. Save G-4 documentation + final chunk regen for a small follow-up PR after the reading session. Want me to outline the exact core/regs.py function signatures and the test plan, or just turn you loose?You said: I ran two test for the docling and they were successful this is the second one and you can see the results here the first one was just straight command and the…I ran two test for the docling and they were successful this is the second one and you can see the results here the first one was just straight command and the second one i tested ocr and table flags/Users/patrickndille/overdrive-may-2026/fia_2026_formula_1_technical_regulations_issue_8_-_2024-06-24.md/Users/patrickndille/overdrive-may-2026/FIA-2026-F1-Regulations-Section-C-_Technical_-Iss-12-2025-06-10.mdhow ever the test is still running in the code agent ((.venv) ) patrickndille@Patricks-MBP overdrive-may-2026 % docling --ocr --tables data/regs/FIA-2026-F1-Regulations-Section-C-_Technical_-Iss-12-2025-06-10.pdf  --output /Users/patrickndille/overdrive-may-2026· 1 shell · esc to interrupt · ↓ to manage⏺ Reading 1 file… (ctrl+o to expand)
@@ -1806,7 +1806,7 @@ Close G-4 by writing docs/regulation-source.md with the citation source paragrap
 Ship the P2.5 PR (plumbing + G-4 closure together is cleaner than two PRs).
 Then P2.6 Pass-2 Guardian (~3-4h, mirror of P2.3's watsonx pattern).
 
-You're three steps from a complete validated, regulation-grounded, watsonx-backed pipeline running on FastF1-derived data — Phase 2 essentially closed except for optional TTM-R2 (P2.2) and the Torx-blocked items.You said: The agent is processing the last ones and these are its last turnThe agent is processing the last ones and these are its last turn⏺ P2.5 plumbing shipped. Final tally:
+You're three steps from a complete validated, regulation-grounded, watsonx-backed pipeline running on FastF1-derived data — Phase 2 essentially closed except for optional TTM-R2 (P2.2) and the TORCS-blocked items.You said: The agent is processing the last ones and these are its last turnThe agent is processing the last ones and these are its last turn⏺ P2.5 plumbing shipped. Final tally:
   Recap — P2.5 grounding plumbing  Artifact: core/regs.py
   Lines: 533 
   What it does: WatsonxEmbeddingClient Protocol + WatsonxAIEmbeddingClient real impl (Granite Embedding 278M, 768-dim); chunk_markdown() (heading-driven splitting, paragraph merging,
@@ -2078,9 +2078,9 @@ Hold P2.6 Pass-2 until after G-4 regen. The Code agent's instinct to ask was cor
   ├───────────────────────────┼───────────────────────────────────┤
   │ P1.2 Discord pitch        │ ✅                                │
   ├───────────────────────────┼───────────────────────────────────┤
-  │ P1.3 Torx                 │ ⏳ blocked (invite May 11)        │
+  │ P1.3 TORCS                 │ ⏳ blocked (invite May 11)        │
   ├───────────────────────────┼───────────────────────────────────┤
-  │ P1.4 ingest               │ ✅ FastF1 half; Torx half blocked │
+  │ P1.4 ingest               │ ✅ FastF1 half; TORCS half blocked │
   ├───────────────────────────┼───────────────────────────────────┤
   │ P1.5 zone patterns        │ ✅                                │
   ├───────────────────────────┼───────────────────────────────────┤
@@ -2147,7 +2147,7 @@ low-roi-deploy → C5.21.2 retrieval calibration. You flagged this as suboptimal
 
 Phase 2 picture after Pass-2 lands
 UnitStatusP2.6 Pass-2 Guardian✅ done (this PR)harvest_cap rule active⏳ small follow-up, ~30 minP2.7 pipeline glue⏳ unblocks immediately — orchestrates the retry loop, all primitives now existPhase 3 UI⏳ unblocks after P2.7
-After this PR + ~2h P2.7, you'll have a complete, validated, regulation-grounded, two-pass-safety-checked, watsonx-backed pipeline running on FastF1-derived data. Phase 2 effectively closed except for optional TTM-R2 (P2.2) and the Torx-blocked items.
+After this PR + ~2h P2.7, you'll have a complete, validated, regulation-grounded, two-pass-safety-checked, watsonx-backed pipeline running on FastF1-derived data. Phase 2 effectively closed except for optional TTM-R2 (P2.2) and the TORCS-blocked items.
 Go ahead — start P2.6 Pass-2 Guardian. Scope is core/guardian.py + tests/test_guardian.py + core/__init__.py exports. Single PR. Want me to draft the function signatures and the rubric-rendering prompt template, or just turn you loose?You said: ⏺ End-to-end pipeline works — and the demo run caught its own mistake: the reasoning fabricated a citation that doesn't appear verbatim in the retrieved chunk,…⏺ End-to-end pipeline works — and the demo run caught its own mistake: the reasoning fabricated a citation that doesn't appear verbatim in the retrieved chunk, Pass-1 deterministic validator flagged
   citation_existence, while Pass-2 Guardian (which checks topical alignment, not verbatim presence) said both criteria "No risk". This is exactly the layered-defense behavior the architecture
   promises.
@@ -2295,9 +2295,9 @@ No persistence. Storage lives in api/main.py per 04-api.md §7 — core/pipeline
 
 Done-When (per roadmap P2.7)
 
-5 Torx replays + 2 FastF1 replays produce a valid debrief
+5 TORCS replays + 2 FastF1 replays produce a valid debrief
 Deterministic output across runs on same input
-Caveat: Torx half is still blocked. Initial P2.7 ships passing the FastF1 half (2/7) and the synthetic-fixture path. Torx half closes when GitHub invite arrives. Document this clearly in the test-plan fixtures.
+Caveat: TORCS half is still blocked. Initial P2.7 ships passing the FastF1 half (2/7) and the synthetic-fixture path. TORCS half closes when GitHub invite arrives. Document this clearly in the test-plan fixtures.
 
 Test plan
 TestWhat it coversUnit — full pipeline on synthetic 5-lap session, mocked clientsComposition correctness, no networkUnit — retry loop fires once on Pass-1 fail, succeedsRetry boundary correctnessUnit — retry loop fires twice on repeated Pass-2 fail, ships with final_confidence="low"Retry exhaustion path (the "no silent drop" guarantee in FR-6.3)Unit — forecast_fn=NoneGraceful degradation — pipeline runs end-to-end without TTMUnit — empty zones listEmpty session edge case (FR-2.3)Unit — deterministic — same input twice yields same outputFR/Determinism@pytest.mark.network — real watsonx end-to-end on FastF1 fixtureLive integration
@@ -2308,12 +2308,12 @@ pythondef extract_harvest_cap_mj(chunks: list[RegulationChunk]) -> Optional[floa
     """Find the per-lap harvest cap by searching C5.2 / C5.2.14 chunks for MJ values."""
 Pass the resulting cap_mj into validate(..., harvest_cap_mj=cap_mj) so the rule activates. ~30 min. Not blocking — cap_mj=None keeps the rule passing safely — but worth bundling.
 2. The low-roi-deploy → C5.21.2 retrieval calibration.
-Earlier flagged for P3 calibration sweep. P2.7 is when you'll actually see this in end-to-end output. Decision point: leave for P3, or fix now (~10 min keyword-set tune)? I'd say leave for P3 — the recommendation is technically valid (cabling-section, MGU-K-adjacent), just not optimally specific. Calibration sweep with real Torx data is the right moment.
+Earlier flagged for P3 calibration sweep. P2.7 is when you'll actually see this in end-to-end output. Decision point: leave for P3, or fix now (~10 min keyword-set tune)? I'd say leave for P3 — the recommendation is technically valid (cabling-section, MGU-K-adjacent), just not optimally specific. Calibration sweep with real TORCS data is the right moment.
 After P2.7 — what unblocks
 UnitStatus after P2.7Phase 3 UI (P3.1 → P3.7, ~30h)✅ unblocked — frontend can call the pipeline through the APIapi/main.py (FastAPI HTTP layer)unblocks immediately — wraps run_pipeline() per 04-api.md §4Demo recording (P4.2/P4.3)the captured layered-defense moment becomes the spine of the 30s explainability segment
 Phase 2 closure
 After P2.7 + the optional harvest_cap follow-up:
-UnitStatusP2.1 zone detector✅P2.2 TTM-R2⏳ optional, fire-and-forget if you want it; ~5hP2.3 reasoning✅P2.4 reasoning refinement⏳ deferrable to P3P2.5 grounding + G-4✅P2.6 Pass 1 + Pass 2✅P2.7 pipeline glue✅ after this PRPhase 2 effectively closedexcept optional TTM-R2 (P2.2) and Torx-blocked items
+UnitStatusP2.1 zone detector✅P2.2 TTM-R2⏳ optional, fire-and-forget if you want it; ~5hP2.3 reasoning✅P2.4 reasoning refinement⏳ deferrable to P3P2.5 grounding + G-4✅P2.6 Pass 1 + Pass 2✅P2.7 pipeline glue✅ after this PRPhase 2 effectively closedexcept optional TTM-R2 (P2.2) and TORCS-blocked items
 Then you're into Phase 3 UI work and the demo-asset capture sequence — both well-specified in the existing docs.
 Yes — start P2.7. Scope: core/pipeline.py + tests/test_pipeline.py + the captured layered-defense fixture, plus optionally the harvest_cap helper. One PR.
 Capture that demo-defense moment as a fixture before you start writing the pipeline orchestrator — once the orchestrator changes the call sequence, regenerating the same exact failure mode becomes harder. Save the JSON output of your current run somewhere safe right now.
@@ -2386,7 +2386,7 @@ Want me to outline the exact core/pipeline.py function signatures and the test-f
   ├───────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
   │ P2.7 pipeline glue        │ ✅ done                                                                          │
   ├───────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
-  │ Phase 2 closed            │ except optional TTM (P2.2), deferrable refinement (P2.4), and Torx-blocked items │
+  │ Phase 2 closed            │ except optional TTM (P2.2), deferrable refinement (P2.4), and TORCS-blocked items │
   └───────────────────────────┴──────────────────────────────────────────────────────────────────────────────────┘
   What's unblocked now
   Path: api/main.py (FastAPI HTTP layer wrapping run_pipeline())
@@ -2476,7 +2476,7 @@ api/main.py Tier 2 + What-if. After Tier 1 + UI scaffolding (P3.2) lands, come b
 
 Phase trajectory after this PR
 UnitStatusapi/main.py Tier 1 (~3-4h)⏳ this PRcore/fan_mode.py (~1h, recommended in Tier 1)⏳ same PRharvest_cap extractor (~30 min)⏳ between PRsPhase 3 UI (P3.1–P3.7, ~30h)⏳ unblocks immediately after this PRapi/main.py Tier 2 + what-if⏳ after P3.2 UI scaffoldPhase 4 submission assets (~14h)⏳ Day 16+Phase 5 polish (~4h)⏳ Day 25+
-You're inside the May 31 deadline window with reasonable margin. Today is May 8 → 23 days → at 6-8 hours/day average, that's 138-184 hours of capacity vs. ~52 hours of remaining roadmap work. The Torx-blocked items + GitHub invite delay are the biggest schedule risks; everything else is in your hands.
+You're inside the May 31 deadline window with reasonable margin. Today is May 8 → 23 days → at 6-8 hours/day average, that's 138-184 hours of capacity vs. ~52 hours of remaining roadmap work. The TORCS-blocked items + GitHub invite delay are the biggest schedule risks; everything else is in your hands.
 Yes — start api/main.py Tier 1 + core/fan_mode.py. Single PR. Want the exact endpoint-by-endpoint function signature outline + error-mapping table before you go, or just turn loose with the tier list above?You said: the agent is working on this round.the agent is working on this round. so we are on watsonx.ai free tieir can you reasearch what that means and how we can manage that for the development. But if you also let me know what we can budget daily I can upgrade to standard plan so that we dont hit limits let me know the plan for this and we would weight the options The current free tier for [IBM watsonx.ai](https://www.ibm.com/products/watsonx-ai/pricing?utm_source=chatgpt.com) is actually usable for prototyping projects like OVERRIDE, especially if you architect intelligently. The biggest mistake people make is assuming they need enterprise-scale deployment from day one.
 Current watsonx.ai Free Tier Limits
 According to IBM’s current pricing page, the free toolbox playground includes:  Foundation Models: up to 300,000 tokens/monthMachine Learning Tools: up to 20 Compute Usage Hours (CUH)/monthText Extraction: up to 100 documents/month
@@ -2753,7 +2753,7 @@ MitigationStatusCaptured demo fixture✅Watsonx quota → 503 with detail✅ in 
 Whether you upgrade or not, the fixture-driven UI dev pattern means P3.2 won't burn your quota meaningfully (estimated ~5 watsonx calls total during P3.2). So tier upgrade isn't a P3.2 blocker — it's only relevant when you start hammering live integration tests during P3.7 QA.
 Phase 3 + 4 picture
 UnitStatusharvest_cap (~30 min)⏳ do firstAPI Tier 2 (~1.5h)⏳ optional but cheap; do alongsideP3.2 UI framework (~6h)⏳ nextP3.3 Engineer polish (~5h)unblocks after P3.2P3.1 Langflow canvas (~4h)best done after P3.3P3.4 Fan Mode UI (~5h)unblocks after P3.3P3.5 polish + assets (~4h)unblocks after P3.4P3.6 Observability (~3h)unblocks after P3.2 (parallel-doable)P3.7 QA (~3h)unblocks after P3.5 + P3.6Phase 4 (P4.1–P4.4, ~14h)~Day 16+Phase 5 (P5.1–P5.2, ~4h)~Day 25+
-~52 hours of remaining roadmap work over 23 days = comfortably under capacity. Torx access is still the wildcard but doesn't block UI work.
+~52 hours of remaining roadmap work over 23 days = comfortably under capacity. TORCS access is still the wildcard but doesn't block UI work.
 Yes — close harvest_cap (30 min), then start P3.2 UI framework with Vite + React + the layered_defense_demo.json fixture as dev data. Want me to outline the exact Vite project structure + the API client wrapper signature, or just turn loose?You said: I have upgraded the run time to essential watsonx.I have upgraded the run time to essential watsonx.ai Runtime
 WatsonMachineLearning
 watsonx.ai    EssentialsClaude responded: Smart move — that's the $0.Smart move — that's the $0.30-vs-$1,050 trade locked in correctly. No code changes needed. Same WATSONX_API_KEY + WATSONX_PROJECT_ID keep working, but quota anxiety effectively goes away. A few short follow-ups while it's fresh, then continue with harvest_cap → P3.2.
@@ -2884,7 +2884,7 @@ Picture the failure mode without this catch: Pass-1 validator runs, harvest_cap 
 The agent caught it because it grounded the verification in the actual cap text: "must not exceed 8.5MJ in each lap". That's the right shape of de-risking — verify the data flow end-to-end against a known truth, not just verify the code compiles.
 This kind of catch is the reason gates like G-4 are worth taking seriously and re-checking after structural changes.
 Status snapshot — clean handoff for next session
-ItemStatePhase 1 (P1.1–P1.5)✅ closed (Torx half of P1.3/P1.4 still blocked on GitHub invite)Phase 2 (P2.1–P2.7)✅ closedAPI Tier 1 + core/fan_mode.py✅ closedharvest_cap NOOP debt✅ closed (5 rounds of deferral done)Watsonx tier✅ Essentials, smoke-tested, budget alerts at CA$10 eachR18✅ Low likelihood, mitigations preserved for non-quota failure modesEmpty stubs left in core/only forecasting.py (P2.2 optional)ui/scaffold dirs exist, package.json is 0 bytes — ready for P3.2Layered-defense fixturepreserved at tests/fixtures/layered_defense_demo.json (3,941 bytes) — your demo asset and your UI dev fixture
+ItemStatePhase 1 (P1.1–P1.5)✅ closed (TORCS half of P1.3/P1.4 still blocked on GitHub invite)Phase 2 (P2.1–P2.7)✅ closedAPI Tier 1 + core/fan_mode.py✅ closedharvest_cap NOOP debt✅ closed (5 rounds of deferral done)Watsonx tier✅ Essentials, smoke-tested, budget alerts at CA$10 eachR18✅ Low likelihood, mitigations preserved for non-quota failure modesEmpty stubs left in core/only forecasting.py (P2.2 optional)ui/scaffold dirs exist, package.json is 0 bytes — ready for P3.2Layered-defense fixturepreserved at tests/fixtures/layered_defense_demo.json (3,941 bytes) — your demo asset and your UI dev fixture
 Days remaining: 22 to May 31 deadline (today is May 9). Estimated remaining roadmap: ~50h of build + asset capture + video + submission. Comfortable margin.
 P3.2 prep for the next session — three small decisions to make ahead of time
 When you come back, the agent will want directional answers on these three so the next 6-hour block doesn't lose time on architecture-debate:
@@ -3711,7 +3711,7 @@ Langflow's flow JSON schema is internal and breaks across versions. This isn't a
 The 30-min UI assembly is a one-shot task with clear instructions against docs/04-langflow-canvas.md (already comprehensive). Once exported, override.flow.json is a single committable artifact.
 At Day 14-15 of a 23-day build, robustness beats velocity. Losing 4-8h to a broken import would compress the remaining Phase 3 + Phase 4 + Phase 5 schedule meaningfully.
 
-One small steerage for the agent before they go: the Langflow components need to be executable, not just visual stubs — 04-langflow-canvas.md calls for "one end-to-end sample flow for the demo recording," meaning the canvas must actually run a Torx/FastF1 replay through to a Recommendation. Make sure the 4-5 Python Custom Components are thin HTTP wrappers around the existing FastAPI endpoints (or thin function wrappers around core/pipeline.py's run_pipeline()) so the canvas can fire end-to-end, not just lay out boxes that don't connect.
+One small steerage for the agent before they go: the Langflow components need to be executable, not just visual stubs — 04-langflow-canvas.md calls for "one end-to-end sample flow for the demo recording," meaning the canvas must actually run a TORCS/FastF1 replay through to a Recommendation. Make sure the 4-5 Python Custom Components are thin HTTP wrappers around the existing FastAPI endpoints (or thin function wrappers around core/pipeline.py's run_pipeline()) so the canvas can fire end-to-end, not just lay out boxes that don't connect.
 Pick 1. Have the agent ship the components + README, then you assemble + export + screenshot in ~30 min.
 (Side notes for after P3.1: you still owe yourself the engineer-mode re-capture / guardian-rejection rename / jaeger-trace screenshot. None of them block P3.1 starting now.)You said: P3.P3.1 status:
   P3.1 status:
@@ -3724,7 +3724,7 @@ Pick 1. Have the agent ship the components + README, then you assemble + export 
   ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
   │ Assembly README with one-time setup, node table, connection map, subgraph styling, demo-run, export, troubleshooting │ done at langflow/README.md                                          │
   ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
-  │ Sample demo input at data/sessions/sample_torx.json (5 laps, derived from engineer_happy_demo fixture)               │ done                                                                │
+  │ Sample demo input at data/sessions/sample_torcs.json (5 laps, derived from engineer_happy_demo fixture)               │ done                                                                │
   ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
   │ Ingest → Zone Detector chain end-to-end smoke test                                                                   │ passes (5 zones detected from the sample)                           │
   ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
@@ -3898,9 +3898,9 @@ Go ahead with P3.5. Want the agent to outline the exact CSS-pass checklist (typo
    in 8.2 seconds. Next: export override.flow.json and capture langflow-canvas.png from the canvas UI.Show moreClaude responded: Comprehensive status review against the canonical roadmap.Used 3 tools, ran a commandUsed 3 tools, ran a commandComprehensive status review against the canonical roadmap. Today is May 9, 2026 → 22 days to deadline (May 31).
 Where everything stands
 Code (~2,500 lines core + 1,000 api + ui)
-SurfaceStateNotescore/ (reasoning, validator, regs, guardian, fan_mode, pipeline)✅ shippedOnly core/forecasting.py empty (P2.2 optional)api/ (main + storage + errors + observability)✅ Tier 1 + observabilityTier 2 endpoints + slowapi rate-limit deferredingest/✅ FastF1 halftorx_parser.py blocked on GitHub inviteanalysis/ (zone_detector + feature_engineering)✅ shippedui/ (15 source files, Vite + React + Tailwind)✅ P3.2 + P3.3 + P3.4 donelangflow/ (8 components + assembled flow)✅ shippedoverride.flow.json 27.8 KB — you exported it cleanlytests/✅ 212 fns / 231 unit + 4 network = 235 green
+SurfaceStateNotescore/ (reasoning, validator, regs, guardian, fan_mode, pipeline)✅ shippedOnly core/forecasting.py empty (P2.2 optional)api/ (main + storage + errors + observability)✅ Tier 1 + observabilityTier 2 endpoints + slowapi rate-limit deferredingest/✅ FastF1 halftorcs_parser.py blocked on GitHub inviteanalysis/ (zone_detector + feature_engineering)✅ shippedui/ (15 source files, Vite + React + Tailwind)✅ P3.2 + P3.3 + P3.4 donelangflow/ (8 components + assembled flow)✅ shippedoverride.flow.json 27.8 KB — you exported it cleanlytests/✅ 212 fns / 231 unit + 4 network = 235 green
 Phase status
-PhaseStatusPhase 1 Foundation✅ all units done except Torx half (blocked)Phase 2 Core AI Pipeline✅ closed (P2.2 TTM optional, P2.4 deferred)Phase 3 Orchestration + UI⚠️ P3.5 polish + P3.7 QA still aheadPhase 4 Submission Assets⏳ not started (~14h budget)Phase 5 Final Lock⏳ not started (~4h budget)
+PhaseStatusPhase 1 Foundation✅ all units done except TORCS half (blocked)Phase 2 Core AI Pipeline✅ closed (P2.2 TTM optional, P2.4 deferred)Phase 3 Orchestration + UI⚠️ P3.5 polish + P3.7 QA still aheadPhase 4 Submission Assets⏳ not started (~14h budget)Phase 5 Final Lock⏳ not started (~4h budget)
 Doc system
 DocState00-thesis.md, 00-abstract.md, 02-*.md (3 files), 03-prd.md, 03-architecture.md/.mmd, 04-*.md (4 files), 05-risk-register.md, 06-roadmap.md, 07-deployment.md, regulation-source.md, ADR-001✅ all current as of Issue 18 G-4 closuredocs/plans/ outstanding7 files — see cleanup section below
 Assets
@@ -3914,12 +3914,12 @@ P0 — submission-blocking, do this week
 #TaskEffortOwner-only because1Capture jaeger-trace.png — Docker run Jaeger + uvicorn with OVERRIDE_TRACING=otlp + UI screenshot per docs/plans/p3.6-jaeger-trace-capture.md~15 minNeeds your local Docker daemon2Create assets/logo.png (512×512 per roadmap P4.1) and assets/logo-icon.png~30-60 minYour design call3Create assets/demo.gif (≤8s loop, ≤6 MB per roadmap P4.1) — screen recording of upload→debrief→fan-toggle flow~30 minYour screen recording4Phase 4 design assets per P4.1 — banner already exists, but verify it's the final 1920×600 version~30 min if needs reworkYour design call5Phase 4 video script + voiceover (P4.2) — finalize per docs/00-abstract.md script, record voiceover, target 2:55~4hYour voice + recording6Phase 4 video edit (P4.3) — OBS capture + DaVinci/CapCut + YouTube unlisted upload~4hYour editing7Phase 4 BeMyApp portal (P4.4) — fill project page (banner, logo, summary, video link, repo link, team), click PUBLISH~2hYour account
 Subtotal: ~12-14h — sits inside the P4 ~14h budget.
 P1 — meaningful but not blocking
-#TaskEffortWhy8Follow up on GitHub invite (Day 3 follow-up was scheduled May 11)~5 minUnblocks Torx half of P1.3/P1.4/P1.5; without it the data/samples/ is empty and ingest/torx_parser.py stays empty. Submission can ship without it — FastF1 + fixtures cover the demo.9Browser triage — DevTools → Application → Service Workers → Unregister + clear storage~5 minResolves the /error 500 page noise — purely cosmetic for your local dev10Verify assets/banner.png is the final 1920×600 BeMyApp banner per spec~5 minQuick visual check11Decide: refresh fan_mode_demo.json (~$0.05 burn) or annotate as historical~2 min decisionYour call per the agent's audit
+#TaskEffortWhy8Follow up on GitHub invite (Day 3 follow-up was scheduled May 11)~5 minUnblocks TORCS half of P1.3/P1.4/P1.5; without it the data/samples/ is empty and ingest/torcs_parser.py stays empty. Submission can ship without it — FastF1 + fixtures cover the demo.9Browser triage — DevTools → Application → Service Workers → Unregister + clear storage~5 minResolves the /error 500 page noise — purely cosmetic for your local dev10Verify assets/banner.png is the final 1920×600 BeMyApp banner per spec~5 minQuick visual check11Decide: refresh fan_mode_demo.json (~$0.05 burn) or annotate as historical~2 min decisionYour call per the agent's audit
 P2 — repo hygiene, last week
 #TaskEffortWhy12Delete obsolete plan files per .bob/rules.md ("plans deleted in same PR that ships the feature"). Specifically: docs/plans/p2.5-docling-kicker.md (P2.5 + G-4 done), docs/plans/zone-patterns.md (P1.5 + P2.1 done), docs/plans/phase-1-foundation-implementation.md (Phase 1 closed)~5 minRepo hygiene per your own rules13Keep docs/plans/p3.6-jaeger-trace-capture.md until you capture jaeger-trace.png, then delete in same PR~30 secSame rule14Keep docs/plans/discord-pitch-feedback.md + quick-follow-up-on-github-invite.md until P1.2 closes (when GitHub invite resolves either way)~30 secSame rule15Phase 5 polish + final lock (P5.1 + P5.2 ~4h) — read README cold, demo on a clean machine, walk submission checklist~4hYour final-pass discipline
 What's left on the AGENT's part — code-side
 Genuinely small. The pipeline is feature-complete. What's left is optional or polish:
-ItemEffortPriorityP3.5 polish — CSS pass on cards, typography hierarchy, motion polish, accessibility audit~3-4hRecommendedP3.7 end-to-end QA — already partially done (8.2s end-to-end live run verified, validator-pass-rate audit complete). Remaining: 5 Torx + 2 FastF1 replays per roadmap. Torx half blocked; FastF1 half doable.~1.5hRecommendedAPI Tier 2 endpoints (/api/sessions list + /laps + /zones + DELETE + slowapi rate-limit)~2-3hOptional — Tier 1 ships UIWhat-if endpoint + UI wiring~3hOptional — disabled-state UI shell already existsharvest_cap parser improvementdoneP2.2 TTM-R2 forecasting~5hOptional per graceful-degradation guardrailP2.4 reasoning eval harness~4hDeferrable to post-submissionSection B Sporting Regs integration (unused-override grounding)~3-4hDeferred to post-submissionRefresh fan_mode_demo.json~10 min + ~$0.05 burnPending your decision
+ItemEffortPriorityP3.5 polish — CSS pass on cards, typography hierarchy, motion polish, accessibility audit~3-4hRecommendedP3.7 end-to-end QA — already partially done (8.2s end-to-end live run verified, validator-pass-rate audit complete). Remaining: 5 TORCS + 2 FastF1 replays per roadmap. TORCS half blocked; FastF1 half doable.~1.5hRecommendedAPI Tier 2 endpoints (/api/sessions list + /laps + /zones + DELETE + slowapi rate-limit)~2-3hOptional — Tier 1 ships UIWhat-if endpoint + UI wiring~3hOptional — disabled-state UI shell already existsharvest_cap parser improvementdoneP2.2 TTM-R2 forecasting~5hOptional per graceful-degradation guardrailP2.4 reasoning eval harness~4hDeferrable to post-submissionSection B Sporting Regs integration (unused-override grounding)~3-4hDeferred to post-submissionRefresh fan_mode_demo.json~10 min + ~$0.05 burnPending your decision
 Submission readiness assessment
 The product itself is demo-ready right now. Live pipeline runs in 8.2s end-to-end on watsonx Essentials with Pass-1 first-try passing, both Pass-2 BYOC criteria scoring 1.0, verbatim citations matching Issue 18 chunks, and the layered-defense rejection path reproducible from the synthetic fixture. UI renders all five demo screens cleanly. Six of seven required screenshots are captured.
 What ships without further changes:
@@ -4166,7 +4166,7 @@ Take your time on Step 5 framing — this is the one image that proves to judges
           README.md docs/plans/qa-results.md docs/logo-design-brief.md \
           langflow/override_components/ langflow/override.flow.json \
           langflow/README.md requirements-langflow.txt \
-          data/sessions/sample_torx.json
+          data/sessions/sample_torcs.json
   (I'm not running these — destructive-adjacent + your call on stash/squash strategy. Reproduced for reference.)
   With brand + Jaeger + canvas all landed, P3 phase status updates:
   ┌────────────────────────────┬──────────────────────────────────────────────────────────────────────┐
@@ -4209,7 +4209,7 @@ Save as: assets/demo.gif
 
 What to capture (8-second flow)
 This is the README hero asset — it should answer "what does OVERRIDE actually do?" in 8 seconds. Suggested shot list:
-TimeActionWhy0:00-0:01UI on /upload page (clean idle state)Establishes context0:01-0:02Mouse drags data/sessions/sample_torx.json (or click sample chip)The "drop in" moment0:02-0:04Loading shimmer → debrief renders (energy curve + heatmap + 3-5 cards)The payoff0:04-0:05Mouse hovers/clicks one card → reasoning chain expandsShows depth0:05-0:07Press F → cross-fade to Fan Mode → plain-language cardThe "one engine, two modes" story0:07-0:08Hold on Fan card briefly → loop pointClean loop end
+TimeActionWhy0:00-0:01UI on /upload page (clean idle state)Establishes context0:01-0:02Mouse drags data/sessions/sample_torcs.json (or click sample chip)The "drop in" moment0:02-0:04Loading shimmer → debrief renders (energy curve + heatmap + 3-5 cards)The payoff0:04-0:05Mouse hovers/clicks one card → reasoning chain expandsShows depth0:05-0:07Press F → cross-fade to Fan Mode → plain-language cardThe "one engine, two modes" story0:07-0:08Hold on Fan card briefly → loop pointClean loop end
 Recording — easiest macOS path
 Option A — Kap (free, drag-and-drop GIF export):
 
@@ -4264,7 +4264,7 @@ bashcd /Users/patrickndille/overdrive-may-2026
 git rm docs/plans/p2.5-docling-kicker.md           # P2.5 + G-4 closed
 git rm docs/plans/p3.6-jaeger-trace-capture.md     # screenshot captured
 git rm docs/plans/zone-patterns.md                 # P1.5 + P2.1 done — could keep as ref but rules say delete
-git rm docs/plans/phase-1-foundation-implementation.md  # Phase 1 closed except Torx (separately tracked)
+git rm docs/plans/phase-1-foundation-implementation.md  # Phase 1 closed except TORCS (separately tracked)
 
 # Keep:
 # - README.md (folder convention)
@@ -4528,7 +4528,7 @@ Tell the agent to proceed with both final-lock-checklist.md and submission-porta
   8. Team blurb (your name + email; placeholder fields for collaborators)
   9. Demo links table with <PASTE_YOUTUBE_URL_HERE> / <PASTE_GITHUB_URL_HERE> slots to fill at T-2h
   10. License (Apache 2.0 + IP attribution)
-  11. Acknowledgments (IBM Bob credit, Torx Lab credit, full Granite stack credit, IP discipline statement)
+  11. Acknowledgments (IBM Bob credit, TORCS Lab credit, full Granite stack credit, IP discipline statement)
   12. Banner & logo asset path table
   13. Final pre-publish read checklist
   Plus a field-mapping cheat sheet (12 portal-field-name variants → which section to paste from) and 7 prepared statements 
@@ -4632,7 +4632,7 @@ SegmentNeedWhySeg 3 (0:50–1:40, 50s)Live screen recording of the UI flow per t
 Total recording work remaining: ~30-45 min.
 Segment 3 — the 50-second live recording (highest priority)
 Don't try to record one continuous 50s clip — it's brittle (any stumble means redoing the whole thing). Record short clips for each cursor moment, splice in edit:
-ClipDurationWhat it showsseg3-01-drop.mov~5sDrag-drop sample_torx.json onto upload zoneseg3-02-shimmer.mov~7sLoading shimmer with progress copyseg3-03-curve.mov~8sRecharts SoC line + heatmap renderingseg3-04-zone-click.mov~10sClick low-roi-deploy zone, scroll to cardseg3-05-citation.mov~15sCard visible, hover citation block (3px granite accent visible)seg3-06-chain.mov~5sExpand reasoning chain disclosure
+ClipDurationWhat it showsseg3-01-drop.mov~5sDrag-drop sample_torcs.json onto upload zoneseg3-02-shimmer.mov~7sLoading shimmer with progress copyseg3-03-curve.mov~8sRecharts SoC line + heatmap renderingseg3-04-zone-click.mov~10sClick low-roi-deploy zone, scroll to cardseg3-05-citation.mov~15sCard visible, hover citation block (3px granite accent visible)seg3-06-chain.mov~5sExpand reasoning chain disclosure
 Total: 50s when cut. Each clip is independent — if one's bad, redo only that one.
 Tools (pick one):
 
@@ -4642,9 +4642,9 @@ Kap — free, drag-and-drop region select, exports .mov or .mp4. Sweet spot.
 
 Run the agent's UI on http://localhost:3000/session/s_engineer_happy_demo?fixture=1 — fixture mode means deterministic visuals, zero watsonx burn during the multiple takes.
 Segment 2 — "raw telemetry overload" visual (~5 min)
-Simplest path: open Terminal, cat data/sessions/sample_torx.json | jq and let the JSON scroll. Screen-record it. That's literal "raw telemetry without explanation" — exactly the script's intent, fully original (R15-compliant), no motion graphics needed.
+Simplest path: open Terminal, cat data/sessions/sample_torcs.json | jq and let the JSON scroll. Screen-record it. That's literal "raw telemetry without explanation" — exactly the script's intent, fully original (R15-compliant), no motion graphics needed.
 bash# Record a ~30s clip of:
-cat data/sessions/sample_torx.json | jq | head -200
+cat data/sessions/sample_torcs.json | jq | head -200
 # In a terminal with the carbon-black palette to match the OVERRIDE aesthetic
 Or pull up the actual engineer_mode.png and zoom-pan over the metrics with no UI structure visible — Ken Burns effect in DaVinci. Either works.
 Then video edit (~3-4h)
@@ -4750,12 +4750,12 @@ Tell the agent the brief above — they patch tokens.css + tailwind.config.ts, r
 While that's in flight, continue with the video edit work (the bug doesn't affect the demo.gif you already recorded — the bug is in the live UI, and demo.gif was captured before the user noticed because the original screenshot fixture didn't exercise the heatmap colors as obviously).
 After the fix lands, spend 5 minutes re-capturing dashboard.png and engineer-mode.png so they show the now-working heatmap. The polish is small but visible.
 
-The fix is small and local. Don't burn designer time on this.You said: segment 3 is lockedsegment 3 is locked ClipDurationWhat it showsseg3-01-drop.mov~5sDrag-drop sample_torx.json onto upload zoneseg3-02-shimmer.mov~7sLoading shimmer with progress copyseg3-03-curve.mov~8sRecharts SoC line + heatmap renderingseg3-04-zone-click.mov~10sClick low-roi-deploy zone, scroll to cardseg3-05-citation.mov~15sCard visible, hover citation block (3px granite accent visible)seg3-06-chain.mov~5sExpand reasoning chain disclosureClaude responded: Segment 3 lock is the biggest single milestone in the video work — longest segment, most cursor choreography, hardest to redo.Segment 3 lock is the biggest single milestone in the video work — longest segment, most cursor choreography, hardest to redo. Well done.
+The fix is small and local. Don't burn designer time on this.You said: segment 3 is lockedsegment 3 is locked ClipDurationWhat it showsseg3-01-drop.mov~5sDrag-drop sample_torcs.json onto upload zoneseg3-02-shimmer.mov~7sLoading shimmer with progress copyseg3-03-curve.mov~8sRecharts SoC line + heatmap renderingseg3-04-zone-click.mov~10sClick low-roi-deploy zone, scroll to cardseg3-05-citation.mov~15sCard visible, hover citation block (3px granite accent visible)seg3-06-chain.mov~5sExpand reasoning chain disclosureClaude responded: Segment 3 lock is the biggest single milestone in the video work — longest segment, most cursor choreography, hardest to redo.Segment 3 lock is the biggest single milestone in the video work — longest segment, most cursor choreography, hardest to redo. Well done.
 Visual asset checklist before edit
 SegmentAssetStateSeg 1 (Hook, 20s)wordmark on dark + cold-open text overlay✅ static — assets/brand/logo-on-dark.png worksSeg 2 (Problem, 30s)"raw telemetry overload" visual⚠️ still TBD?Seg 3 (Demo, 50s)6 cursor clips✅ just landedSeg 4 (Explainability, 30s)engineer_mode.png + citation hover✅ from existing screenshotsSeg 5 (Fan Mode, 20s)mode-toggle motion + fan-mode.png✅ — likely just a screen capture of the F-key toggleSeg 6 (Architecture, 12s)langflow-canvas.png + architecture.png + jaeger-trace.png✅ all on diskSeg 7 (Closing, 13s)wordmark + GitHub URL✅ static
 Two questions before you start the edit:
 
-Did you capture the Segment 2 "raw telemetry overload" visual? If not, that's the last gap. Quick option: terminal recording of cat data/sessions/sample_torx.json | jq | head -200 scrolling — ~30 seconds, original (R15-safe), zero design work. ~5 minutes.
+Did you capture the Segment 2 "raw telemetry overload" visual? If not, that's the last gap. Quick option: terminal recording of cat data/sessions/sample_torcs.json | jq | head -200 scrolling — ~30 seconds, original (R15-safe), zero design work. ~5 minutes.
 Did you also record the Segment 5 mode-toggle motion? It can be a static cross-fade between engineer_mode.png and fan-mode.png in the editor (no extra recording needed), OR you can capture a 3-second screen recording of pressing F to make it a real motion shot. Real motion is more honest but the cross-fade works.
 
 If Seg 2 + Seg 5 are handled (or you're comfortable with edit-time cross-fades for them), you have everything you need to start the edit.
@@ -4803,7 +4803,7 @@ cd /Users/patrickndille/overdrive-may-2026
 
 # Start screen recording (Cmd+Shift+5 → Record Selected Portion → drag terminal region)
 # Then run:
-cat data/sessions/sample_torx.json | jq | less
+cat data/sessions/sample_torcs.json | jq | less
 
 # Press Space to scroll page-by-page, or hold j to scroll line-by-line at a steady pace
 # Scroll for ~25 seconds total (so the clip is ~30s with intro/outro buffer)
@@ -4812,7 +4812,7 @@ cat data/sessions/sample_torx.json | jq | less
 Why this works: it's literal raw telemetry, original (R15-safe), zero design work. Looks like a "what engineers actually see without OVERRIDE" shot.
 Approach B — Multi-clip splice (8 min, more visually interesting)
 Three short clips spliced together at edit time:
-ClipDurationWhatseg2a-jsonscroll.mov~12sTerminal scroll of sample_torx.json (as Approach A but shorter)seg2b-engineer-numbers.mov~10sEngineer mode UI at ?fixture=1, but before clicking any zone — energy curve + heatmap visible, lots of numbers, no reasoning shown yetseg2c-zoomed-tooltip.mov~8sHover the energy curve to surface the Recharts tooltip showing raw SoC%, lap number, etc. — the "look at all these numbers, but what do they MEAN?" feeling
+ClipDurationWhatseg2a-jsonscroll.mov~12sTerminal scroll of sample_torcs.json (as Approach A but shorter)seg2b-engineer-numbers.mov~10sEngineer mode UI at ?fixture=1, but before clicking any zone — energy curve + heatmap visible, lots of numbers, no reasoning shown yetseg2c-zoomed-tooltip.mov~8sHover the energy curve to surface the Recharts tooltip showing raw SoC%, lap number, etc. — the "look at all these numbers, but what do they MEAN?" feeling
 The cuts between them visually reinforce the "data overload" feeling. ~8 min total.
 Approach C — Static with text overlay (3 min, fallback)
 Take engineer_mode.png, drop it into your editor, do a slow Ken Burns pan over the metrics areas (energy curve numbers, heatmap, lap counters), and overlay text reading "Today's tools show data, not reasoning." (the script's intent). No recording needed.

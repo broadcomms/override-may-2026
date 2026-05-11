@@ -33,15 +33,15 @@ The orange line is the **decision-support boundary**: nothing past Reasoning mak
 
 Each component has a single responsibility, a typed contract from [`04-schema.md`](./04-schema.md), and a phase number from [`06-roadmap.md`](./06-roadmap.md).
 
-### 3.1 Ingest (`ingest/torx_parser.py`, `ingest/fastf1_parser.py`)
+### 3.1 Ingest (`ingest/torcs_parser.py`, `ingest/fastf1_parser.py`)
 
 **Role.** Convert a session replay into one `LapFeatures` row per lap.
 
-**Inputs.** Torx simulator JSON logs, or FastF1 sessions (Parquet/CSV exports of public historical races).
+**Inputs.** TORCS simulator JSON logs, or FastF1 sessions (Parquet/CSV exports of public historical races).
 
 **Output.** `list[LapFeatures]` with the canonical schema in [`04-schema.md` §3](./04-schema.md#3-lap-level-features): SoC start/end, harvest, deploy, lap time, sector times, speeds, override and boost counts, recharge zones.
 
-**Energy-state derivation.** When the underlying source does not natively expose state-of-charge or energy flux (Torx may not), values are derived from throttle and brake integrals. The `soc_source` field on every lap row is set to `"derived"` so downstream consumers — and the user — know the provenance. This is risk R1 in `05-risk-register.md`, decided at gate G-2.
+**Energy-state derivation.** When the underlying source does not natively expose state-of-charge or energy flux (TORCS may not), values are derived from throttle and brake integrals. The `soc_source` field on every lap row is set to `"derived"` so downstream consumers — and the user — know the provenance. This is risk R1 in `05-risk-register.md`, decided at gate G-2.
 
 ### 3.2 Heuristic zone detection (`analysis/zone_detector.py`)
 
@@ -211,16 +211,16 @@ OVERRIDE is built to run end-to-end on a clean machine without bespoke setup:
 
 - **One-command install.** `docker compose up` starts the FastAPI runtime and the Next.js UI. Granite reasoning calls go to watsonx.ai using credentials from `.env`. The README's Quickstart is the contract.
 - **Pinned versions.** `requirements.txt` pins Python deps; `models.json` records the watsonx model IDs, region, project-ID env var, and TTM-R2 HuggingFace revision. Locked at gate G-1 before any reasoning code is written.
-- **Public data only.** Sample replays in `data/samples/` come from the IBM Torx Learning Lab simulator and FastF1 historical sessions. The FIA regulation PDF is fetched via `scripts/download_regulations.py` — never committed.
-- **Deterministic outputs.** LLM temperature pinned. End-to-end QA on roadmap P3.7 verifies the same input produces the same output across runs on 5 Torx + 2 FastF1 replays.
+- **Public data only.** Sample replays in `data/samples/` come from the IBM TORCS Learning Lab simulator and FastF1 historical sessions. The FIA regulation PDF is fetched via `scripts/download_regulations.py` — never committed.
+- **Deterministic outputs.** LLM temperature pinned. End-to-end QA on roadmap P3.7 verifies the same input produces the same output across runs on 5 TORCS + 2 FastF1 replays.
 - **Versioned API surface.** `GET /api/version` returns build SHA + locked model versions so any reviewer can reproduce a result.
-- **Originals only.** No F1 broadcast footage, paddock photography, or team livery in any submission asset. Torx output, UI recordings, generated charts, Langflow canvas, and original animations only.
+- **Originals only.** No F1 broadcast footage, paddock photography, or team livery in any submission asset. TORCS output, UI recordings, generated charts, Langflow canvas, and original animations only.
 
 ---
 
 ## 7. Limitations honestly stated
 
-- Demo data uses the IBM Torx Learning Lab simulator and FastF1 historical replays — this is not authoritative team telemetry.
+- Demo data uses the IBM TORCS Learning Lab simulator and FastF1 historical replays — this is not authoritative team telemetry.
 - The 2026 regulations are still evolving; the system reads the current public PDF and grounds in it, but newer amendments require re-ingestion.
 - TTM-R2 forecasting requires 30-lap context windows; sessions shorter than that fall back to heuristic-only mode (forecast unavailable).
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.

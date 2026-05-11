@@ -93,7 +93,7 @@ The racing audience is sophisticated and skeptical. OVERRIDE is explicit about w
 - **Not a recap, quiz, or fan-companion app.** Engineer-grade reasoning that *also* speaks to fans, not a highlight reel.
 - **Not affiliated with Formula 1, the FIA, or any team.** Open-source, educational, research-oriented, Apache 2.0.
 
-Demo data uses the IBM Torx Learning Lab simulator and FastF1 historical replays — not authoritative team telemetry. The 2026 regulations are still evolving, and the system reads the current public PDF and grounds in it; newer amendments require re-ingestion. TTM-R2 forecasting requires 30-lap context windows; shorter sessions fall back to heuristic-only mode and the UI says so. Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
+Demo data uses the IBM TORCS Learning Lab simulator and FastF1 historical replays — not authoritative team telemetry. The 2026 regulations are still evolving, and the system reads the current public PDF and grounds in it; newer amendments require re-ingestion. TTM-R2 forecasting requires 30-lap context windows; shorter sessions fall back to heuristic-only mode and the UI says so. Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
 
 Stating these limits clearly, in the language of the sport, is the only way an explainability tool earns trust. OVERRIDE is honest about the scope it cannot — and should not — cover.
 

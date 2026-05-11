@@ -105,8 +105,8 @@ Upload a replay. Multipart form. Triggers the full pipeline synchronously: inges
 
 | Form field | Type | Notes |
 |---|---|---|
-| `file` | binary | `.json` (Torx) or `.parquet` / `.csv` (FastF1 export) |
-| `source` | `"torx" \| "fastf1"` | declared explicitly; never sniffed |
+| `file` | binary | `.json` (TORCS) or `.parquet` / `.csv` (FastF1 export) |
+| `source` | `"torcs" \| "fastf1"` | declared explicitly; never sniffed |
 | `track_id` | string, optional | informational only |
 
 **Limits**
@@ -132,7 +132,7 @@ Upload a replay. Multipart form. Triggers the full pipeline synchronously: inges
   "summary": {
     "session_id": "s_20260512_a4f9",
     "uploaded_at": "2026-05-12T14:31:08Z",
-    "source": "torx",
+    "source": "torcs",
     "lap_count": 47,
     "forecast_available": true,
     "zone_count": 3,

@@ -59,7 +59,7 @@ Following ONLY what the README says, in order:
 6. [ ] Start uvicorn: `uvicorn api.main:app --reload --port 8000`
 7. [ ] In a second terminal: `cd ui && npm install && npm run dev`
 8. [ ] Open `http://localhost:3000` — UI renders without console errors
-9. [ ] Drop `data/sessions/sample_torx.json` onto the upload zone
+9. [ ] Drop `data/sessions/sample_torcs.json` onto the upload zone
 10. [ ] Pipeline runs end-to-end (~8 sec); recommendation card renders with citation
 
 If any step fails, **fix the README, not the code** (ship a robust quickstart over a robust justification).

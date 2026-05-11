@@ -38,7 +38,7 @@
 
 ## 2. Live run record (2026-05-09)
 
-Single-zone end-to-end demo via the Langflow canvas, against `data/sessions/sample_torx.json` (5-lap synthetic Torx-shaped session, deterministic `low-roi-deploy` zone on Lap 1).
+Single-zone end-to-end demo via the Langflow canvas, against `data/sessions/sample_torcs.json` (5-lap synthetic TORCS-shaped session, deterministic `low-roi-deploy` zone on Lap 1).
 
 ```
 Zone: z_lroi_l1_s2 (low-roi-deploy, lap 1, sector 2, severity high)

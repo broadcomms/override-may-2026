@@ -49,7 +49,7 @@ A unit is "in progress" once started and "done" only when its Done-when criterio
 
 ## 3. Phase 1 — Foundation (~14h)
 
-Goal: every dependency installed, repo initialized, telemetry schema understood, ingestion working on real Torx output.
+Goal: every dependency installed, repo initialized, telemetry schema understood, ingestion working on real TORCS output.
 
 ### P1.1 Setup & onboarding (~2h)
 - **Deliverable**: green local environment, public repo, `models.json` populated, watsonx.ai connectivity verified.
@@ -67,18 +67,18 @@ Goal: every dependency installed, repo initialized, telemetry schema understood,
 - **Done when**: post timestamped, any organizer reply quoted in `docs/plans/discord-pitch-feedback.md`.
 - **Notes**: do this early — it gives the longest window to course-correct (risk R10).
 
-### P1.3 Torx lab + telemetry mapping (~4h)
-- **Deliverable**: Torx baseline AI driver run + completed `results.md` (required for submission eligibility per webinar) + telemetry-mapping note in `docs/plans/torx-telemetry-map.md`.
+### P1.3 TORCS lab + telemetry mapping (~4h)
+- **Deliverable**: TORCS baseline AI driver run + completed `results.md` (required for submission eligibility per webinar) + telemetry-mapping note in `docs/plans/torcs-telemetry-map.md`.
 - **Done when**:
-  - Baseline Torx run produces logs.
-  - Confirmed which fields Torx exposes: speed, throttle, brake, position, lap_time, fuel/energy proxies.
-  - Decision recorded: does Torx expose battery SoC directly, or do we derive it from throttle/brake integral?
+  - Baseline TORCS run produces logs.
+  - Confirmed which fields TORCS exposes: speed, throttle, brake, position, lap_time, fuel/energy proxies.
+  - Decision recorded: does TORCS expose battery SoC directly, or do we derive it from throttle/brake integral?
 - **Verification gate G-2 (risk R1 decision)**: SoC source is decided and the derivation, if synthetic, is documented in code comments and in the mapping note.
 
 ### P1.4 Data ingestion layer (~5h)
-- **Deliverable**: `ingest/torx_parser.py`, `ingest/fastf1_parser.py`, `ingest/schema.py`.
+- **Deliverable**: `ingest/torcs_parser.py`, `ingest/fastf1_parser.py`, `ingest/schema.py`.
 - **Done when**:
-  - `torx_parser.py` reads a Torx JSON log and returns `list[LapFeatures]` with the canonical schema below.
+  - `torcs_parser.py` reads a TORCS JSON log and returns `list[LapFeatures]` with the canonical schema below.
   - `fastf1_parser.py` reads a FastF1 session and returns the same `list[LapFeatures]` schema (energy state derived from telemetry).
   - Both parsers tested against at least one real input each.
 - **Canonical lap-feature schema** (Pydantic in `ingest/schema.py`):
@@ -117,7 +117,7 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
   - Loads `ibm-granite/granite-timeseries-ttm-r2` via `tsfm_public`.
   - Inputs: 30-lap context window, 5 channels (SoC, harvest, deploy, lap_time, avg_speed).
   - Output: 5-lap forecast horizon with prediction intervals.
-  - Validated on a held-out Torx replay: SoC MAE recorded.
+  - Validated on a held-out TORCS replay: SoC MAE recorded.
   - **Graceful degradation logic**: `if lap_count < 30 OR ci_width > threshold → return None`. Pipeline never blocks on TTM.
   - Model version pinned, context/forecast lengths documented in README.
 - **Verification gate G-3 (risk R2 decision)**: if SoC MAE is poor, TTM stays optional and the UI "forecast unavailable" path becomes the default for the demo. Reasoning continues from observed evidence.
@@ -129,7 +129,7 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
   - Calls Granite Instruct via watsonx.ai chat API using `prompts/reasoning.system.md`.
   - Inputs: zone + lap context + (optional) TTM forecast + retrieved regulation snippet (placeholder until G-4).
   - Output: structured JSON matching the reasoning prompt's schema (`cause`, `consequence`, `recommendation`, `regulation_citation`, `confidence`, `reasoning_chain`).
-  - Tested on 3–5 Torx zone examples; outputs eyeballed for correctness.
+  - Tested on 3–5 TORCS zone examples; outputs eyeballed for correctness.
 - **Depends on**: P2.1, P1.1.
 
 ### P2.4 Reasoning refinement (~4h)
@@ -179,7 +179,7 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
 ### P2.7 End-to-end pipeline glue (~2h)
 - **Deliverable**: `core/pipeline.py` orchestrating: ingest → forecast (optional) → detect → ground → reason → validate → guardian → JSON output.
 - **Done when**:
-  - Runs successfully on **5 different Torx replays + 2 FastF1 replays**.
+  - Runs successfully on **5 different TORCS replays + 2 FastF1 replays**.
   - Output is deterministic across runs on the same input (with temperature pinned).
 - **Phase gate Φ-1 (risk R5 decision)**: if pipeline is not producing clean output by end of P2.7, **cut scope**:
   - Drop Fan Mode UI; keep Engineer Mode only.
@@ -294,7 +294,7 @@ Goal: every artifact required by the BeMyApp portal is produced, polished, and u
 - **Done when**:
   - Screen recordings captured: OBS, 1920×1080 @ 60fps, mouse highlights on.
   - Edit in DaVinci Resolve or CapCut. Locked at 2:55. Captions added.
-  - **All footage original**: Torx simulator output, UI recordings, generated charts, Langflow canvas, original animations. **No F1 broadcast footage.** Royalty-free instrumental music only. (Risk R15.)
+  - **All footage original**: TORCS simulator output, UI recordings, generated charts, Langflow canvas, original animations. **No F1 broadcast footage.** Royalty-free instrumental music only. (Risk R15.)
   - Exported H.264 MP4 ≤ 1080p.
   - YouTube upload: **unlisted** initially; processing complete; link verified in incognito.
 - **Notes**: switch to **public** at the start of P4.4, not before — protects against YouTube processing failures on submission moment (risk R8).
