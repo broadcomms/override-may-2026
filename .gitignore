@@ -73,3 +73,10 @@ ui/.env.*.local
 
 # Local video render too large for GitHub
 assets/graphics/RACE-TRACK.mp4
+
+# TORCS lab — gym_torcs source committed; runtime artifacts gitignored
+RaceYourCode/gym_torcs/__pycache__/
+RaceYourCode/gym_torcs/*.pyc
+RaceYourCode/gym_torcs/telemetry/
+RaceYourCode/gym_torcs/results/
+RaceYourCode/gym_torcs/*.rgb

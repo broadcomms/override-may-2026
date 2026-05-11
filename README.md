@@ -221,7 +221,7 @@ Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bun
 
 - Demo data uses synthetic TORCS-shaped JSON and FastF1 historical replays; this is not authoritative team telemetry.
 - The 2026 regulations evolve via FIA-published Issues (currently grounded in Section C, Issue 18, dated 2026-05-07). Newer amendments require re-ingestion via `scripts/build_chunks.py`. Section B (Sporting) integration deferred to post-submission.
-- TTM-R2 forecasting (optional per FR-3) is not yet shipped — the pipeline runs end-to-end without it; sessions that lack a forecast lower their reported confidence accordingly.
+- TTM-R2 5-lap SoC forecasting (FR-3) is **deferred to v1.1** per the graceful-degradation guardrail. The pipeline runs end-to-end without it; the energy curve renders an explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge; sessions that lack a forecast lower their reported confidence accordingly.
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
 
 ## What this is not
@@ -233,7 +233,9 @@ Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bun
 
 ## Acknowledgements
 
-Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Time Series TTM-R2, Docling, and Langflow.
+Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Embedding 278M Multilingual, Docling, and Langflow. (Granite Time Series TTM-R2 deferred to v1.1 per the graceful-degradation guardrail.)
+
+`RaceYourCode/gym_torcs/*` derives from [Gym-TORCS](https://github.com/ugo-nama-kun/gym_torcs) (MIT-licensed, © 2016 Naoto Yoshida), bundled here via the IBM SkillsBuild `hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip` distribution. Original LICENSE preserved at `RaceYourCode/gym_torcs/LICENSE`.
 
 ## License
 

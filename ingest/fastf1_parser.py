@@ -39,41 +39,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+# Shared energy-model constants — single source of truth across all parsers.
+# Per ADR-002, the 2026 hybrid energy state is synthesized identically for
+# both TORCS and FastF1 inputs (neither source exposes native MGU-K telemetry).
+# Centralizing the constants prevents drift when calibration moves them.
+from analysis.torcs_energy import (
+    BATTERY_CAPACITY_MJ,
+    DEPLOY_KJ_PER_FULL_THROTTLE_SECOND,
+    HARVEST_KJ_PER_BRAKE_SECOND,
+    RECHARGE_ZONE_THRESHOLD_MJ,
+    SOC_INITIAL,
+    SOC_MAX,
+    SOC_MIN,
+    THROTTLE_DEPLOY_THRESHOLD,
+)
+
 from .schema import LapFeatures
 
 logger = logging.getLogger(__name__)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Battery-model placeholders for FastF1 derivation
-# ──────────────────────────────────────────────────────────────────────────────
-#
-# These constants are PLACEHOLDERS for FastF1-derived sessions. They produce
-# plausible-looking, well-bounded LapFeatures that exercise the rest of the
-# pipeline. They will diverge from real 2026 numbers — that's why this
-# parser sets soc_source="derived" and the SessionSummary carries a note.
-#
-# The TORCS parser (P1.4 second half) will use measured values from the
-# simulator log directly when the simulator exposes them.
-
-SOC_INITIAL = 1.0  # full battery at session start
-SOC_MIN = 0.0
-SOC_MAX = 1.0
-
-# kJ harvested per second of brake-on (rough — real F1 regen is brake-force-
-# weighted, FastF1 only exposes a 0/100 "Brake" applied flag at most timesteps).
-HARVEST_KJ_PER_BRAKE_SECOND = 200.0
-
-# kJ deployed per second of "full throttle" (Throttle >= 95) above the threshold.
-DEPLOY_KJ_PER_FULL_THROTTLE_SECOND = 80.0
-
-THROTTLE_DEPLOY_THRESHOLD = 95.0  # only count near-100% throttle as deploy
-
-# Battery capacity for SoC normalization (MJ) — placeholder; real value pinned
-# from the regulation at G-4 and exposed via LapWindow.soc_max.
-BATTERY_CAPACITY_MJ = 4.0
-
-RECHARGE_ZONE_THRESHOLD_MJ = 0.1  # see schema §3 LapFeatures.recharge_zones
 
 
 # ──────────────────────────────────────────────────────────────────────────────

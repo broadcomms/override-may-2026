@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -82,6 +83,50 @@ def save_session(session: Session, *, root: Optional[Path] = None) -> Path:
     _update_index(session.summary, root=root)
     logger.info("save_session: wrote %s → %s", session.summary.session_id, base)
     return base
+
+
+def save_recommendations_only(
+    session_id: str,
+    recommendations: list[Recommendation],
+    *,
+    root: Optional[Path] = None,
+) -> Path:
+    """Atomically rewrite *only* ``recommendations.json`` for a session.
+
+    Used by the lazy fan-mode write-back path in ``api/main.py``. Writes to a
+    sibling tempfile in the same directory then ``os.replace`` so concurrent
+    readers either see the old recommendations or the new ones, never a
+    partial file. Index, summary, laps, forecast, and regulation_source are
+    not touched — those are session-creation invariants.
+
+    The caller is responsible for serializing read-modify-write cycles per
+    session via an ``asyncio.Lock`` to avoid the lost-update race where two
+    concurrent fan-mode requests on different zones each compute against a
+    stale snapshot and clobber each other on the way back.
+    """
+    base = (root or _sessions_root()) / session_id
+    if not base.exists():
+        raise FileNotFoundError(f"session {session_id!r} does not exist at {base}")
+    target = base / "recommendations.json"
+    # mkstemp on the same dir guarantees same filesystem → os.replace is atomic.
+    fd, tmp_path = tempfile.mkstemp(prefix=".recs-", suffix=".json.tmp", dir=base)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(
+                [r.model_dump(mode="json") for r in recommendations],
+                f,
+                indent=2,
+            )
+        os.replace(tmp_path, target)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
+    logger.debug("save_recommendations_only: wrote %s (%d recs)", target, len(recommendations))
+    return target
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -190,6 +235,7 @@ def list_sessions(
 
 __all__ = [
     "save_session",
+    "save_recommendations_only",
     "load_session",
     "delete_session",
     "list_sessions",

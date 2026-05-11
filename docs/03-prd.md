@@ -128,6 +128,8 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 - **FR-3.2 (MUST)** When `forecast` is null, the energy curve renders the empty-state hint and the reasoning prompt does not reference future laps with certainty.
 - **FR-3.3 (MUST)** Never return a partial / fabricated forecast.
 
+> **v1.0 deferral note.** v1.0 ships with `forecast_fn=None` (TTM-R2 not wired); the energy curve renders the explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge. v1.1 wires TTM-R2 inference per the graceful-degradation guardrail in `.bob/AGENTS.md`. The Pydantic `Forecast` schema, the `forecast_fn` parameter on `run_pipeline`, and the UI's forecast-band rendering all already exist — v1.1 only needs `core/forecasting.py` to ship as the live wrapper.
+
 ### 5.4 Regulation grounding
 
 - **FR-4.1 (MUST)** Use Docling to extract the verified energy-management section into structured chunks. The verified document, issue, and section are recorded in `docs/regulation-source.md` at gate G-4 and read at runtime via `RegulationSource`.

@@ -6,7 +6,9 @@
 ### The Solution
 OVERRIDE is an upload-first AI copilot that ingests a session replay, identifies inefficient energy-deployment zones, and generates plain-language explanations grounded in the actual 2026 F1 energy-management regulations.
 
-The system uses **IBM Granite 4.x Instruct** for causal reasoning, **Granite Time Series TTM-R2** for lap-aggregated forecasting, **Docling** to parse and ground in the FIA's published 2026 energy-management regulation, **Granite Embedding 278M Multilingual** for regulation chunk retrieval, **Granite Guardian 3-8b** with custom Bring-Your-Own-Criteria for energy-safety and regulation-consistency scoring (preceded by a deterministic validation pass), and **Langflow** for visual orchestration design and demonstration layer. All Granite models are served via **IBM watsonx.ai** (US-South); see `docs/adrs/ADR-001-watsonx-runtime.md`.
+v1.0 ships **five IBM technologies**: **IBM Granite 4.x Instruct** for causal reasoning, **Docling** to parse and ground in the FIA's published 2026 energy-management regulation, **Granite Embedding 278M Multilingual** for regulation chunk retrieval, **Granite Guardian 3-8b** with custom Bring-Your-Own-Criteria for energy-safety and regulation-consistency scoring (preceded by a deterministic validation pass), and **Langflow** for visual orchestration design and demonstration layer. All Granite models are served via **IBM watsonx.ai** (US-South); see `docs/adrs/ADR-001-watsonx-runtime.md`.
+
+**Granite Time Series TTM-R2** (a 5-lap state-of-charge forecast over the energy curve) is **deferred to v1.1** per the graceful-degradation guardrail — the pipeline runs end-to-end without it; the energy curve renders an explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge. The architecture (Pydantic `Forecast` schema, `forecast_fn` parameter, UI forecast-band rendering) is already in place; v1.1 only needs `core/forecasting.py` to ship as the live wrapper.
 
 Two modes share one engine:
 > - **Engineer Mode** — full reasoning chains, regulation citations, confidence scores, what-if simulation.

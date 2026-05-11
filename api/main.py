@@ -63,6 +63,7 @@ from core.regs import (
     load_chunks,
 )
 from ingest.fastf1_parser import parse_fastf1_session  # noqa: F401  — surfaced for future use
+from ingest.torcs_parser import parse_torcs_session
 from ingest.schema import (
     LapFeatures,
     Recommendation,
@@ -72,7 +73,12 @@ from ingest.schema import (
 
 from .errors import api_error, map_watsonx_exception, new_request_id
 from .observability import setup_tracing
-from .storage import delete_session, load_session, save_session
+from .storage import (
+    delete_session,
+    load_session,
+    save_recommendations_only,
+    save_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +108,11 @@ def _chunks_path() -> Path:
 
 
 _BUILD_STARTED_AT = time.monotonic()
+
+# Per-session asyncio.Lock for serializing the lazy fan-mode read-modify-write
+# in get_zone. Use setdefault to avoid the TOCTOU race where two parallel
+# requests for a new session_id both check `not in` and both create new locks.
+_fan_locks: dict[str, asyncio.Lock] = {}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -364,12 +375,31 @@ def create_app() -> FastAPI:
             except Exception as e:
                 raise map_watsonx_exception(e, request_id=rid)
 
-            # Persist the cache (write back to disk)
-            updated_rec = rec.model_copy(update={"fan": fan})
-            updated_recs = [updated_rec if r.zone.zone_id == zone_id else r for r in session.recommendations]
-            updated_session = session.model_copy(update={"recommendations": updated_recs})
-            save_session(updated_session)
-            rec = updated_rec
+            # Persist the cache. Serialize the read-modify-write per session so
+            # parallel ?mode=fan requests on different zones don't clobber each
+            # other (each one would otherwise overwrite recommendations.json
+            # from its stale snapshot). The watsonx call above is intentionally
+            # outside the lock so different-zone translations stay concurrent.
+            lock = _fan_locks.setdefault(session_id, asyncio.Lock())
+            async with lock:
+                current = load_session(session_id)
+                if current is None:
+                    # Session deleted between the unlocked read and the locked
+                    # write — surface the now-correct 404 rather than recreate.
+                    raise api_error(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        error_code="NOT_FOUND",
+                        message=f"Session {session_id} not found.",
+                        request_id=rid,
+                    )
+                updated_recs = [
+                    r.model_copy(update={"fan": fan}) if r.zone.zone_id == zone_id else r
+                    for r in current.recommendations
+                ]
+                # Atomic write — only recommendations.json, not the full session.
+                # Index/summary/laps/forecast are session-creation invariants.
+                save_recommendations_only(session_id, updated_recs)
+            rec = next(r for r in updated_recs if r.zone.zone_id == zone_id)
 
         # Engineer-only mode → strip the fan field for a clean response
         if mode == "engineer":
@@ -409,17 +439,35 @@ def _extract_region(url: str) -> str:
 def _parse_upload(body: bytes, *, source: str, filename: str) -> list[LapFeatures]:
     """Parse uploaded bytes into LapFeatures.
 
-    For Tier-1 we accept TWO concrete shapes — the canonical schema's
-    `laps` field as JSON. The TORCS parser and the live FastF1 path both
-    produce this shape; an upload is treated as already-parsed lap rows
-    in JSON form. Real TORCS-JSON ingestion plugs in once `ingest/torcs_parser.py`
-    is implemented (post-G-2).
+    TORCS path (post-v6 1.3): if the upload is a JSONL telemetry log (filename
+    endswith ``.jsonl``), ``ingest.torcs_parser.parse_torcs_session`` produces
+    LapFeatures from the raw per-tick sensor stream. Otherwise we fall back to
+    the canonical lap-features JSON shape — preserves backward compatibility
+    with ``data/sessions/sample_torcs.json`` (pre-parsed) and any clients that
+    pass already-shaped session JSON.
+
+    FastF1 path: accepts a parquet cache file or the canonical JSON.
     """
     import json
 
     if source == "torcs":
-        # Expect TORCS-shaped JSON. Until torcs_parser.py is implemented,
-        # accept the canonical schema shape directly.
+        # JSONL telemetry log → run through the TORCS parser.
+        if filename.endswith(".jsonl"):
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(
+                suffix=".jsonl", delete=False
+            ) as fh:
+                fh.write(body)
+                tmp_path = fh.name
+            try:
+                return parse_torcs_session(tmp_path)
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        # Anything else: assume already-parsed canonical shape (passthrough).
         return _parse_lap_features_json(body)
     if source == "fastf1":
         # Accept either a parquet file (cached FastF1 lap features) or

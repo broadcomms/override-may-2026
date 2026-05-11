@@ -414,6 +414,63 @@ def test_get_zone_fan_mode_triggers_translation(tmp_path):
     assert len(chat.calls) > upload_calls
 
 
+def test_get_zone_fan_mode_concurrent_different_zones_all_persist(tmp_path):
+    """Regression test for the lazy fan-mode save race (v6 plan task 1.8 / hard floor).
+
+    Pre-fix: ``api/main.py`` did load_session → compute fan → save_session, and
+    parallel ``?mode=fan`` requests on different zones in the same session each
+    wrote from a stale snapshot, causing the last writer to clobber other
+    zones' fan fields. Post-fix: a per-session ``asyncio.Lock`` serializes the
+    read-modify-write, and ``save_recommendations_only`` writes atomically via
+    tempfile + os.replace.
+
+    The test creates a session, then fires concurrent fan-mode requests for
+    every zone via ``httpx.AsyncClient`` + ``asyncio.gather``. After all
+    requests resolve, the session is reloaded from disk and *every* zone must
+    have a populated ``fan`` field — no clobbering.
+    """
+    import asyncio
+    import httpx
+
+    chat = FakeChatClient()
+    client = _build_client(
+        tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path), chat=chat,
+    )
+    # The default payload may yield only one zone; that's still a valid
+    # exercise of the lock+helper code path (no race triggered but no
+    # regression either). When multiple zones are present, the race becomes
+    # observable without the fix.
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+    zone_ids = [r["zone"]["zone_id"] for r in created["recommendations"]]
+    assert zone_ids, "synthetic payload must yield at least one zone"
+
+    async def _fire_all():
+        transport = httpx.ASGITransport(app=client.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            return await asyncio.gather(*[
+                ac.get(f"/api/sessions/{sid}/zones/{zid}?mode=fan")
+                for zid in zone_ids
+            ])
+
+    responses = asyncio.run(_fire_all())
+    for r in responses:
+        assert r.status_code == 200, r.text
+        assert r.json()["fan"] is not None
+
+    # Reload from disk — every zone's fan field must be durable, not clobbered
+    final = client.get(f"/api/sessions/{sid}").json()
+    fans_after = {r["zone"]["zone_id"]: r["fan"] for r in final["recommendations"]}
+    for zid in zone_ids:
+        assert fans_after[zid] is not None, (
+            f"zone {zid} fan field lost — concurrent write race regressed"
+        )
+
+
 def test_get_zone_unknown_zone_returns_404(tmp_path):
     client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
     created = client.post(
