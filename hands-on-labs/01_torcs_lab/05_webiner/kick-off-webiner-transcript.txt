@@ -1,0 +1,760 @@
+for them and now we're doing this really exciting dev innovation challenge for university students.
+So I'm kind of your main point at contact, I've put my discord there and then I will
+hand it over to Lucas to introduce himself and then he will kind of jump off and be kind of in the
+back end answering some of your questions in the chat and do the demo later. So for hand Lucas.
+Cool, thanks, Sydney, and hi everyone. Of course I'm Lucas. I'm our managing director,
+production it be my app. And like Sydney just mentioned it's mostly her show as far as the
+challenge goes in today's webinar as well, but I'll just be here to be the platform and get hub
+overview. And yeah, I'll disappear for a little bit, but if you have any questions for us in the chat,
+go ahead and ask them and then I'll jump back on for that overview here in about 20 minutes or so.
+Cool. And then someone else that you might see in both the discord and maybe already we've gotten
+some emails from her that is McKana. She's our communications coordinator. She helps out with any kind
+of general questions that you have if you haven't received the dis or the GitHub invite or need help
+getting on to discord. She's kind of that main person. Again, we have all of the different discord
+tags here. So feel free to reach out to us on discord. That's the main way to contact us.
+And we will get going. All right. Well, we will start with kind of just a general overview of the
+event itself, this program. We're really excited to have you guys here. It's going to be two different
+challenges, building a real AI projects with different themes. This first theme for the challenge,
+which I'll go into deeper detail is inspired by F1 car racing. The next one that will have
+upcoming in June that I will be announcing that. You'll see emails about it once it's fully live
+is on the World Cup. But there's kind of two main things. It's all virtual. It's free for you to
+join. It's targeted for university students both on the undergraduate and postgraduate levels.
+And it is two month long. So there's one month we're going to be in the main challenge now.
+And then in June there will be another challenge and lab associated with it. But this kind of
+formatting is you're going to be learning by doing on those GitHub labs first and then diving into
+those hackathon style innovation challenges, submitting a project. I'm sure a lot of you've
+participated in hackathons before. So similar feel to that, just all virtual and having a learning
+component to it. Exciting part and benefits for you is you'll get access to a private GitHub
+for those labs that are created by IBM technical. Some really great leaders who put a lot of thought
+and effort into these labs. So really good opportunity for you. And then of course, the exciting
+part you get to compete for a piece of the 15,000 total prize pool will have some other incentives
+and other things and chances for you to win. They'll go into that a little bit more. And then on
+top of it you are one of the first to join the global discord community that they are starting to
+grow for skills build and universities. So we're really excited to have you. This community is going to
+kick off and grow but you guys so proud to have found a number so congrats. But this will continue
+to grow and develop as part of the skills build program. So how this works, this is again very
+high level. First you're going to start with the learning phase of the innovation or of these challenges.
+Within 40 hours we're still kind of rolling them out. You'll get a GitHub invite. That is where
+you will get access to the hands-on learning lab where you can build the foundational skills.
+Get access to really cool information that IBM has created for you based on whatever theme is.
+So this current theme is racing so you'll be building something really good to that. So again,
+learn is our first step here, build those skills, start getting familiar with IBM tools,
+and then going into building you'll start building with all the tools and the foundation that you
+did and then you'll start creating the team. We will kind of help with that process. I've already
+seen and chatted for those who already introduced themselves on the team formation channel on discord.
+We will help with that process. We are also having a team formation challenge tomorrow. So we don't
+have a team. Don't worry. We're here to help. And then the next step is cement. So
+Once you've learned, once you started building with your team, a project idea and solution,
+you will submit to your project on our project page. And that's what Lucas will kind of show you.
+And that's going to include your GitHub repo, your team members, a demo video, basically outlining
+what you built within these next couple of weeks. And then of course, when we always like to
+live, so you'll have prizes, additional incentives, have an opportunity to showcase your work
+if you're one of the winners and then some potential networking in face-to-face with some
+IBM leadership and judges. So as I was kind of mentioned, so it's a $15,000 prize pool for
+both of these two challenges. So we encourage you to participate both in this month's challenge,
+and next month's challenge that's your biggest opportunity to win. These first kind of boxes
+just gives a breakdown for this month. So first place, 2200 second place runner up, 1250, and then we
+have some special categories of most innovative, best use of tech. So that's for just this month.
+And then it will be the same for the June challenge as well. And then we will also have a grand prize.
+So after both two challenges wrap up, the judges will decide on a top winner across those challenges.
+And then some other incentives and we might have other ones, but the first one that will announce
+is some incentives to submit your project early. So an OCO Institute timeline and where that would
+fall. But first 10 teams to submit a completed project page, a little incentive for you as well.
+Okay, so going into this month's innovation challenge and learning lab. First,
+going into some important links, these are going to be the main hubs of where you'll find information,
+where to communicate. The first one's the discord. Of course, I'm sure you all are familiar with
+discord. This is the best way to get in contact with us. For each of the challenges,
+there's going to be an I'm sure you've already seen there's a main challenge channel as well as a
+June channel as well. We've been making some announcements. You'll also find FAQ in rules.
+And then there's also the support channel. That's how you can reach out to us, ask any questions.
+And then we, if it's on the technical side, we can reach out to the IBM team to get your questions answered.
+And then get hub, get hub is your learning hub. This is where all the different labs will be.
+Where you'll submit things, where you'll create your repo. All of that will live on GitHub. And again,
+if you haven't received it yet, the invites take 24 to 48 hours to send. So we've got this
+little time if you just registered. But once you accept that invite that the QR code here will work
+for you. But if you haven't gone that invite yet, don't worry. Those are getting sent out on a daily
+basis. And then the last one, the platform, that is where you're watching this webinar right now.
+This is where all the information that you'll need for both challenges on high-level side. And then
+kind of deeper dives. There's also a resource page and anything you'll need as far as access to tools
+that all lives on the platform. It's also where you'll be submitting your project. So one,
+Lucas takes over, he'll kind of show you how that works. Okay, going into the GitHub learning lab.
+So this first one is already live. If you've already accepted the invite,
+this lab is designed as a hands-on learning experience. You'll work with torques in a baseline AI
+driver to explore how autonomous systems work. The labs will walk you through running the driver,
+modifying code, and observing behavioral changes in real time. The, you'll focus on experimentation,
+or Asian, and understand how AI systems make decisions. So you'll see kind of a screenshot on the right
+hand side here. This is just how the organization of that GitHub repo looks like. Torques is what
+it's called. And you'll see that on the monthly challenges. But make sure really read through all of the
+readmeas. It's really good instructions. Information, all the intros you want to make sure you
+start at the top here, read through all those before you get going.
+And then going on the hands-on part, you'll then document your work and
+results in your own fork to get hub repository. So you'll create that. And then you'll
+kind of follow those things step by step. So it's very integrated. There's a lot of support documents
+to help you guide you through this learning lab. But again, this is creating the foundation to help you build
+with IBM tools and just get real life experience. This is a great way to showcase your work,
+moving forward, while you're in school, and you can kind of have that as like, hey, I completed this
+learning lab, built by IBM. It was a real life, you know, lab that they've done, and then you can kind
+of showcase that work there. So pretty cool opportunity to have access to something like this.
+Okay, going into the innovation challenge. So this is sort of like if you've done hackathons before,
+this is actually what you'll start building. What you'll start working on with the team. Of course,
+you're more than welcome to work individually by yourself. But the max for teams is five. If you're
+looking for team members, we can help out with that. If you're looking for a brand new team,
+we are here to support you. And anyway, we can, again, we really encourage you guys to talk to
+each other, introduce yourself, as I said before, in that team formation, channel on discord,
+and start connecting, and then kind of just scheduling time to start working on these things.
+But as I talked about going back into the challenge where you'll actually build with IBM tools
+is the May challenge focused on racing. So the challenge itself is inspired again by
+a form of a one in real world racing systems. Racing as a fast pace, data, intensive environment,
+where things happen in real time. And the goal of this challenge is to identify
+opportunity and build solutions for teams, for drivers, or for fans. So strong projects would
+demonstrate real real value and decision making explainability there. So,
+really exciting to have kind of this theme. And I'll go over the tools and everything,
+you're more than welcome to use and integrate other tools within these challenges, or within
+this challenge, but keeping in mind that this is kind of the main challenge. And I'll go through
+some examples this while right after this. But the opportunity is to help improve decision-making
+under pressure, team for both on the team side and the driver side. There's a lot of complex
+data that goes into racing and engaging fans from all that data. And then just kind of bringing
+complex system into better face value for users and customers. Now going into some example solution
+areas. Again, you're not limited to these, but making sure that there is a theme that you have
+some sort of whatever problem that you're are identifying that the key value or whatever it is
+stays consistent throughout. So I just have some examples or some example themes on what you
+can focus on. First one, being strategy and decision support that could be optimizing race strategy
+and performance tools that help teams make smarter racing decisions like a pit stop optimization would
+be an example for this. Another one, or another, is being that you can focus on or a solution area
+is analytics. There's a lot of data that goes into racing. So solutions that turn that data into
+useful insights like lab performance analysis. That's an example for that one. AI assistance that
+is copilot and feedback systems that support drivers and engineers in real time.
+Perception and vision solution area is AI systems that analyze track
+conditions hazards and competitor behavior and then the last one, some sort of solution
+surrounding fan experience. So tools that make racing more engaging or easier to understand
+like AI commentary. So that's kind of the overall to start a starting point to create your projects.
+Some things to keep in mind, some solutions that we're not looking for, hardware or video.
+physical design modifications, autonomous systems
+that are placed human making decision,
+gimmicky kind of entertainment only experiences,
+non-AI solutions, unrealistic or non-realistic concepts,
+generic tools, and then anything that's,
+we want to keep it as a clay eye there.
+So that's some key points there of solutions
+and not to focus on, but these are the main ones
+in the main solution area, it isn't themes.
+And then going into core tools as I mentioned,
+you are more than welcome to use additional tools,
+but you are judged on, at least using one IBM AI tool.
+So these are kind of a list of them IBM granite,
+doc-lane, length-flow, context-forge,
+and now a new one for you is IBM Bob.
+All the links to this are on the resources doc in the platform.
+So if you need links, those are already for you
+in the resources tab under core tools and resources.
+But these are going to be the main things
+that you're going to be building your projects with.
+And then going into submission requirements,
+as I already said, to be eligible, your project must include
+what use of one IBM AI tool, support a technology,
+a working project, so just like every hackathon,
+a functioning prototype or proof concept.
+And then for your GitHub repository,
+make sure it's public.
+So the judges can see your project code,
+your read me and then any supporting files that you have,
+pretty standard for a lot of hack funds too.
+And then to submit your project,
+just making sure within that, as I've heard mentioned,
+within the GitHub revenue,
+make sure you're identifying the problem you're solving,
+your AI technical approach, and why the solution matters
+in racing.
+And then all of that information you're going to provide
+that GitHub link on the platform.
+And Lucas will show you what that looks like.
+You'll, and this is how you'll actually submit to your project.
+So completed project page on the platform,
+still have a couple of these high level stuff in the read me,
+but you'll also have where you'll add your team members,
+the links you're good at,
+as I was just talking about.
+And then a three minute solution presentation as well.
+So the three minute video,
+make sure you upload it to your YouTube
+or any sort of public viewing link.
+You will download the M.P. for to that project page
+and needs to be a live link that anyone can view.
+And within that three minute video,
+you're demoing what you did,
+and then kind of just talking through,
+just like the read me, what you did,
+the approach that you did, and then why it matters.
+And then of course, Lucas, myself,
+are here to help you with that.
+So once you kind of get to those final stages,
+feel free to reach out to us if you want to ask us questions
+on how your video is.
+We can get you guidance and support
+and kind of help you before you submit that project.
+Just make sure it's within a good timeline,
+if it's at 11, 58, right before projects are due,
+we might not be able to respond.
+But if it's a week, feel free to reach out to us.
+We are kind of here as your support.
+We've been to hundreds of hackthons.
+We've done both virtual one person,
+so we're your experts when it comes to those projects,
+because we've seen a lot of them.
+Okay, well, I will hand this over to Lucas now,
+and he will go through the GitHub and the platform,
+kind of like everything that I've talked about,
+where your resources are,
+how to submit your project, what that should look like,
+and then just kind of walk you through the GitHub as well,
+and all the different files and where to start things
+with that nature.
+Cool, thank you, Sydney.
+I'm going to remove your screen real quick.
+Let me switch things over to mine,
+and then we'll get started.
+I'm going to start with a GitHub for everyone,
+and just to reiterate, you know, Sydney mentioned this,
+but it was asked in the chat a couple times as well.
+If you don't have your GitHub invite link,
+we promise it's coming.
+We have a limit on how many we can send out per day right now.
+So if we get to next week,
+and you still don't have your invite link,
+reach out to Sydney and myself,
+be an email or make on the platform,
+and we'll get you your list.
+because earlier invitation is quick as we can.
+And just note once you do get that invite link,
+you do have to accept it within seven days.
+So if you don't accept it in seven days, it'll fail
+and then you'll have to reach out to us,
+and then we'll have to re-invite you to the GitHub.
+So once you get that GitHub invitation link,
+for now there's four main repository GitHub
+and like Sydney mentioned, please do read through them carefully and slowly,
+as there is a lot, especially in the hands-on labs repo.
+There's quite a few different readmees for you to read through to fully understand the lab.
+So do take your time.
+There is a lot, and of course if you have any questions about it,
+reach out to us either in email or on Discord as well.
+But for now I'll just go in order really quickly.
+So for the four main repose showcase Hall of Fame,
+you can skip this one for now.
+There's not going to be anything posted in there
+until we have some winners after the May challenge,
+and then we'll highlight those winners in that repo.
+So again it's empty for now.
+We're welcome to click into it and look around, but again,
+there's going to be very minimal information here for now until
+until we have some winners.
+Community Guide will update this one as we go.
+If there's anything new that comes up, but for now,
+you can view the official rules in here,
+join the Discord, those links are also on the platform for you to view as well.
+And then there's just some general guidelines in here as far as what to expect when
+participating in the competition requirements, best practices,
+community behavior, things of that nature.
+And again we'll update it and let you know if there's anything that changes in the
+in the community guide as we as we go through the challenge.
+And then innovation challenges.
+So this one same thing, we'll update it with any new information as we progress
+through the challenge.
+But really what this covers is mostly what Sydney was just covering as far as
+the flow of things.
+So step one is once you get your GitHub invitation is to please accept it.
+Also make sure you join the Discord so that you can ask us any questions whenever
+you have them.
+Step three, find your team.
+Again, you can work on your own if you don't want a team and you want to submit
+something on your own, you're more welcome to.
+But if you do use that team formation channel in Discord and if you join the
+team formation webinar tomorrow, the max per team is five.
+So again, just a reminder, it can be either yourself or yourself and up to four
+other people.
+After that, you'll review the challenge in lab.
+I'll jump into that repo next.
+And then once you have gone through the lab and learned everything,
+one in how Torx works and you're ready to start on your project,
+then you will create your team's repository.
+Our one request when you create your repo is to follow this naming convention.
+And I'll show you this on the platform as well.
+You'll give your project page a name or a team name.
+It is a synonymous means the same thing.
+So just make sure that it matches up that you have your team name and then the same
+team name on the platform that I'll show you in a moment and then dash challenge month.
+So this one will be May for this for the Torx lab and then dash 2026.
+So for an example of my team name was Hack Attack.
+I would do Hack Attack, dash May, dash 2026.
+This just helps us especially when we go to launch the June challenge.
+And then we have a lot of repositories and get hub.
+This will just help us to organize everything and make sure we know who's submitting to which challenge.
+And of course, again, this is the May challenge kick off webinar.
+But once we kick off the June challenge and announce that, like sitting mentioned here in a couple weeks,
+you can submit to both and we do encourage you to submit to both.
+So please keep that in mind as well.
+And then once you create your repository, build your project, you'll then submit it on the event platform.
+Again, I will go over that here in a moment.
+And of course, please make sure, again, just like Sidney was mentioning with your submission video,
+make sure everything else is public as well, such as your repo so that we can read it and also,
+so that the judges can read it as well when they go to judge all.
+these submissions.
+And before I jump over to the labs repository,
+just a couple of tips, the main thing that will help you
+the most and help the judges the most as well is having
+to clear read me to start your repo with that just explains
+what the problem is that you've identified how your solution
+solves that problem, and then you can get into the details
+of how it works.
+And again, you do have until May 31st,
+so we encourage you to not submit as fast as you can,
+but rather take your time, make changes,
+try different things, things that you learn from the labs,
+and create the best overall projects that you can.
+And with that being said, again,
+I know both Sydney and I will mention this multiple times,
+but reach out to us in the discord as well.
+If you have any questions on the challenge,
+if you have an idea for a solution,
+and you want to make sure it's applicable,
+that's what we're here for,
+so please reach out to us,
+and we're more than happy to get back to you
+and give you that feedback so that you can create
+the best solution possible.
+And jumping into the last repo that's here is hands-on labs.
+So again, this is where all of the labs will live.
+So right now, there's just the May lab,
+the Torx lab that you can see right here.
+So I'll go into it and show you all the different files
+that are in there here in a moment.
+But before you jump in there,
+you'll go through this read me,
+this just explains what the Torx lab is,
+different things that you can use,
+such as the results filed, it's in there,
+that I'll chat about here in a moment.
+And then again, there's just some other general reminders
+about reaching out to us if you have any issues.
+So when you click into the Torx lab file,
+it's broken down into four different sections.
+This read me at the bottom is just the read me
+that I was just showing you for the entire repo.
+So if you've already read that, you can skip that one.
+Again, this might sound simple and silly,
+but please do start in order
+and start with this intro file under the Torx lab
+because there are multiple readmees in here.
+And these explain what these repos are for,
+what you're going to learn.
+The screenshot sitting he was showing earlier
+about how all of this is organized.
+And then it gives him info about the Torx lab itself
+and how it will work.
+So again, please do read through these slowly.
+Of course, if you have questions, reach out to us,
+if you find something that's not working,
+definitely reach out to us.
+But before you do that,
+again, go through these readmees first
+and learn about the lab before you start going through it.
+So once you read through all the files in that intro file,
+then you can start getting into the lab itself.
+So these first couple of folders are all marked down files.
+So again, it's just some more reading
+and some more explanations of the actual structure of the labs
+and some tips to keep in mind before you actually begin work.
+So again, don't skip over these all the information
+that you need for the labs are in these files.
+You just need to start from the beginning and go slowly
+and make sure that you understand everything
+before you jump to the next section.
+The next one is set up guides.
+So again, these are all PDFs or mark down files
+that will just explain a little bit more
+about setting up the lab so that you can actually take it
+and start learning from it.
+So there's three of those in here.
+These are all PDFs.
+If it takes a while for you to load,
+just give it a moment because they are PDFs
+and it's actively loading.
+So just be patient with it.
+And it gives you all of the different requirements
+that you need, web browser, terminals, all of that good stuff.
+And then from there, the next couple of files,
+minimize some of these.
+The next couple of files, three and four.
+These are the actual torques files that you can download.
+And again, there's a read me here.
+So read through it first.
+But again, these files, such as,
+there's one for AMD and then one for ARM.
+You can access the Docker files that are here
+and download them, the start files as well.
+And then once you go through those,
+you'll go to the last file.
+with in this repo which is called files.
+And then this will be the last step of the lab before you can actually complete everything
+and then submit your results if you would like to results.
+One thing that I think I skipped over, maybe it is in files give me a moment.
+One of these in files should be a link to go in download
+and I don't see it, I think it's this one. Yes it is.
+So this Torx.zip, it isn't actually a zip file uploaded to GitHub.
+It's in Google Drive.
+So you can download that actual zip here,
+just copy paste this drive link into your browser
+and then you'll be able to access those actual Torx files.
+We just couldn't upload them here because of the file size
+of restraints or restrictions of GitHub.
+So again, just copy paste this one and then you'll have access to that Google Drive link
+so that you can download the Torx files.
+And then again, it's not mandatory
+through the lab where and what you want to learn and then go and create your project.
+You are more than welcome to.
+But again, just know that that that results mark down is there
+so that you can add your results.
+And yeah, once you go through the lab and you understand everything,
+you'll then be ready to start on your actual submission for the May challenge.
+So for that, I'm going to leave GitHub for a moment.
+We will come back here in a few minutes.
+But again, once you go through the lab, you think you understand everything
+and you have a project idea in mind.
+You will then hop over to the event platform here
+and click on the project's page and you will create a project.
+As I was mentioning earlier, this also doubles as your team page.
+So if you hear Sydney or I say team or project name, it's the same thing.
+Right now, you don't have the ability to create a project.
+I do because I'm an admin.
+But after this webinar, pretty much immediately afterwards,
+you'll be able to create a project page and start adding your team members to it.
+So I'll create a test one really quickly and then I'll run through the completed project page that Sydney and I have set up.
+So that you can see what it looks like.
+So once you're able to create a project, you just need to click on this create a project button.
+One note about this, only one person from your team has to create the project page.
+And then that person can add your other teammates to the page itself
+and of course show you how to do that as well.
+But again, to get started, only one person needs to actually click create a project.
+You'll give it a quick name.
+And don't worry, you can change this name later as well.
+And of course, show you how to do that too.
+So just give it a name for now.
+If you need to change it later, that's fine.
+And then once you click create, your project page will one generate and then two.
+It's also saved from here.
+So you'll notice if I go back to the projects page here in the platform,
+Lucas Test project is still there.
+And it's empty, but again, it has been saved.
+So you can go back to it and add your team members fill it out all that good stuff.
+So with the project page itself, I'll go over to the example project page now.
+With the project page itself, there's four different sections.
+You do have to complete all of these sections.
+And you'll know if it's completed, if you get the blue checkmark over here on the left.
+So there's the about section, issue and solutions, questions, and then our team.
+So I'll start from the top.
+And I'm actually going to unpublish this project really quickly.
+And then I'll go over what publishing means as well here in just a moment.
+So starting from the top, the first section of the project page is the about section.
+You will have this example project name banner already.
+Part of your project, it'll go there by default.
+And then once you click on edit, you can then edit everything that's in this section.
+one note about editing only one person from your team can edit any of the sections at
+a time. So once you add your team members, which I'll get to here in a few minutes,
+only one of you once you click on that edit button can actually edit that section. So just
+keep that in mind, like if Sydney was on my team right now, she'd right now would not be
+able to click on edit the about section because I'm already editing it. So on this
+about section, you can change this banner out and give it to your own banner with
+your project name and then the size and dimension is here as well so that you know
+how to format it. You can give it a project logo if you would like to and then
+all of this information below that is what is required. So this first part is
+where you can change the name of your project. You'll then give it a short one to two
+sentence summary of what you're building or how the problem solves what you're
+building. There is a character limit here so it'll be a fairly short section. But
+again, this is just a very brief introduction to your project. And then for
+project challenges, this is where you will select that you are either
+submitting to the May challenge or the June challenge. You'll notice you can only
+select one. So just to be really clear if you're participating in both challenges
+which of course we want you to, you'll submit separate project pages for each
+challenge. So this one I'll keep is May. But again, if I was going to then also
+participate in June, you'll go back, create a new project page for June and then add
+your team members to it. Excuse me. And then lastly, there's a section for you to
+add your GitHub repo link to. So once you have your GitHub repo link that has the
+work that you've actually done, again, make sure that it's publicly viewable so
+that we and the judges can actually see it and then you'll paste that in here and then
+that's everything for the about section. For all of these sections, when you do make
+edits, just be sure to click save up at the top here once you're done. If you refresh
+the page or close the platform and you didn't click that save button, all that work
+you just did will go away. So just make sure to save and then that'll take you out of
+the edit mode for that section. And then the next couple sections, I'll go a little bit
+quicker. They're fairly self-explanatory. The next one is the issue and our magic solution.
+So essentially, these are custom text editors. So if you want to, you can add more than
+text to these. You can hyperlink things. You can upload files like PDFs or images down at
+the bottom as well. So you don't have to, you can keep it to just text if you would like
+to but just know that that's an option. And there's also also sort of a different formatting
+in here. So if for some reason you want to make some text blue, you can do that. But again,
+you can kind of play around with this and do whatever you would like to in these sections.
+So for the issue, we just want you to explain in two to three sentences or a little bit more
+if you want to. The problem you're solving how it affects drivers or racing in general.
+And why this is a problem. So there's an example here. Again, you don't have to use these examples.
+They're just here for reference. And then for the next section for your magic solution,
+you're doing the same thing in a few sentences. Explain what you built, how it solves that problem,
+and how an including how your AI approach helps to solve that problem. So again, you're not
+putting a ton of detail here. Most of the detail is going into your GitHub repo. But this is meant to
+be like brief overview information of, again, the issue and then how your solution solves that issue.
+And then getting down to the bottom, there's two questions here in the questions tab for you to fill out.
+One Sydney already mentioned is the presentation video link. So this does need to be
+publicly viewable. So whether you use something like YouTube or Vimeo, whatever it is,
+we have no strict requirements there. We just of course have to be able to see it. So please double
+check all the permissions, make sure that it's accessible for us so that we can actually watch it.
+Please keep to that three minute mark for your video presentation.
+If you have a video that's three minutes and, you know, four seconds, that's okay.
+But please don't turn it into a three and a half minute video or a four minute video
+because the judges will have a lot of videos to watch. So if it is four or five or six minutes,
+they will stop watching at the three minute mark and we'll judge your solution on those three minutes.
+And as far as what your video presentation should include, it's essentially the same thing
+as this project page. So you want to introduce your team, introduce the problem that you've identified
+and then demo and showcase how your solution is solving that problem. There's some other things
+you can include if you have time such as next steps you'd like to do a roadmap for what you'd like to do in the future.
+But again, with that in mind, keep to that three-minute video limit that we have for your submission.
+And then lastly, the last thing you'll fill out here is your team members get hub user names.
+So for all of your team members, just put in their user names here for that question.
+This will help us, of course, if you win a prize, when we go to verify everybody who's on a team,
+we're just making sure we have the right people and making sure that we have all of your information before we reach out for a prize distribution.
+And then the section at the bottom is the our team section. You can't actually edit this section. You'll notice there's no edit button.
+But the way to fill this out is actually over here on the left. You'll see it says add new teammates to your team.
+So when you click on this search bar, it'll show the first couple of results already. This is an alphabetic order, of course.
+And then to find team members, you just need to search for their user name.
+So if you can't find someone's username, can't find your team member in here, whatever it might be, reach out to us on Discord.
+We'll help you get that team member added. The one thing to note about this is if you go to add someone and again, you can't find their username.
+It may be because they haven't confirmed their account on the platform yet.
+So you do have to confirm your email before you can actually find someone and add them to your team.
+But again, if you can't find anyone, just reach out to us on Discord or an email and we'll get them added to your project page.
+And then once you are done with the project page, you filled everything out. You're happy with it and you're ready to submit.
+The last step is clicking this publish button in the top left corner. So clicking publish and then it'll ask you, are you sure?
+And then you'll click publish again. By clicking publish, this is your way of telling us that you are submitting your project for the May challenge.
+So please don't miss this step.
+Also, before the deadline of May 31, you can unpublish and make edits. So keep that in mind. Once you publish, you can like you can see on my screen, unpublish, go back, make whatever tweaks that you want to and then publish it again.
+But you'll have until May 31st at midnight in order to do that. And also this city mentioned, if you have issues with the project page, please reach out to us sooner rather than later.
+If you reach out to us a minute before the deadline, we will probably not get to you because we're fast, but we're not that fast.
+So again, reach out to us as soon as you see an issue or can't add a teammate, whatever it might be so that we can help you out with that and get you all squared away.
+And aside from the project's page, I won't go into too much detail for the other tabs that are on the platform.
+There's a WebNors tab which you're all on, of course, and you've all access it to watch this. There's the challenges tab where it goes into detail on what the challenges for the month. So right now there's only May but June will be added soon.
+And then for those resources, Sydney mentioned, they're also in get of and and discord, but those are here as well so that you can access things like the Bob trial or dockling, grand and whatever it might be.
+But yeah, other than that, that's everything that I have for the platform and forget hub.
+Just as a quick wrap up and then all all head out of here. Again, please be patient for the get of invite. We'll get them sent out as fast as we can reach out to us like at the end of next week.
+if you don't have yours and we'll make sure
+that you get it right away.
+And then of course, reach out to us for any issues
+with the platform or your project page,
+whatever it might be and we'd be happy to help you there.
+And yeah, with that, all hand things back over to you,
+Sydney, let me take my screen down.
+And yeah, you can all add your slides back as well
+and I'll hand it back over to you.
+Yeah, we did get one question in the chat here.
+A couple of questions, platform related.
+Published versus unpublished button explanation.
+Yes, so for publishing, again, publishing is just your way
+of telling us that you're submitting for the challenge.
+So by May 31st, that deadline at midnight,
+you have to click that publish button.
+And again, it's your way of telling us that you're submitted.
+Like I was showing to, you can do it before May 31st
+and then you can even unpublish and make some edits.
+But by May 31st, it has to be published in order
+to be considered a submission for the judges to actually judge.
+Cool.
+And another question from Nose.
+He said, if we want to submit my project
+to all the team members up the project
+and it get a repository or only team leader is enough.
+Good question.
+And just in general, you, everyone's team just needs one GitHub repo
+and one project page.
+So I go showing in the project page
+in that first section, the about section,
+you'll only have one space for a GitHub repo link.
+So for instance, your team leader can create that GitHub repo
+and then give everyone access to work on it.
+But you just need that one repo to then paste into your one project
+page and then submit from there.
+Cool. And then last question, other than IBM tools,
+can we use any other tools?
+Yes, you can definitely use any other tools that you want to
+but just a reminder, like you were showing earlier, Sydney,
+you do need to use at least one of those five tools
+that were in the slides earlier
+and they're on the platform as well.
+So whether it's docking or IBM Bob, laying flow,
+thank you Sydney, you can grant it or context forage.
+You do need to use at least one of these.
+But in addition to that, if you want to use some other outside tools,
+you're definitely more than welcome to.
+Cool.
+I think those are all the questions platform related.
+So we'll get going.
+Have a few other things here.
+And then if we have any other questions pop up,
+I'll bring it back in, Lucas, and we can go over those.
+Hope sounds good.
+All right.
+But one thing I wanted to mention as well,
+because we had a question in the chat on judging criteria.
+So when you submit your projects, what they judges will be evaluating
+on top of their acquired stuff that Lucas kind of walked you through
+is there's four kind of key themes.
+So the first will be techno-collects of cution
+that just basically seeing the effective use of IBM tools
+and open source AI technologies,
+as well as the functional and well-struck structure
+solution.
+The second judging criteria is innovation, creativity,
+originality, unique application for AI.
+Third judging criteria is challenge fit.
+So relevance to this may challenge,
+which is that racing challenge, addressing that real world scenario.
+So we're not looking for just random challenges.
+This has to be themed around racing
+and those examples solution areas that I provided earlier.
+And then last one, kind of like Lucas was mentioning,
+this is also kind of what you'll cover in your video as well.
+But implementation and feasibility, if you have time within your video,
+focusing on what's the scalability of your solution,
+roadmap, like Lucas mentioned, that will be something
+that judges would want to see as well,
+or they might ask questions there.
+Judging criteria as well is also lives
+on the platform on the main homepage.
+So if you want more information there,
+just scroll down to the judging criteria section.
+But I will go kind of over the last things here.
+As far as timeline, so today,
+we are officially kicked off.
+So right after this, I will open up the project's mission page.
+So that way you can at least start it, create your page.
+and start adding your team members
+and kind of play around with it a little bit.
+Like I mentioned earlier,
+we are also having a live team formation webinar.
+This will be through Zoom,
+so you'll have an opportunity to come off mute
+and introduce yourself,
+kind of pitch yourself on your background.
+If you have a team already
+and you're looking for a specific major to join your team,
+whether it's business,
+you know, make sure to create a diverse team
+to help create a good solution at the end there.
+So a great opportunity, great place
+to really live, find your teams as well as,
+of course, as I've already mentioned,
+we have that information,
+Slack check or not Slack channel,
+Discord channel as well to start really networking
+with everyone who's joined so far.
+But that is tomorrow at 9.30 AM ET,
+and again that will be with myself and Lucas
+and will kind of help support there.
+Again, like we've mentioned,
+if you don't find anyone during the team formation webinar,
+or if you haven't, you have been reaching out
+on the discord,
+and you haven't connected with anyone,
+reach out to us,
+we can see everything we can help match you with as team as well.
+And then next week,
+we are going to have IBM's going to host
+one of their tech webinars that will be at On Monday,
+at 10 AM ET for two IBM leaders
+to kind of go through some cool stuff.
+So make sure to join that, really great guys.
+They will be going through some fun stuff on Monday.
+And then like we mentioned, projects for this first challenge
+are do May 31st at 1159 ET.
+That is where you'll hit that publish on the platform
+and making sure that your video link
+is publicly accessible as well as that GitHub repo.
+And then once everything's finalized,
+all projects are submitted for this May challenge,
+the judges will take a week to deliberate.
+So give us time, it takes a whole week to go through all
+of the different projects.
+And then we'll have a winners announcement,
+or we'll probably reach out to those winners,
+and you'll be able to actually present what you did.
+And IBM will host that winners announcement webinar.
+So that is to be announced,
+but just keep in mind if you are a winner
+to look out for an email for us,
+and then we'll do a general announcement as well.
+After June 5th.
+So.
+And then for the June challenge,
+we should be publishing all of the June information
+within the next two weeks,
+but the official challenge and labs will open on Monday, June 1st.
+And just like for this May webinar,
+we'll still have a kick off going through everything.
+We'll still have a team formation webinar
+for that June challenge.
+And that will go through just like it is for the whole month
+for you to work on those projects.
+Judging pretty much copy and paste,
+but the theme for June is soccer or football,
+surrounding the world cup.
+Okay, well that is it on my side again,
+like we mentioned.
+If you don't have any questions now
+or for any questions pop up,
+please reach out to us.
+We are your support team for these challenges.
+And if there's anything technical
+if you're working through the tools,
+we're kind of that person to reach out to
+that we can contact IBM technical support team
+and answer your questions there.
+So even if it's on the technical side,
+we don't know the answer will make sure
+to get that answer from the IBM side.
+So I'm gonna add Lucas back on.
+Did we have any questions that popped up?
+Nothing else.
+I answered a couple in the chat just about like the replay
+of this being available
+and one about the presentation video,
+but I don't see anything else.
+Perfect.
+Yes, and again,
+if you had a team member who wasn't able to join this livestream,
+this right after we finished,
+this replay will be available.
+So after we end here,
+the same link that you joined,
+you'll be able to send it to your team member to watch later.
+Same with all of our webinars.
+We'll also start posting some kind of instructional videos
+that IBM has in the instructional videos on things.
+Really check out that webinar page
+because all the replays will be the same link
+that you joined live.
+And then I saw something on certificates.
+Well, it just came through. Is there any certificates provided for the participants?
+Before we get to that, Sineke, you cover one of my friends, one's the register.
+Yeah, yeah. When your friends wants to register, it's the same link that you registered
+with, you just register on the platform. And then complete the registration questions
+and then he's good to go. Then once you create that project page, you can add him
+to the project as your team member. And then another one is this event only open to students.
+Yes, it is open for all current students, both on the undergraduate and graduate PhD level.
+So you do have to be currently attending a university.
+Awesome. And then I just had to check if we were doing certificates and we're not.
+So yeah, no certificates are like certificate of completion or anything along those lines.
+Yeah, but you'll have a published GitHub repository.
+So that you know, you can highlight in your resume. And you can, you know, if you are a winner,
+you'll still get a cool little thing there. So many things that you can highlight that you participated
+in this really unique opportunity.
+All right, I think that's all the questions. So I'm going to wrap up here again.
+Really excited to kick off with everyone. We are here to support you throughout this next month.
+And we're excited. Hopefully if you don't have a team, make sure to join the webinar tomorrow.
+And have a great rest of your day, morning, evening, or night.
+Bye, all.
+Thanks everyone. Bye.
