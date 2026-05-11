@@ -151,6 +151,23 @@ cd ui && npm install && npm run dev
 
 Granite Instruct + Guardian + Embedding all run on watsonx.ai (US-South); only Docling chunk extraction runs locally. No 12 GB local model download. See [`docs/adrs/ADR-001-watsonx-runtime.md`](docs/adrs/ADR-001-watsonx-runtime.md) for the runtime split rationale.
 
+### Run Ollama locally
+```sh
+curl -fsSL https://ollama.com/install.sh | sh
+# Pull granite tiny
+ollama pull granite4:350m
+# Verify
+ollama list
+# Test
+ollama run granite4:350m "Say hello in one short sentence."
+# Test the ollama HTTP API
+curl http://localhost:11434/api/generate -d '{
+  "model": "granite4:350m",
+  "prompt": "What is 2+2?",
+  "stream": false
+}'
+```
+
 ### Optional: Langflow design canvas
 
 ```bash
