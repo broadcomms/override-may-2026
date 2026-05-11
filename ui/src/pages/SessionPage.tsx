@@ -32,7 +32,13 @@ import { ZoneHeatmap } from "@/components/ZoneHeatmap";
 export function SessionPage() {
   const { sessionId = "" } = useParams<{ sessionId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const fixture = searchParams.get("fixture") === "1";
+  // `?fixture=1` / `?fixture=0` force the mode for this tab; absent → let the
+  // env default (VITE_USE_FIXTURE) decide. Passing `undefined` keeps the `??`
+  // fallback inside api.client intact — passing an explicit `false` would
+  // override the env default and route through the live API.
+  const fixtureParam = searchParams.get("fixture");
+  const fixture: boolean | undefined =
+    fixtureParam === "1" ? true : fixtureParam === "0" ? false : undefined;
 
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
