@@ -82,6 +82,8 @@ exec podman run -it --rm \
     -p 5900:5900 \
     -p 6080:6080 \
     -p 3001:3001/udp \
+    -p 11434:11434 \
+    -p 3001:3001/udp \
     -e DONT_PROMPT_WSL_INSTALL=1 \
     -v "${WORKSPACE}:/home/student/workspace:Z" \
     --entrypoint /bin/bash \
