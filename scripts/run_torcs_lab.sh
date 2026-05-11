@@ -63,12 +63,22 @@ podman rm -f "${NAME}" >/dev/null 2>&1 || true
 # 2. Set DONT_PROMPT_WSL_INSTALL=1 to suppress any residual WSL prompts.
 # 3. Override entrypoint to a bash wrapper that mkdirs the markers, then
 #    chains into /usr/local/bin/start.sh (the image's real Cmd).
+# Port forwarding rationale:
+#   5900   VNC (raw protocol)
+#   6080   noVNC web UI (the browser endpoint judges/you actually hit)
+#   3001/udp   SCR — gym_torcs ↔ TORCS server channel for the AI driver
+# NOT forwarded:
+#   11434  Ollama — most dev hosts already run a native Ollama on this port
+#                   (per README quickstart). The container's Ollama is only
+#                   reachable from INSIDE the container during task 1.5
+#                   (capture path doesn't need it anyway). Week 3 compose
+#                   routes OVERRIDE_LLM_RUNTIME=ollama via service-to-service
+#                   DNS on override-net, not via host port forwarding.
 exec podman run -it --rm \
     --name "${NAME}" \
     -p 5900:5900 \
     -p 6080:6080 \
     -p 3001:3001/udp \
-    -p 11434:11434 \
     -e DONT_PROMPT_WSL_INSTALL=1 \
     -v "${WORKSPACE}:/home/student/workspace:Z" \
     --entrypoint /bin/bash \
