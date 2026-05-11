@@ -486,14 +486,13 @@ def drive_example(c):
         R['gear']=6
     return
 
-if __name__ == "__main__":
-    C= Client(p=3001)
-    for step in range(C.maxSteps,0,-1):
-        C.get_servers_input()
-        drive_example(C)
-        C.respond_to_server()
-    C.shutdown()
-
+# (Reference function only — the active driver is `drive_modular` below,
+# wired into the runtime via the single __main__ block at the bottom.
+# Original file had an earlier `if __name__ == "__main__":` block here
+# that called drive_example with a hard-coded target_speed=40, which ran
+# to maxSteps exhaustion before the modular main block could ever fire —
+# effectively dead-coding the USER CONFIGURABLE PARAMETERS section. The
+# legacy main block was removed so TARGET_SPEED below takes effect.)
 
 
 #############################################
