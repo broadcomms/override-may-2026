@@ -237,13 +237,20 @@ class ServerState():
         # OVERRIDE telemetry logger — env-gated (set OVERRIDE_LOG_TELEMETRY to a JSONL path).
         # Per-tick observation dump for the live-ingest path. JSONL safe-read in
         # ingest/torcs_parser.py skips incomplete tail lines, so flushing isn't required.
+        # First write failure is surfaced once on stderr (path typos and permission
+        # issues used to silently produce zero captures — task 1.5 first attempt).
         _override_log = os.environ.get("OVERRIDE_LOG_TELEMETRY")
         if _override_log:
             try:
                 with open(_override_log, "a") as _f:
                     _f.write(json.dumps({"t": _time.time(), **self.d}, default=str) + "\n")
-            except OSError:
-                pass  # logger never blocks the driver loop
+            except OSError as _e:
+                if not getattr(ServerState, "_override_log_warned", False):
+                    sys.stderr.write(
+                        f"[override] WARNING: OVERRIDE_LOG_TELEMETRY={_override_log!r} "
+                        f"could not be written: {_e}. Telemetry capture will be empty.\n"
+                    )
+                    ServerState._override_log_warned = True
 
     def __repr__(self):
         return self.fancyout()

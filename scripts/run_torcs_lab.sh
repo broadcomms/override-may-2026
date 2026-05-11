@@ -17,8 +17,6 @@
 #
 # Usage:
 #   scripts/run_torcs_lab.sh                       # interactive, foreground
-#   OVERRIDE_LOG_TELEMETRY=baseline.jsonl \
-#     scripts/run_torcs_lab.sh                     # passes env into container
 #
 # After the container lands at "Environment ready!", open
 # http://localhost:6080/vnc.html in your browser, drive Race → Practice →
@@ -26,12 +24,26 @@
 # terminal:
 #
 #   podman exec -it torcs bash -lc 'cd /home/student/workspace/gym_torcs && \
-#     OVERRIDE_LOG_TELEMETRY=/home/student/workspace/telemetry/baseline.jsonl \
+#     OVERRIDE_LOG_TELEMETRY=/home/student/workspace/gym_torcs/telemetry/baseline.jsonl \
 #     python3 torcs_jm_par.py'
 #
-# Telemetry persists at $PWD/RaceYourCode/gym_torcs/telemetry/ on the host
-# via the volume bind. Stop the AI driver with Ctrl-C; quit TORCS via ESC →
-# Quit; stop the container with Ctrl-C in this terminal (or `podman stop torcs`).
+# Telemetry path convention — INSIDE the container:
+#   /home/student/workspace/gym_torcs/telemetry/<run_id>.jsonl
+# ON the host (via the bind mount on /home/student/workspace):
+#   $PWD/RaceYourCode/gym_torcs/telemetry/<run_id>.jsonl
+# Both must match; the writer's try/except OSError silently swallows
+# FileNotFoundError, so a path typo produces zero captures with zero
+# visible errors. (Discovered task 1.5 first attempt.)
+#
+# Permission gotcha: rootless Podman remaps host UID 1000 → container
+# UID 0 in the user namespace. Telemetry dir created by the host user
+# (patrick, 1000) appears as root-owned in the container, while the
+# script runs as user `student` (container UID 1000, falls into "other"
+# perms). Without the chmod 0777 below, student can't write. Fix is
+# applied to the host dir before the bind-mount so it propagates.
+#
+# Stop the AI driver with Ctrl-C; quit TORCS via ESC → Quit; stop the
+# container with Ctrl-C in this terminal (or `podman stop torcs`).
 #
 # Architecture choice — bare podman-run (not compose) for task 1.5 because the
 # compose stack (Week 3) isn't shipped yet and 1.5 only needs a working TORCS,
@@ -56,6 +68,14 @@ if [[ ! -d "${WORKSPACE}/gym_torcs" ]]; then
 fi
 
 mkdir -p "${WORKSPACE}/gym_torcs/telemetry"
+# Rootless Podman remaps host UID 1000 → container UID 0 in the user
+# namespace, so the host-created telemetry dir lands as root-owned (755)
+# inside the container while the AI driver runs as `student` (container
+# UID 1000). chmod 0777 grants "other" write on the host dir, which
+# propagates through the bind mount so student can write per-tick JSONL.
+# Without this, the writer's try/except OSError silently swallows
+# PermissionError → zero captures, zero error messages, easy to miss.
+chmod 0777 "${WORKSPACE}/gym_torcs/telemetry"
 
 # Stop any leftover container with the same name (idempotent).
 podman rm -f "${TORCS_NAME}" >/dev/null 2>&1 || true
