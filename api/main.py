@@ -51,7 +51,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from analysis.perturbations import apply_perturbation
 from core.fan_mode import FanModeParseError, translate_to_fan_mode
@@ -175,6 +175,16 @@ def get_guardian_client() -> WatsonxGuardianClient:
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     uptime_s: float
+
+
+class TorcsLiveRequest(BaseModel):
+    """Body for POST /api/sessions/torcs-live (v6 plan task 3.2).
+
+    Defined at module scope so FastAPI's body-vs-query inference picks
+    it up as a JSON body (in-function Pydantic models can confuse the
+    OpenAPI introspector).
+    """
+    run_id: str = Field(pattern=r"^[A-Za-z0-9_-]+$", min_length=1, max_length=64)
 
 
 class VersionResponse(BaseModel):
@@ -551,6 +561,112 @@ def create_app() -> FastAPI:
         delete_session(session_id)
         # Always 204 (idempotent)
 
+    # ── Live TORCS ingest (v6 plan task 3.2, hard floor) ─────────────────────
+
+    @app.get("/api/torcs-status")
+    async def torcs_status():
+        """List JSONL replays available on the shared ``torcs-telemetry``
+        volume — produced by ``RaceYourCode/gym_torcs/torcs_jm_par.py`` when
+        ``OVERRIDE_LOG_TELEMETRY`` is set inside the torcs compose service.
+
+        Response is always 200; ``available: false`` when the dir doesn't
+        exist or holds no JSONL files. The UI's UploadPage banner polls
+        this to enable/disable the "Ingest live TORCS run" affordance
+        without surfacing 404s during the no-torcs-profile common case.
+        """
+        tdir = _telemetry_dir()
+        if not tdir.is_dir():
+            return {"available": False, "runs": []}
+        runs = []
+        for p in sorted(tdir.glob("*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True):
+            try:
+                size = p.stat().st_size
+            except OSError:
+                continue
+            # Cheap lap-count estimate: gym_torcs ticks at ~50 Hz, lap is
+            # ~100 s typical → ~5000 ticks/lap. Surfaced as a guide for the
+            # UI banner, not authoritative.
+            tick_estimate = max(1, size // 1000)  # ~1 KB/tick observed
+            runs.append({
+                "run_id": p.stem,
+                "size_bytes": size,
+                "lap_count_estimate": tick_estimate // 5000,
+            })
+        return {"available": bool(runs), "runs": runs}
+
+    @app.post("/api/sessions/torcs-live", status_code=status.HTTP_201_CREATED)
+    async def torcs_live(
+        request: Request,
+        body: TorcsLiveRequest,
+        chat_client: WatsonxChatClient = Depends(get_chat_client),
+        embedding_client: WatsonxEmbeddingClient = Depends(get_embedding_client),
+        guardian_client: WatsonxGuardianClient = Depends(get_guardian_client),
+    ):
+        """Ingest a JSONL replay from the shared ``torcs-telemetry`` volume.
+
+        Body: ``{"run_id": "<slug>"}``. Reads
+        ``/app/data/telemetry/<run_id>.jsonl``, parses via
+        ``ingest.torcs_parser.parse_torcs_session`` (JSONL safe-read per
+        gotcha #12 handles partial tail lines and JSONDecodeError mid-stream),
+        runs the full pipeline, persists via ``save_session``, returns the
+        full Session.
+
+        404 NOT_FOUND when the run_id doesn't resolve to a readable file —
+        the UI's UploadPage banner enabled the option from a stale status
+        snapshot, or the user typed a bad slug via curl.
+
+        Same dependency providers as POST /api/sessions (compose,
+        don't fork). Honors OVERRIDE_LLM_RUNTIME via the chat-client
+        factory; emits OTel spans through the existing pipeline
+        instrumentation.
+        """
+        rid = getattr(request.state, "request_id", new_request_id())
+
+        tdir = _telemetry_dir()
+        jsonl_path = tdir / f"{body.run_id}.jsonl"
+        if not jsonl_path.is_file():
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Telemetry run {body.run_id!r} not found at {jsonl_path}.",
+                detail=(
+                    "Ensure the TORCS compose service is up "
+                    "(`podman compose --profile torcs up`) AND "
+                    "OVERRIDE_LOG_TELEMETRY was set when running torcs_jm_par.py."
+                ),
+                request_id=rid,
+            )
+
+        try:
+            laps = parse_torcs_session(jsonl_path)
+        except (ValueError, FileNotFoundError) as e:
+            raise api_error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code="PARSE_FAILED",
+                message=f"Could not parse TORCS replay {body.run_id!r}.",
+                detail=str(e)[:300],
+                request_id=rid,
+            )
+
+        try:
+            session = await run_pipeline(
+                laps=laps,
+                soc_max=4.0,
+                chat_client=chat_client,
+                embedding_client=embedding_client,
+                guardian_client=guardian_client,
+                source="torcs",
+                track_id=f"torcs-live/{body.run_id}",
+                chunks_path=_chunks_path(),
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise map_watsonx_exception(e, request_id=rid)
+
+        save_session(session)
+        return session.model_dump(mode="json")
+
     # ── Static UI mount (v6 plan task 3.1) ───────────────────────────────────
     # The container image builds ui/dist via Stage 1 of the Dockerfile and
     # COPYs it to /app/ui/dist. When that directory exists, mount it so the
@@ -614,6 +730,32 @@ def _sessions_root_for_request() -> Path:
     if raw:
         return Path(raw)
     return Path(__file__).resolve().parent.parent / "data" / "sessions"
+
+
+def _telemetry_dir() -> Path:
+    """Where the live-ingest path reads JSONL from.
+
+    In compose (Mode 2 — `podman compose --profile torcs up`), the
+    ``torcs-telemetry`` named volume mounts at /app/data/telemetry in
+    the override service and at /home/student/workspace/gym_torcs/telemetry
+    in the torcs service — gym_torcs writes, override reads. In local
+    dev (no compose), defaults to ./data/telemetry which the developer
+    populates manually.
+
+    Honors ``OVERRIDE_TELEMETRY_DIR`` env override for the v6 §3.2 test
+    pattern (tests mount a tmp_path and set the env var without
+    relying on container paths).
+    """
+    raw = os.environ.get("OVERRIDE_TELEMETRY_DIR")
+    if raw:
+        return Path(raw)
+    # Inside the container image, /app/data/telemetry is the compose mount
+    # point. Outside the container (local dev / tests with no env var
+    # override), fall back to a sibling of data/sessions.
+    container_default = Path("/app/data/telemetry")
+    if container_default.is_dir():
+        return container_default
+    return Path(__file__).resolve().parent.parent / "data" / "telemetry"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

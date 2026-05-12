@@ -231,6 +231,17 @@ export interface WhatIfRequest {
   extra_laps?: number;            // optional for extend_override; default 1; 1-5
 }
 
+export interface TorcsRunSummary {
+  run_id: string;
+  size_bytes: number;
+  lap_count_estimate: number;
+}
+
+export interface TorcsStatusResponse {
+  available: boolean;
+  runs: TorcsRunSummary[];
+}
+
 export interface WhatIfResult {
   request: WhatIfRequest;
   cache_key: string;              // sha256(...)[:16]

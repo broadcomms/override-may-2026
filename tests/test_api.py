@@ -559,6 +559,119 @@ def test_get_zone_unknown_zone_returns_404(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Live TORCS-volume ingest (v6 plan task 3.2)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _torcs_jsonl_payload(*, n_laps: int = 2, ticks_per_lap: int = 120) -> bytes:
+    """Same synthetic JSONL pattern as the test_torcs_parser fixture
+    helper. Cross-file duplication is acceptable — keeps both test files
+    self-contained, no shared-fixture-import gymnastics."""
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / ticks_per_lap
+    wall_t = 1_700_000_000.0
+    lines: list[str] = []
+    s1_end = track_length / 3.0
+    s2_end = 2.0 * track_length / 3.0
+    for _lap in range(n_laps):
+        for tick_i in range(ticks_per_lap):
+            cur_lap_time = tick_i * dt
+            dist = (tick_i / ticks_per_lap) * track_length
+            if dist < s1_end:
+                accel, brake = 0.7, 0.0
+            elif dist < s2_end:
+                accel, brake = 1.0, 0.0
+            else:
+                accel, brake = 0.0, 0.6
+            lines.append(json.dumps({
+                "t": wall_t,
+                "curLapTime": [cur_lap_time],
+                "distFromStart": [dist],
+                "speedX": [60.0 if accel >= 0.95 else 30.0],
+                "accel": [accel],
+                "brake": [brake],
+                "fuel": [90.0],
+            }))
+            wall_t += dt
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def test_torcs_status_available_false_when_dir_empty(tmp_path, monkeypatch):
+    """Default state — no torcs profile running, no JSONL files. Banner
+    in the UI should stay hidden; endpoint must NOT 404."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs-status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False
+    assert body["runs"] == []
+
+
+def test_torcs_status_lists_available_runs_newest_first(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    # Write two JSONL files with different mtimes
+    (telem / "older.jsonl").write_bytes(_torcs_jsonl_payload(n_laps=1, ticks_per_lap=80))
+    import time as _t; _t.sleep(0.01)
+    (telem / "newer.jsonl").write_bytes(_torcs_jsonl_payload(n_laps=2, ticks_per_lap=120))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs-status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    # Newest first
+    assert [r["run_id"] for r in body["runs"]] == ["newer", "older"]
+
+
+def test_torcs_live_happy_path_runs_pipeline(tmp_path, monkeypatch):
+    """POST a JSONL replay → run_pipeline fires (mocked watsonx clients) →
+    Session round-trips with source=torcs."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "baseline.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/torcs-live",
+        json={"run_id": "baseline"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["summary"]["source"] == "torcs"
+    assert body["summary"]["track_id"] == "torcs-live/baseline"
+    assert body["summary"]["lap_count"] >= 1
+
+
+def test_torcs_live_unknown_run_returns_404(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/torcs-live",
+        json={"run_id": "nonexistent"},
+    )
+    assert r.status_code == 404
+    assert r.json()["error_code"] == "NOT_FOUND"
+
+
+def test_torcs_live_invalid_run_id_pattern_returns_422(tmp_path):
+    """Pydantic Field pattern rejects path-traversal attempts + arbitrary
+    strings. Belt-and-suspenders alongside the file-exists check."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/torcs-live",
+        json={"run_id": "../etc/passwd"},  # path traversal attempt
+    )
+    assert r.status_code == 422
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # POST /api/sessions/{id}/what-if  (FR-8)
 # ──────────────────────────────────────────────────────────────────────────────
 

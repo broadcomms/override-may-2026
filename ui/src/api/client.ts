@@ -40,6 +40,7 @@ import type {
   RegulationSource,
   Session,
   SessionSummary,
+  TorcsStatusResponse,
   VersionResponse,
   WhatIfRequest,
   WhatIfResult,
@@ -439,6 +440,45 @@ export const api = {
         signal: opts?.signal,
       },
     );
+  },
+
+  /**
+   * Live TORCS-volume status (v6 plan task 3.2). Polled by /upload's
+   * banner; returns `{available: false, runs: []}` when the torcs profile
+   * isn't running (which is the common case — no 404 noise in the UI).
+   * Fixture mode short-circuits to "unavailable" to keep offline dev
+   * predictable.
+   */
+  async torcsStatus(opts?: ApiOpts): Promise<TorcsStatusResponse> {
+    if (resolveFixture(opts)) {
+      return { available: false, runs: [] };
+    }
+    return jsonFetch<TorcsStatusResponse>("/api/torcs-status", {
+      signal: opts?.signal,
+    });
+  },
+
+  /**
+   * Live TORCS-volume ingest (v6 plan task 3.2, hard floor). POSTs the
+   * run_id to the live-ingest endpoint, which reads
+   * /app/data/telemetry/<run_id>.jsonl from the shared torcs-telemetry
+   * volume, runs the full pipeline, returns the Session.
+   *
+   * Fixture mode synthesizes via the same path as createSession so
+   * offline UI dev can exercise the "ingest live run" affordance
+   * without a backend.
+   */
+  async runTorcsLive(runId: string, opts?: ApiOpts): Promise<Session> {
+    if (resolveFixture(opts)) {
+      await new Promise((r) => setTimeout(r, 250));
+      return fixtureSession(resolveFixtureName(opts));
+    }
+    return jsonFetch<Session>("/api/sessions/torcs-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: runId }),
+      signal: opts?.signal,
+    });
   },
 
   async deleteSession(sessionId: string, opts?: ApiOpts): Promise<void> {
