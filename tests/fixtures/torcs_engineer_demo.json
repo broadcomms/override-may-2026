@@ -1,0 +1,177 @@
+{
+  "fixture_id": "torcs_engineer_demo",
+  "captured_at": "2026-05-12T02:57:34.995777+00:00",
+  "captured_via": "v6 plan task 2.8 \u2014 POST data/samples/torcs_baseline.jsonl through full watsonx pipeline + per-zone Fan Mode hydration. Real TORCS data, real Granite 4-h-small reasoning, real Granite Guardian Pass-2. Session_id rewritten from the timestamped slug to s_torcs_engineer_demo for deep-link routing in ui/src/api/client.ts.",
+  "purpose": "Real-TORCS-lap engineer demo fixture. Upgrades the rubric story from 'we built a TORCS parser, here's a synthetic demo' \u2192 'the demo you're watching is a real lab session piped through the real pipeline.' Used by ui/src/api/client.ts as the default fixture for /session/s_torcs_engineer_demo?fixture=1.",
+  "session": {
+    "summary": {
+      "session_id": "s_torcs_engineer_demo",
+      "uploaded_at": "2026-05-12T02:56:48.959727Z",
+      "source": "torcs",
+      "lap_count": 1,
+      "forecast_available": false,
+      "zone_count": 2,
+      "track_id": "torcs-baseline",
+      "note": "Engineer-mode demo asset, regenerated against the real torcs_baseline.jsonl capture (data/samples/) through the full watsonx pipeline. Two zones detected (late-recharge-full + low-roi-deploy), both passed Pass-1 + Pass-2, both have Fan Mode translation populated. Replaces the prior synthetic engineer_happy_demo."
+    },
+    "laps": [
+      {
+        "lap_number": 1,
+        "soc_start": 1.0,
+        "soc_end": 1.0,
+        "harvest_mj": 3.7708,
+        "deploy_mj": 3.51616,
+        "lap_time": 111.37,
+        "sector1_time": 32.524,
+        "sector2_time": 29.874,
+        "sector3_time": 48.972,
+        "avg_speed": 81.1,
+        "max_speed": 100.4,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          3
+        ],
+        "soc_source": "derived"
+      }
+    ],
+    "forecast": null,
+    "recommendations": [
+      {
+        "zone": {
+          "zone_id": "z_lrch_full_l1_s3",
+          "zone_type": "late-recharge",
+          "lap_number": 1,
+          "sector": 3,
+          "severity": "high",
+          "metrics": {
+            "harvest_mj": 3.7708,
+            "lap_time_cost_s": 0.0,
+            "available_window_s": 8.0
+          },
+          "description": "Lap 1: harvested 3.77 MJ when battery was 100% full (0.00 MJ headroom)."
+        },
+        "reasoning": {
+          "cause": "Lap 1 harvested 3.77 MJ when the battery was already at full charge (0 MJ headroom).",
+          "consequence": "Exceeding the 4 MJ state-of-charge window violates C5.2.9, risking penalties and limiting usable energy later in the stint.",
+          "recommendation": "Consider deploying less aggressively in the early sector or using a brief boost to create headroom before the late-recharge zone.",
+          "regulation_citation": {
+            "passage": "The difference between the maximum and the minimum state of charge of the ES may not exceed 4MJ at any time the car is on the track.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 18 \u2014 2026-05-07",
+              "section": "C5.2.9",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T14:11:34.772446Z"
+            }
+          },
+          "confidence": "high",
+          "confidence_justification": "Data shows a clear SOC breach; regulation citation is directly applicable, and no forecast uncertainty exists.",
+          "reasoning_chain": [
+            "Observed SOC_start = SOC_end = 1.000 (full charge) on Lap 1.",
+            "Harvested 3.77 MJ, exceeding the 4 MJ SOC window per C5.2.9.",
+            "Violation risks penalties and reduces usable energy for subsequent laps.",
+            "Early-deployment reduction or boost usage could maintain compliance while preserving performance."
+          ]
+        },
+        "fan": {
+          "headline": "Driver pushes boost too early, overloads the battery",
+          "what_happened": "On the first lap the driver used the new boost button right away, which recharged the battery. But the battery was already full, so it went over the allowed limit. This is against the rules and could lead to penalties, while also leaving less energy for later in the race.",
+          "why_it_mattered": "Going over the battery's allowed charge means the team might be penalized, and the driver will have less stored energy to use when it really counts later in the race. It's like filling a glass that's already full \u2013 it spills over and wastes what you're trying to save.",
+          "the_rule": "During the race, the battery's charge must stay within a 4 megajoule window \u2013 it can't be too full or too empty."
+        },
+        "validator": {
+          "passed": true,
+          "failed_rules": [],
+          "retry_count": 2,
+          "notes": []
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 2,
+          "final_confidence": "high"
+        }
+      },
+      {
+        "zone": {
+          "zone_id": "z_lroi_l1_s3",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 1,
+          "sector": 3,
+          "severity": "high",
+          "metrics": {
+            "deploy_mj": 3.51616,
+            "time_gain_s": 0.0,
+            "roi_mj_per_s": 351.616
+          },
+          "description": "Lap 1: deployed 3.52 MJ for +0.00 s of advantage (ROI 351.6 MJ/s)."
+        },
+        "reasoning": {
+          "cause": "Deployed 3.52 MJ of boost in sector 3 of lap 1 for no time gain, resulting in a low ROI of 351.6 MJ/s.",
+          "consequence": "Energy was consumed without improving lap time, reducing the available energy for later laps and potentially increasing the risk of hitting the harvest cap.",
+          "recommendation": "Consider reducing boost deployment in low-ROI zones or recharging in sector 3 to preserve energy for higher-value sections.",
+          "regulation_citation": {
+            "passage": "P(kW) = 250 when the car speed is below 310kph",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 18 \u2014 2026-05-07",
+              "section": "C5.2.6",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-09T14:11:34.772446Z"
+            }
+          },
+          "confidence": "high",
+          "confidence_justification": "Data is complete for lap 1 with clear ROI metrics; no forecast needed for this specific low-ROI zone.",
+          "reasoning_chain": [
+            "Identified high-severity low-ROI deploy zone in sector 3 of lap 1.",
+            "Calculated ROI as 351.6 MJ/s, indicating poor efficiency.",
+            "Compared to regulation power limits, especially below 310kph where MGU-K is capped at 250kW.",
+            "Determined that energy was wasted without time gain, suggesting alternative strategies."
+          ]
+        },
+        "fan": {
+          "headline": "Driver wasted a big boost charge in sector three",
+          "what_happened": "On the first lap, the driver used a large amount of the car's boost energy in sector three, but it didn't make the lap any faster. This left less energy for the rest of the race and could cause problems later.",
+          "why_it_mattered": "Using energy without gaining time means the driver has less power left for the rest of the race. It's like spending money on something that doesn't help you win, which is not a good strategy.",
+          "the_rule": "The car's electric boost system can only produce 250 kilowatts of power when the car is going slower than 310 kilometers per hour."
+        },
+        "validator": {
+          "passed": true,
+          "failed_rules": [],
+          "retry_count": 0,
+          "notes": []
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 1.0,
+            "regulation_consistency": 1.0
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "retry_count": 0,
+          "final_confidence": "high"
+        }
+      }
+    ],
+    "regulation_source": {
+      "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+      "issue": "Issue 18 \u2014 2026-05-07",
+      "section": "SECTION C: TECHNICAL REGULATIONS",
+      "public_url": "https://www.fia.com/regulation/category/110",
+      "fetched_at": "2026-05-09T14:11:34.772446Z"
+    }
+  }
+}

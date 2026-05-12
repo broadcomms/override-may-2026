@@ -32,6 +32,7 @@
 import engineerHappyFixtureRaw from "@fixtures/engineer_happy_demo.json";
 import fanModeFixtureRaw from "@fixtures/fan_mode_demo.json";
 import layeredDefenseFixtureRaw from "@fixtures/layered_defense_demo.json";
+import torcsEngineerFixtureRaw from "@fixtures/torcs_engineer_demo.json";
 import type {
   ApiError,
   HealthResponse,
@@ -65,7 +66,7 @@ export class OverrideApiError extends Error {
 // Fixture → Session adapters
 // ──────────────────────────────────────────────────────────────────────────────
 
-export type FixtureName = "fan_mode" | "engineer_happy" | "layered_defense";
+export type FixtureName = "fan_mode" | "engineer_happy" | "layered_defense" | "torcs_engineer";
 
 /**
  * The fan_mode fixture is shaped as a literal Session under `.session` —
@@ -83,6 +84,18 @@ function fanModeSession(): Session {
  */
 function engineerHappySession(): Session {
   const wrapper = engineerHappyFixtureRaw as unknown as { session: Session };
+  return wrapper.session;
+}
+
+/**
+ * The torcs_engineer fixture is the v6 plan task 2.8 upgrade — a session
+ * captured by piping `data/samples/torcs_baseline.jsonl` through the FULL
+ * watsonx pipeline (real Granite reasoning, real Pass-1 + Pass-2 + Fan).
+ * Replaces the synthetic engineer_happy_demo as the "real-TORCS-lap"
+ * demo asset. Routed by /session/s_torcs_engineer_demo?fixture=1.
+ */
+function torcsEngineerSession(): Session {
+  const wrapper = torcsEngineerFixtureRaw as unknown as { session: Session };
   return wrapper.session;
 }
 
@@ -142,6 +155,8 @@ function layeredDefenseSession(): Session {
 
 export function fixtureSession(name: FixtureName = "fan_mode"): Session {
   switch (name) {
+    case "torcs_engineer":
+      return torcsEngineerSession();
     case "layered_defense":
       return layeredDefenseSession();
     case "engineer_happy":
@@ -153,9 +168,11 @@ export function fixtureSession(name: FixtureName = "fan_mode"): Session {
 }
 
 /** Pull the fixture name from a session_id slug. Lets the UI route
- * /session/s_engineer_happy_demo → engineer_happy fixture without an
- * extra query-string toggle. */
+ * /session/s_torcs_engineer_demo → torcs_engineer fixture without an
+ * extra query-string toggle. Order matters — torcs_engineer must beat
+ * the generic "engineer" match. */
 function fixtureNameForSessionId(sessionId: string): FixtureName {
+  if (sessionId.includes("torcs_engineer")) return "torcs_engineer";
   if (sessionId.includes("layered_defense")) return "layered_defense";
   if (sessionId.includes("engineer_happy")) return "engineer_happy";
   return "fan_mode";
