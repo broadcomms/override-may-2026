@@ -234,23 +234,12 @@ class ServerState():
         for i in sslisted:
             w= i.split(' ')
             self.d[w[0]]= destringify(w[1:])
-        # OVERRIDE telemetry logger — env-gated (set OVERRIDE_LOG_TELEMETRY to a JSONL path).
-        # Per-tick observation dump for the live-ingest path. JSONL safe-read in
-        # ingest/torcs_parser.py skips incomplete tail lines, so flushing isn't required.
-        # First write failure is surfaced once on stderr (path typos and permission
-        # issues used to silently produce zero captures — task 1.5 first attempt).
-        _override_log = os.environ.get("OVERRIDE_LOG_TELEMETRY")
-        if _override_log:
-            try:
-                with open(_override_log, "a") as _f:
-                    _f.write(json.dumps({"t": _time.time(), **self.d}, default=str) + "\n")
-            except OSError as _e:
-                if not getattr(ServerState, "_override_log_warned", False):
-                    sys.stderr.write(
-                        f"[override] WARNING: OVERRIDE_LOG_TELEMETRY={_override_log!r} "
-                        f"could not be written: {_e}. Telemetry capture will be empty.\n"
-                    )
-                    ServerState._override_log_warned = True
+        # OVERRIDE telemetry logger lives in the main loop (after drive_modular)
+        # so the JSONL captures both the server-sensor state (self.d here)
+        # AND the driver's accel/brake/steer/gear commands (in C.R.d). At this
+        # point in parse_server_str, R hasn't been computed for this tick yet
+        # — task 1.5 first attempt logged self.d only and got harvest/deploy=0
+        # because brake/accel keys live in R, not S. See the __main__ block.
 
     def __repr__(self):
         return self.fancyout()
@@ -559,8 +548,44 @@ def drive_modular(c):
 # ================= MAIN LOOP =================
 if __name__ == "__main__":
     C = Client(p=3001)
-    for step in range(C.maxSteps, 0, -1):
-        C.get_servers_input()
-        drive_modular(C)
-        C.respond_to_server()
-    C.shutdown()
+    # OVERRIDE telemetry logger — env-gated (set OVERRIDE_LOG_TELEMETRY to a
+    # JSONL path). Per-tick observation merges server-sensor state (C.S.d)
+    # with the just-computed driver action (C.R.d: accel/brake/steer/gear)
+    # so ingest/torcs_parser.py can integrate brake-on and throttle-≥-0.95
+    # time per sector. R is keyed at the top level (no nesting) so the
+    # parser's existing dict.get("brake", ...) / dict.get("accel", ...)
+    # lookups work without any change.
+    _override_log = os.environ.get("OVERRIDE_LOG_TELEMETRY")
+    _override_fh = None
+    if _override_log:
+        try:
+            os.makedirs(os.path.dirname(_override_log) or ".", exist_ok=True)
+            _override_fh = open(_override_log, "a")
+        except OSError as _e:
+            sys.stderr.write(
+                f"[override] WARNING: OVERRIDE_LOG_TELEMETRY={_override_log!r} "
+                f"could not be opened: {_e}. Telemetry capture will be empty.\n"
+            )
+    try:
+        for step in range(C.maxSteps, 0, -1):
+            C.get_servers_input()
+            drive_modular(C)
+            if _override_fh is not None:
+                try:
+                    _override_fh.write(json.dumps({
+                        "t": _time.time(),
+                        **C.S.d,        # server sensors: angle, speedX, distFromStart, ...
+                        **C.R.d,        # driver action: accel, brake, steer, gear
+                    }, default=str) + "\n")
+                except OSError as _e:
+                    # Surface once, don't spam every tick.
+                    if not getattr(C, "_override_log_warned", False):
+                        sys.stderr.write(
+                            f"[override] WARNING: telemetry write failed: {_e}\n"
+                        )
+                        C._override_log_warned = True
+            C.respond_to_server()
+        C.shutdown()
+    finally:
+        if _override_fh is not None:
+            _override_fh.close()

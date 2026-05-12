@@ -219,7 +219,7 @@ def test_parse_torcs_session_raises_on_empty_file(tmp_path):
 
 
 REAL_BASELINE_FIXTURE = (
-    Path(__file__).resolve().parent.parent / "data" / "samples" / "torcs_baseline.json"
+    Path(__file__).resolve().parent.parent / "data" / "samples" / "torcs_baseline.jsonl"
 )
 
 
