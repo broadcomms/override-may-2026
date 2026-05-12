@@ -69,6 +69,9 @@
 
 </td>
 </tr>
+<tr>
+<td colspan="2"><strong>Jaeger trace — full nested-span pipeline visibility</strong><br/><img src="assets/screenshots/jaeger-trace.png" alt="Jaeger UI showing a POST /api/sessions trace with 36 spans across two pipeline.process_zone parents, each with nested regs.retrieve_chunk + reasoning.chat retry children, on the override-api service"/><br/><em>Captured with <code>OVERRIDE_TRACING=otlp</code> against a local Jaeger all-in-one; pipeline stages render as nested children of the root request span, not as a flat list. The retry pattern (reasoning.chat fires 2–3 times per zone) shows the Pass-1 → Pass-2 retry budget in action.</em></td>
+</tr>
 </table>
 
 ---
@@ -121,7 +124,7 @@ OVERRIDE is the open-source answer: a copilot that takes a session replay, ident
 | Langflow | **Design + demo layer**, mirrors the production pipeline | `pip install langflow` |
 | IBM Bob | **Build-time only** — development partner, README acknowledgment | bob.ibm.com/trial |
  
-**Observability:** direct OpenTelemetry instrumentation (FastAPI auto-instrumentor + manual spans across reasoning / guardian / regs / pipeline stages). Toggle with `OVERRIDE_TRACING=otlp` and view in Jaeger — see [`docs/plans/p3.6-jaeger-trace-capture.md`](docs/plans/p3.6-jaeger-trace-capture.md). Default is `off` (zero overhead).
+**Observability:** direct OpenTelemetry instrumentation (FastAPI auto-instrumentor + manual spans across reasoning / guardian / regs / pipeline stages). Toggle with `OVERRIDE_TRACING=otlp` and view in Jaeger — full nested span tree captured in `assets/screenshots/jaeger-trace.png` (36 spans / two `pipeline.process_zone` parents per request, each with `regs.retrieve_chunk` + `reasoning.chat` retry children). Default is `off` (zero overhead).
  
 
  
