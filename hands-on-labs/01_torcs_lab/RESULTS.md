@@ -189,10 +189,10 @@ Fix Ollama Bug in container
 # Check what errored in the logs
 cat /tmp/ollama.log
 # From WSL terminal make student owner of ollama directory
-docker exec -u root torcs chown -R student:student /opt/ollama
-docker exec -u root torcs chown -R student:student /tmp
+podman exec -u root torcs chown -R student:student /opt/ollama
+podman exec -u root torcs chown -R student:student /tmp
 # Create system wide marker from WSL terminal for VS Code
-docker exec -u root torcs bash -c 'echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment'
+podman exec -u root torcs bash -c 'echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment'
 # Back in the Container terminal
 ollama serve > /tmp/ollama.log 2>&1 &
 sleep 5
@@ -233,8 +233,8 @@ code --no-sandbox --verbose /home/student/workspace/gym_torcs 2>&1 | head -40
 **Reset the code**
 ```sh
 # stop and remove the torcs container
-docker stop torcs 2>/dev/null
-docker rm torcs 2>/dev/null
+podman stop torcs 2>/dev/null
+podman rm torcs 2>/dev/null
 # keep the image and clean just Your Code (save 10GB download)
 # docker rmi docker.io/johnsloe/torcs-competition:amd64
 rm -rf ~/RaceYourCode
@@ -242,17 +242,17 @@ mkdir -p ~/RaceYourCode
 cd ~/RaceYourCode
 unzip ~/hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip
 # Verify `torcs` container is no more running
-docker ps
+podman ps
 # Start back afresh
-docker run -it --rm \
+podman run -it --rm \
   -p 5900:5900 -p 6080:6080 -p 3001:3001/udp \
   -v ~/RaceYourCode:/home/student/workspace \
   --name torcs docker.io/johnsloe/torcs-competition:amd64
 
 # In another terminal
-docker logs -f torcs
+podman logs -f torcs
 # If you see it stucked at code extension install run this
-docker exec torcs pkill -f "code.*install-extension"
+podman exec torcs pkill -f "code.*install-extension"
 
 ```
 
