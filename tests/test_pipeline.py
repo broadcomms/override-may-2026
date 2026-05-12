@@ -210,6 +210,63 @@ def _empty_chunks_path(tmp_path: Path) -> Path:
     return p
 
 
+def _chunks_path_with_front_matter_first(tmp_path: Path) -> Path:
+    """Chunks JSON mirroring the real corpus shape: front-matter chunks
+    (cover page, TOC) at indices 0..N inherit the document-title section
+    label; sub-article chunks follow. Locks the regulation_source-selection
+    fix so chunks[0]'s "SECTION C: TECHNICAL REGULATIONS" label can't leak
+    into Session.regulation_source.
+    """
+    p = tmp_path / "front_matter_chunks.json"
+
+    def _chunk(chunk_id: str, section: str, text: str) -> dict:
+        return {
+            "chunk_id": chunk_id,
+            "text": text,
+            "source": {
+                "document_title": "FIA 2026 Formula 1 Technical Regulations — Section C",
+                "issue": "Issue 18 — 2026-05-07",
+                "section": section,
+                "public_url": "https://www.fia.com/regulation/category/110",
+                "fetched_at": "2026-05-09T14:11:34.772446Z",
+            },
+            "keywords": [],
+            "embedding": None,
+        }
+
+    p.write_text(json.dumps({
+        "g4_status": "closed",
+        "saved_at": "2026-05-09T14:11:34Z",
+        "source_document_label": "FIA 2026 Formula 1 Technical Regulations — Section C",
+        "notes": "test fixture — front-matter-first shape",
+        "n_chunks": 3,
+        "embedding_dimensions": 768,
+        "chunks": [
+            # Cover page — inherits the document-title label (front matter).
+            _chunk("c_000_01", "SECTION C: TECHNICAL REGULATIONS",
+                   "SECTION C: TECHNICAL REGULATIONS\n\nVersion: Issue 18"),
+            # TOC chunk — same inherited label, even though the body mentions C3.x.
+            _chunk("c_001_01", "SECTION C: TECHNICAL REGULATIONS",
+                   "| C3.8  Rear Bodywork  29  C3.9  Tail"),
+            # An incidental non-scope chunk (e.g. a C1.x sub-article that
+            # slipped through the chunker's section filter at build time).
+            # Even though it's not front-matter, it shouldn't win the
+            # session-level pointer when the corpus's primary scope is C5.
+            _chunk("c_007_01", "C1.3.5",
+                   "C1.3.5 Any amendments to the … (out-of-scope chunk)"),
+            # First real C5 chunk — this is the one regulation_source
+            # must land on (primary article scope = C5, derived dynamically).
+            _chunk("c_049_01", "C5.1",
+                   "C5.1 Engine specification — C5.1.1 Only 4-stroke engines"),
+            _chunk("c_050_01", "C5.2",
+                   "C5.2 Power Unit Energy Flow"),
+            _chunk("c_082_02", "C5.18",
+                   "C5.18 MGU-K. The MGU-K shall not exceed 350 kW."),
+        ],
+    }))
+    return p
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # derive_final_confidence
 # ──────────────────────────────────────────────────────────────────────────────
@@ -264,6 +321,38 @@ def test_pipeline_happy_path(tmp_path):
     # auto-passes) and Pass-2 (Guardian "No risk")
     assert all(r.validator.passed for r in session.recommendations)
     assert all(r.guardian.passed for r in session.recommendations)
+
+
+def test_pipeline_regulation_source_skips_front_matter_chunks(tmp_path):
+    """When the chunks corpus has front-matter (cover page, TOC) chunks
+    at indices 0..N inheriting the bare document-title label, the
+    session-level `regulation_source` must skip them and land on the
+    first chunk with a real sub-article label.
+
+    Locks the fix for the live-pipeline failure where
+    Session.regulation_source.section came back as 'SECTION C: TECHNICAL
+    REGULATIONS' instead of 'C5.1' / 'C5.18' / etc.
+    """
+    chunks_path = _chunks_path_with_front_matter_first(tmp_path)
+    chat = FakeChatClient(default_with_citation=False, default_confidence="low")
+    emb = FakeEmbeddingClient()
+    guard = FakeGuardianClient()
+
+    session = asyncio.run(run_pipeline(
+        laps=_laps_with_zone(),
+        soc_max=4.0,
+        chat_client=chat, embedding_client=emb, guardian_client=guard,
+        source="fastf1",
+        chunks_path=chunks_path,
+        session_id="s_test_frontmatter",
+    ))
+
+    assert session.regulation_source is not None
+    # Must skip the two front-matter chunks and land on the C5.1 chunk
+    assert session.regulation_source.section == "C5.1", (
+        f"front-matter chunk leaked into session.regulation_source — "
+        f"got section={session.regulation_source.section!r}"
+    )
 
 
 def test_pipeline_orders_recommendations_by_lap_number(tmp_path):

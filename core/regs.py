@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Protocol
@@ -482,6 +483,99 @@ COSINE_WEIGHT = 0.6
 KEYWORD_WEIGHT = 0.4
 DEFAULT_RELEVANCE_THRESHOLD = 0.4
 
+# Front-matter / TOC chunks inherit the document-title section label
+# ("SECTION C: TECHNICAL REGULATIONS") because the chunker can't find a
+# more specific sub-article code in their body (cover page, table-of-
+# contents rows starting with "|", abbreviations table). They still get
+# embeddings, and they still appear in the corpus, but they must NOT
+# compete in retrieval — they're metadata, not regulatory clauses.
+#
+# Matches: "SECTION C: TECHNICAL REGULATIONS", "Section A: REGULATIONS".
+# Doesn't match: "C5.18", "Article C5", "APPENDIX C5: HOMOLOGATION".
+# Test fixtures (custom labels like "Test Section") are unaffected.
+_FRONT_MATTER_SECTION_RE = re.compile(
+    r"^\s*SECTION\b.*\bREGULATIONS?\b",
+    re.IGNORECASE,
+)
+
+
+def is_front_matter_section(section: str) -> bool:
+    """True if `section` is the document-title label inherited by cover
+    page / TOC / abbreviations chunks (e.g. "SECTION C: TECHNICAL
+    REGULATIONS"), false for specific sub-article labels (e.g. "C5.18",
+    "Article C5", "APPENDIX C5: ...").
+
+    Used by both `retrieve_chunk` (excludes front-matter from per-zone
+    citation candidates) and the session-level `regulation_source`
+    selection in `core.pipeline` (picks the first non-front-matter chunk
+    as the canonical document pointer, rather than `chunks[0]` which is
+    almost always the cover page).
+    """
+    return bool(_FRONT_MATTER_SECTION_RE.match(section))
+
+
+# Matches the leading article-level prefix of a section label:
+#   "C5.18"          → "C5"
+#   "C5.2.14"        → "C5"
+#   "C5"             → "C5"
+#   "Article C5"     → "C5"     (via the inner group)
+#   "APPENDIX C5: …" → "C5"
+#   "5.1"            → "5"
+# Used to find the modal article scope of a corpus dynamically — the
+# session-level `regulation_source.section` then points at the article
+# the corpus is *predominantly* grounded against, not the first
+# specific-but-incidental chunk that slipped past the build-time filter.
+_ARTICLE_PREFIX_RE = re.compile(
+    r"(?:Article\s+|APPENDIX\s+)?([A-Z]?\d+)\b",
+    re.IGNORECASE,
+)
+
+
+def _article_prefix(section: str) -> Optional[str]:
+    """Extract the leading article-level code from a section label, or None.
+    "C5.18" → "C5"; "Article C5" → "C5"; "APPENDIX C5: …" → "C5";
+    "5.1" → "5"; "SECTION C: …" → None (caught by is_front_matter_section
+    upstream); arbitrary test labels → None.
+    """
+    m = _ARTICLE_PREFIX_RE.search(section)
+    return m.group(1).upper() if m else None
+
+
+def primary_article_scope(chunks: list[RegulationChunk]) -> Optional[str]:
+    """Return the most common article-level prefix across non-front-matter
+    chunks (e.g. "C5" for a corpus built with --section-filter '\\bC5\\b').
+
+    Derived dynamically from the chunks themselves — per the HARD RULE
+    in `ingest/schema.py` `RegulationSource`, no article number is ever
+    hardcoded in code. When the FIA publishes a different article scope
+    in a future Issue, the modal prefix shifts automatically without a
+    code change.
+
+    Returns None when no chunk has a parseable article prefix (e.g. all
+    chunks are front-matter, or the corpus is empty).
+    """
+    if not chunks:
+        return None
+    counter: Counter[str] = Counter()
+    for c in chunks:
+        if is_front_matter_section(c.source.section):
+            continue
+        prefix = _article_prefix(c.source.section)
+        if prefix:
+            counter[prefix] += 1
+    if not counter:
+        return None
+    return counter.most_common(1)[0][0]
+
+
+def section_matches_scope(section: str, scope: str) -> bool:
+    """True if `section`'s leading article-level prefix equals `scope`
+    (both case-insensitive). Used to filter chunks down to those that
+    sit within the corpus's primary article scope.
+    """
+    p = _article_prefix(section)
+    return p is not None and p == scope.upper()
+
 
 def retrieve_chunk(
     zone_type: ZoneType,
@@ -494,6 +588,9 @@ def retrieve_chunk(
     chunk meets the threshold.
 
     Scoring: 0.6 × cosine(query, chunk) + 0.4 × keyword_overlap(zone, chunk).
+    Front-matter / TOC chunks (whose section label matches the document
+    title rather than a specific sub-article) are excluded from scoring —
+    they're metadata, not regulatory clauses.
 
     Per FR-4.3: when no chunk passes the threshold, return None and the
     reasoning step receives `regulation=None`, which forces the prompt's
@@ -515,6 +612,8 @@ def retrieve_chunk(
 
         best: Optional[tuple[RegulationChunk, float]] = None
         for chunk in chunks:
+            if is_front_matter_section(chunk.source.section):
+                continue
             cos = 0.0
             if chunk.embedding is not None:
                 cos = _cosine(query_vec, np.asarray(chunk.embedding, dtype=np.float64))

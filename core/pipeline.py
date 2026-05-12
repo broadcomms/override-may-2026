@@ -55,8 +55,11 @@ from .regs import (
     DEFAULT_CHUNKS_PATH,
     WatsonxEmbeddingClient,
     extract_harvest_cap_mj,
+    is_front_matter_section,
     load_chunks,
+    primary_article_scope,
     retrieve_chunk,
+    section_matches_scope,
 )
 from .validator import ValidatorResult, validate
 
@@ -339,9 +342,32 @@ async def run_pipeline(
     chunks, chunks_meta = load_chunks(chunks_path)
     regulation_source: Optional[RegulationSource] = None
     if chunks and chunks_meta.get("g4_status") == "closed":
-        # Use the first chunk's source as the canonical regulation_source
-        # (all chunks share the same document_title/issue/public_url).
-        regulation_source = chunks[0].source
+        # Pick the canonical regulation_source. All chunks share the same
+        # document_title / issue / public_url; what varies is `section`.
+        # At the session level, `section` should identify the article
+        # *scope* the corpus is grounded against — not the cover-page /
+        # TOC label that the front-matter chunks inherit by default, and
+        # not the first incidental sub-article (e.g. a C1.x chunk that
+        # slipped through the chunker's section filter when the corpus's
+        # actual scope is C5).
+        #
+        # Strategy: compute the modal article prefix across non-front-
+        # matter chunks (derived dynamically — HARD RULE forbids
+        # hardcoding article numbers in code), then pick the first chunk
+        # whose section starts with that prefix.
+        scope = primary_article_scope(chunks)
+        for c in chunks:
+            if is_front_matter_section(c.source.section):
+                continue
+            if scope is not None and not section_matches_scope(c.source.section, scope):
+                continue
+            regulation_source = c.source
+            break
+        if regulation_source is None:
+            # Pathological corpus (all front-matter, or no matching scope)
+            # — fall back to the first chunk so the field still populates;
+            # per-zone citations remain handled by retrieve_chunk.
+            regulation_source = chunks[0].source
 
     # Harvest cap: parse from the regulation when caller didn't override.
     # Flips the validator's `harvest_cap` rule from NOOP → active when a

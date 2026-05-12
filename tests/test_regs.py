@@ -369,6 +369,74 @@ def test_retrieve_chunk_picks_highest_score_among_candidates():
     assert chunk is strong
 
 
+def test_retrieve_chunk_excludes_front_matter_chunks():
+    """Chunks labelled with the document-title pattern ('SECTION C: TECHNICAL
+    REGULATIONS') are document cover / TOC / abbreviations metadata, not
+    regulatory clauses. They must never win retrieval even if their
+    embedding+keyword score outranks a real sub-article chunk.
+
+    Locks the fix for the live-pipeline failure where retrieval was landing
+    on the TOC chunk whose body contained C5.18 / C5.19 / C5.20 in a markdown
+    table — high keyword overlap, but no regulatory content.
+    """
+    target_vec = [1.0, 0.0, 0.0]
+    # Front-matter chunk: deliberately strong embedding + matching keywords
+    front_matter = _make_chunk(
+        "MGU-K deployment Energy Store ES energy release kinetic energy release",
+        embedding=target_vec,
+        section="SECTION C: TECHNICAL REGULATIONS",
+    )
+    # Real sub-article chunk: weaker score (different keywords, weaker cosine)
+    real_article = _make_chunk(
+        "MGU-K deploy and ES handling per lap",
+        embedding=[0.5, 0.5, 0.0],
+        section="C5.18",
+    )
+    client = FakeEmbeddingClient(dim=3, target_text="2026 F1 energy", target_vec=target_vec)
+    out = retrieve_chunk(ZoneType.LOW_ROI_DEPLOY, [front_matter, real_article], client)
+    assert out is not None, "expected the real sub-article chunk to win, not None"
+    chunk, _ = out
+    assert chunk is real_article, (
+        f"front-matter chunk leaked into retrieval — got section={chunk.source.section!r}"
+    )
+
+
+def test_retrieve_chunk_excludes_front_matter_returns_none_when_only_front_matter():
+    """If every available chunk is front-matter / TOC, retrieval correctly
+    returns None — caller then falls into the citation=null pathway per
+    FR-4.3, rather than silently citing the document title."""
+    target_vec = [1.0, 0.0, 0.0]
+    chunks = [
+        _make_chunk(
+            "MGU-K Energy Store ES kinetic energy release deploy",
+            embedding=target_vec,
+            section="SECTION C: TECHNICAL REGULATIONS",
+        ),
+    ]
+    client = FakeEmbeddingClient(dim=3, target_text="2026 F1 energy", target_vec=target_vec)
+    out = retrieve_chunk(ZoneType.LOW_ROI_DEPLOY, chunks, client)
+    assert out is None
+
+
+def test_retrieve_chunk_allows_article_header_and_appendix_labels():
+    """The exclusion is narrow — only the document-title 'SECTION ...
+    REGULATIONS' pattern. Article headers ('Article C5') and appendix
+    labels ('APPENDIX C5: HOMOLOGATION') remain retrievable; they're
+    specific enough to be useful citations."""
+    target_vec = [1.0, 0.0, 0.0]
+    chunks = [
+        _make_chunk(
+            "MGU-K deploy ES energy release kinetic energy release",
+            embedding=target_vec,
+            section="Article C5",
+        ),
+    ]
+    client = FakeEmbeddingClient(dim=3, target_text="2026 F1 energy", target_vec=target_vec)
+    out = retrieve_chunk(ZoneType.LOW_ROI_DEPLOY, chunks, client)
+    assert out is not None
+    assert out[0].source.section == "Article C5"
+
+
 def test_retrieve_chunk_handles_chunks_without_embedding():
     """A chunk with embedding=None should contribute cos=0.0 (still allowed)."""
     chunks = [
