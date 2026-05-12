@@ -40,6 +40,8 @@ import type {
   Session,
   SessionSummary,
   VersionResponse,
+  WhatIfRequest,
+  WhatIfResult,
   ZoneMode,
 } from "./types";
 
@@ -158,6 +160,72 @@ function fixtureNameForSessionId(sessionId: string): FixtureName {
   if (sessionId.includes("engineer_happy")) return "engineer_happy";
   return "fan_mode";
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Fixture-mode synthesis for FR-8 what-if (offline dev + recording fallback)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Crudely synthesize a WhatIfResult from a fixture session. Goal isn't
+ * realism — it's letting WhatIfPanel + WhatIfDiff render against
+ * deterministic data without a live backend. The diff component's job is
+ * to highlight changed fields, so the synthesis nudges the perturbed
+ * recommendations in the direction the real perturbation would
+ * (delay_first_deploy → lower deploy on first zone, skip_harvest_zone →
+ * zero harvest on the target zone, extend_override → higher deploy).
+ * Same direction, not same magnitude.
+ */
+function _synthesizeFixtureWhatIf(
+  sessionId: string,
+  request: WhatIfRequest,
+  opts: ApiOpts | undefined,
+): WhatIfResult {
+  const session = fixtureSession(resolveFixtureName(opts, sessionId));
+  const original = session.recommendations;
+
+  // Find the target zone (or first deploy lap for delay_first_deploy)
+  const targetId =
+    request.perturbation === "delay_first_deploy"
+      ? original[0]?.zone.zone_id ?? null
+      : request.zone_id ?? null;
+
+  const perturbed: Recommendation[] = original.map((rec) => {
+    if (!targetId || rec.zone.zone_id !== targetId) return rec;
+    // Nudge the metrics dict to surface a visible diff for the renderer
+    const metrics = { ...rec.zone.metrics };
+    if (request.perturbation === "delay_first_deploy") {
+      metrics.deploy_mj = Math.max(0, (metrics.deploy_mj ?? 1.5) * 0.4);
+    } else if (request.perturbation === "skip_harvest_zone") {
+      metrics.harvest_mj = 0;
+    } else if (request.perturbation === "extend_override") {
+      metrics.deploy_mj = (metrics.deploy_mj ?? 1.5) + 0.5;
+    }
+    return {
+      ...rec,
+      zone: { ...rec.zone, metrics },
+    };
+  });
+
+  // Deterministic 16-char "hash" for fixture mode — not real sha256, just
+  // a stable identifier per (perturbation, zone, n, extra_laps) tuple so
+  // the UI can demonstrate the cache_key field without crypto deps.
+  const cache_key = (
+    `f_${request.perturbation}_${request.zone_id ?? ""}_${request.n ?? ""}_${request.extra_laps ?? 1}`
+      .replace(/[^a-z0-9]/gi, "0")
+      .toLowerCase()
+      .padEnd(16, "0")
+      .slice(0, 16)
+  );
+
+  const targetZoneFound =
+    !targetId || original.some((r) => r.zone.zone_id === targetId);
+  const note = targetZoneFound
+    ? null
+    : `fixture-mode: zone ${targetId} not found in session — synthesis no-op`;
+
+  return { request, cache_key, original, perturbed, note };
+}
+
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mode toggle
@@ -325,6 +393,35 @@ export const api = {
     }
     const url = `/api/sessions/${encodeURIComponent(sessionId)}/zones/${encodeURIComponent(zoneId)}?mode=${mode}`;
     return jsonFetch<Recommendation>(url, { signal: opts?.signal });
+  },
+
+  /**
+   * FR-8 what-if perturbations. Hits POST /api/sessions/{id}/what-if in
+   * live mode; in fixture mode, synthesizes a plausible WhatIfResult from
+   * the current session's recommendations so the diff renderer has data
+   * to render without a live backend. Synthesis is intentionally crude —
+   * it preserves the "Before / After" pair shape and surfaces a note so
+   * the UI's edge-case banner gets exercised during offline dev.
+   */
+  async runWhatIf(
+    sessionId: string,
+    request: WhatIfRequest,
+    opts?: ApiOpts,
+  ): Promise<WhatIfResult> {
+    if (resolveFixture(opts)) {
+      // Sub-second proxy for the live ~5-8s pipeline run
+      await new Promise((r) => setTimeout(r, 400));
+      return _synthesizeFixtureWhatIf(sessionId, request, opts);
+    }
+    return jsonFetch<WhatIfResult>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/what-if`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        signal: opts?.signal,
+      },
+    );
   },
 
   async deleteSession(sessionId: string, opts?: ApiOpts): Promise<void> {

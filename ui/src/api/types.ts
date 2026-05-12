@@ -213,3 +213,28 @@ export interface VersionResponse {
 }
 
 export type ZoneMode = "engineer" | "fan" | "both";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// §8 / FR-8 What-if perturbations
+// (Mirrors WhatIfRequest / WhatIfResult in ingest/schema.py.)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type PerturbationKind =
+  | "delay_first_deploy"
+  | "skip_harvest_zone"
+  | "extend_override";
+
+export interface WhatIfRequest {
+  perturbation: PerturbationKind;
+  zone_id?: string | null;        // required for skip_harvest_zone / extend_override
+  n?: number | null;              // required for delay_first_deploy; 1-10
+  extra_laps?: number;            // optional for extend_override; default 1; 1-5
+}
+
+export interface WhatIfResult {
+  request: WhatIfRequest;
+  cache_key: string;              // sha256(...)[:16]
+  original: Recommendation[];
+  perturbed: Recommendation[];
+  note: string | null;            // honest edge-case message; null on happy path
+}

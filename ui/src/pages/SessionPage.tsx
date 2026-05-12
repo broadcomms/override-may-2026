@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
-import type { FanOutput, Session } from "@/api/types";
+import type { FanOutput, PerturbationKind, Session, WhatIfRequest, WhatIfResult } from "@/api/types";
 import { EnergyCurve } from "@/components/EnergyCurve";
 import {
   EmptyState,
@@ -27,6 +27,7 @@ import {
 } from "@/components/EmptyStates";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import { RecommendationCard } from "@/components/RecommendationCard";
+import { WhatIfDiff } from "@/components/WhatIfDiff";
 import { ZoneHeatmap } from "@/components/ZoneHeatmap";
 
 export function SessionPage() {
@@ -50,6 +51,12 @@ export function SessionPage() {
   const [fanErrors, setFanErrors] = useState<Record<string, string>>({});
   /** Per-zone in-flight flag — true between request start and resolution. */
   const [fanInflight, setFanInflight] = useState<Record<string, boolean>>({});
+  /** Per-zone WhatIfResult — populated when the rail fires. Single result per
+   *  zone at a time (re-running replaces the prior); judges can dismiss to
+   *  collapse back to the regular recommendation card. */
+  const [whatIfByZone, setWhatIfByZone] = useState<Record<string, WhatIfResult>>({});
+  const [whatIfInflight, setWhatIfInflight] = useState<Record<string, boolean>>({});
+  const [whatIfErrors, setWhatIfErrors] = useState<Record<string, string>>({});
 
   // Load the session
   useEffect(() => {
@@ -135,6 +142,58 @@ export function SessionPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, session]);
+
+  // FR-8 what-if: fire when a zone's "What if…" rail submits. Adapts the
+  // rail's WhatIfParameter (just the perturbation kind) into a full
+  // WhatIfRequest with sensible defaults — `n=1` for delay_first_deploy,
+  // `extra_laps=1` for extend_override, and the zone_id of the triggering
+  // recommendation card. Engineer-mode only per FR-8.3.
+  const onWhatIf = useCallback(
+    (zoneId: string, kind: PerturbationKind) => {
+      const request: WhatIfRequest = {
+        perturbation: kind,
+        zone_id: kind === "delay_first_deploy" ? null : zoneId,
+        n: kind === "delay_first_deploy" ? 1 : null,
+        extra_laps: kind === "extend_override" ? 1 : undefined,
+      };
+      setWhatIfInflight((p) => ({ ...p, [zoneId]: true }));
+      setWhatIfErrors((p) => {
+        const next = { ...p };
+        delete next[zoneId];
+        return next;
+      });
+      api
+        .runWhatIf(sessionId, request, { fixture })
+        .then((result) => {
+          setWhatIfByZone((p) => ({ ...p, [zoneId]: result }));
+        })
+        .catch((e) => {
+          const msg =
+            e instanceof OverrideApiError
+              ? e.payload.message
+              : e instanceof Error
+              ? e.message
+              : "What-if request failed.";
+          setWhatIfErrors((p) => ({ ...p, [zoneId]: msg }));
+        })
+        .finally(() => {
+          setWhatIfInflight((p) => {
+            const next = { ...p };
+            delete next[zoneId];
+            return next;
+          });
+        });
+    },
+    [sessionId, fixture],
+  );
+
+  const dismissWhatIf = useCallback((zoneId: string) => {
+    setWhatIfByZone((p) => {
+      const next = { ...p };
+      delete next[zoneId];
+      return next;
+    });
+  }, []);
 
   // Scroll a recommendation card into view + record selection in URL
   const onZoneClick = useCallback(
@@ -230,16 +289,48 @@ export function SessionPage() {
             body="The session was clean — every lap stayed inside the energy envelope."
           />
         ) : (
-          session.recommendations.map((r) => (
-            <RecommendationCard
-              key={r.zone.zone_id}
-              recommendation={r}
-              fan={fanCache[r.zone.zone_id]}
-              fanLoading={!!fanInflight[r.zone.zone_id]}
-              fanError={fanErrors[r.zone.zone_id] ?? null}
-              mode={mode}
-            />
-          ))
+          session.recommendations.map((r) => {
+            const zid = r.zone.zone_id;
+            const whatIfResult = whatIfByZone[zid];
+            const whatIfBusy = !!whatIfInflight[zid];
+            const whatIfErr = whatIfErrors[zid];
+            return (
+              <div key={zid} className="space-y-3">
+                <RecommendationCard
+                  recommendation={r}
+                  fan={fanCache[zid]}
+                  fanLoading={!!fanInflight[zid]}
+                  fanError={fanErrors[zid] ?? null}
+                  mode={mode}
+                  // FR-8.3: what-if rail Engineer-only. Pass the callback
+                  // through; the rail enables itself when `onWhatIf` is
+                  // defined (currently shows the "Coming soon" badge when
+                  // it's undefined).
+                  onWhatIf={
+                    mode === "engineer"
+                      ? (kind) => onWhatIf(zid, kind)
+                      : undefined
+                  }
+                />
+                {whatIfBusy && (
+                  <div className="rounded-card border border-border bg-surface/40 px-4 py-3 text-xs text-muted italic">
+                    Running what-if scenario… (re-running the full pipeline against the perturbed laps)
+                  </div>
+                )}
+                {whatIfErr && !whatIfBusy && (
+                  <div className="rounded-card border border-danger/40 bg-danger/5 px-4 py-3 text-xs text-danger">
+                    What-if failed: {whatIfErr}
+                  </div>
+                )}
+                {whatIfResult && !whatIfBusy && (
+                  <WhatIfDiff
+                    result={whatIfResult}
+                    onDismiss={() => dismissWhatIf(zid)}
+                  />
+                )}
+              </div>
+            );
+          })
         )}
       </section>
 
