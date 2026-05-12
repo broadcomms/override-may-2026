@@ -132,11 +132,33 @@ OVERRIDE is the open-source answer: a copilot that takes a session replay, ident
 
 ## Quickstart
 
+### Run with Podman compose (recommended)
+
+The shipping shape. One image, three modes — pick whichever fits the moment.
+
+```bash
+git clone <repository-url> && cd overdrive-may-2026
+cp .env.example .env       # then fill WATSONX_API_KEY + WATSONX_PROJECT_ID
+
+# Mode 1 — OVERRIDE alone (fast; default; fixture-driven demo path)
+podman compose up                                  # → UI + API at http://localhost:8000
+
+# Mode 2 — OVERRIDE + live TORCS lab (drive in a browser; ~10 GB first pull, 10–15 min)
+podman compose --profile torcs up                  # adds noVNC at :6080, Ollama at :11434
+
+# Mode 3 — OVERRIDE + Jaeger (for trace capture)
+podman compose --profile observability up          # adds Jaeger UI at :16686
+```
+
+The image is multi-stage (Node 20 alpine → Python 3.12 slim) and serves both the API and the built UI from `:8000`. TORCS and Jaeger are profile-gated, so the default `podman compose up` doesn't pull the 10 GB lab image. Profile flags combine: `podman compose --profile torcs --profile observability up` brings up the whole stack. Docker compose works too if that's what's installed (`docker compose up`) — the file is V2-compatible and uses no Podman-only features.
+
+### Run locally (for hacking on the code)
+
 ```bash
 # 1. Clone + Python 3.12 venv
 git clone <repository-url>
 cd overdrive-may-2026
-/opt/homebrew/bin/python3.12 -m venv .venv
+python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 # 2. Configure watsonx.ai credentials
@@ -154,22 +176,18 @@ cd ui && npm install && npm run dev
 
 Granite Instruct + Guardian + Embedding all run on watsonx.ai (US-South); only Docling chunk extraction runs locally. No 12 GB local model download. See [`docs/adrs/ADR-001-watsonx-runtime.md`](docs/adrs/ADR-001-watsonx-runtime.md) for the runtime split rationale.
 
-### Run Ollama locally
+### Optional: route chat to local Ollama (v1.1 preview)
+
+The TORCS lab container ships `granite4:350m` via Ollama. Setting `OVERRIDE_LLM_RUNTIME=ollama` in `.env` routes OVERRIDE's reasoning + Fan Mode through the container's Ollama instead of watsonx (Guardian + Embedding stay on watsonx — see [`docs/adrs/ADR-003-llm-runtime-abstraction.md`](docs/adrs/ADR-003-llm-runtime-abstraction.md) for the hybrid posture). To use it without compose, install Ollama on the host:
+
 ```sh
 curl -fsSL https://ollama.com/install.sh | sh
-# Pull granite tiny
 ollama pull granite4:350m
-# Verify
-ollama list
-# Test
-ollama run granite4:350m "Say hello in one short sentence."
-# Test the ollama HTTP API
-curl http://localhost:11434/api/generate -d '{
-  "model": "granite4:350m",
-  "prompt": "What is 2+2?",
-  "stream": false
-}'
+ollama run granite4:350m "Say hello in one short sentence."   # verify
+# In .env: OVERRIDE_LLM_RUNTIME=ollama  OVERRIDE_OLLAMA_BASE_URL=http://localhost:11434
 ```
+
+The 350 M model is meaningfully smaller than `granite-4-h-small`; reasoning quality drops accordingly. The all-Ollama path (Guardian + Embedding included) is v1.1 — see `docs/adrs/ADR-003-llm-runtime-abstraction.md`.
 
 ### Optional: Langflow design canvas
 
@@ -190,24 +208,34 @@ The canvas mirrors the production pipeline as 9 visual nodes — useful for step
 
 `data/sessions/sample_torcs.json` ships with a 5-lap synthetic replay that fires the `low-roi-deploy` zone detector reliably — drop it into the upload field for an end-to-end demo. No live data, no broadcast video, no proprietary feeds. Reproducible from public sources.
 
+`data/samples/` ships with two real TORCS-lab captures emitted by the bundled telemetry logger:
+
+| File | Source | Story |
+|---|---|---|
+| `torcs_baseline.jsonl` (~5.4 MB) | Lab Task 1 — defaults (`TARGET_SPEED=100`) | In-budget reference run; median harvest ≈ 3.8 MJ/lap, all laps under the 8.5 MJ cap |
+| `torcs_modified.jsonl` (~6.7 MB) | Lab Task 3 — aggressive (`TARGET_SPEED=150`) | Over-cap demo; median harvest ≈ 9.3 MJ/lap, fires the `over-harvest` zone detector |
+
+Both run through `ingest/torcs_parser.py` (calibrated against real captures — see the regression test in `tests/test_torcs_parser.py`). Drop either onto the upload page or — if running `podman compose --profile torcs up` — drive the live lab in noVNC at `:6080` and the UI's "Live TORCS detected" banner surfaces fresh captures via `POST /api/sessions/torcs-live` for one-click ingest. `RaceYourCode/gym_torcs/*` is committed, so the live path works on a fresh clone with no manual unzip step.
+
 `data/regs/` ships with the FIA 2026 Technical Regulations (Section C, Issue 18) and pre-built Docling-extracted chunks (`extracted_chunks.sample.json`, 384 chunks across 112 unique sections). The system parses the 8.5 MJ harvest cap directly from the regulation text — never hardcoded.
 
-> **Note**: full TORCS Learning Lab integration (additional sample replays in `data/samples/`) is pending IBM TORCS GitHub access; the synthetic sample + FastF1 path cover the demo end-to-end without it.
-
-## Live performance (today, 2026-05-09)
+## Live performance (today, 2026-05-12)
 
 End-to-end pipeline run on watsonx.ai Essentials, single zone, no retries:
 
 | Stage | Latency | Notes |
 |---|---|---|
-| Ingest + Zone Detector | ~200 ms | local, deterministic |
+| Ingest + Zone Detector | ~200 ms | local, deterministic (TORCS or FastF1) |
 | Reg Retriever (Granite Embedding) | ~2.5 s | watsonx round-trip + cosine + keyword score |
 | Reasoning (Granite 4-h-small Instruct) | ~4.0 s | 5-step chain + verbatim citation |
 | Validator (Pass-1, deterministic) | <10 ms | 5 rule classes, no LLM |
 | Guardian (Pass-2, Granite Guardian 3-8b) | ~1.5 s | 2 BYOC criteria scored in parallel |
-| Total | **~8.2 s** | first-try pass for engineer happy path |
+| Fan-mode translation (lazy) | ~3.2 s | per-zone, on-demand, cached after first request |
+| What-if perturbation re-run (FR-8) | ~6–8 s | reuses reasoning + Guardian path on perturbed laps; sha256-keyed disk cache for repeat scenarios |
+| Live TORCS ingest (`POST /api/sessions/torcs-live`) | ~9 s | reads the shared `torcs-telemetry` volume, parses JSONL, pipes through `run_pipeline()` |
+| Total (engineer happy path) | **~8.2 s** | first-try pass; with one what-if, ~14–16 s end-to-end |
 
-Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bundle: 178 kB gzipped (React 18 + Recharts + custom components).
+Test suite: **301 unit tests + 4 network integration tests = 305 green** (TORCS parser, FR-8 perturbations, Ollama client, live-ingest endpoint, what-if cache, concurrency). UI bundle: ~182 kB gzipped (React 18 + Recharts + Engineer/Fan/What-if components). Container image: multi-stage Node-20-alpine → Python-3.12-slim, ~6.5 GB final (Python ML wheels dominate — pyarrow, docling, granite-related deps; multi-stage drops the Node toolchain after the UI build). The 10 GB TORCS lab image is profile-gated so it doesn't ship by default.
 
 ## Design decisions
 
@@ -222,10 +250,23 @@ Test suite: **231 unit tests + 4 network integration tests = 235 green**. UI bun
 
 ## Limitations
 
-- Demo data uses synthetic TORCS-shaped JSON and FastF1 historical replays; this is not authoritative team telemetry.
-- The 2026 regulations evolve via FIA-published Issues (currently grounded in Section C, Issue 18, dated 2026-05-07). Newer amendments require re-ingestion via `scripts/build_chunks.py`. Section B (Sporting) integration deferred to post-submission.
-- TTM-R2 5-lap SoC forecasting (FR-3) is **deferred to v1.1** per the graceful-degradation guardrail. The pipeline runs end-to-end without it; the energy curve renders an explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge; sessions that lack a forecast lower their reported confidence accordingly.
+- Demo data uses real TORCS-lab captures, synthetic TORCS-shaped JSON, and FastF1 historical replays; this is not authoritative team telemetry. The TORCS energy model is derived from throttle/brake telemetry (TORCS has no native MGU-K state) — see [`docs/adrs/ADR-002-torcs-as-primary-sandbox.md`](docs/adrs/ADR-002-torcs-as-primary-sandbox.md).
+- The 2026 regulations evolve via FIA-published Issues (currently grounded in Section C, Issue 18, dated 2026-05-07). Newer amendments require re-ingestion via `scripts/build_chunks.py`.
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
+- The Ollama runtime path (`OVERRIDE_LLM_RUNTIME=ollama`) covers chat only. Guardian (Pass-2 safety) and Embedding (regulation retrieval) still call watsonx — `WATSONX_API_KEY` remains required.
+
+## What's coming next (v1.1)
+
+Deferred from v1.0 for clean ship; documented here rather than half-implemented:
+
+| Track | Status | Pointer |
+|---|---|---|
+| **TTM-R2 5-lap SoC forecasting** (FR-3) | Deferred — graceful-degradation guardrail makes it optional; energy curve renders an explicit "Forecast unavailable" badge | `core/forecasting.py` (stub), [`docs/06-roadmap.md`](docs/06-roadmap.md) |
+| **Section B (Sporting Regulations) grounding** | PDF cached at `data/regs/`; not yet in the chunk corpus. Adds Override-Mode availability rules to `unused-override` zone citations (currently ships with `regulation_citation = null`) | [`docs/regulation-source.md`](docs/regulation-source.md) §"deliberately out of scope" |
+| **GET /api/sessions list endpoint + SessionsPage** | Storage helper exists; endpoint not wired. SessionsPage carries an explicit v1.1 framing rather than "coming soon" | `ui/src/pages/SessionsPage.tsx` |
+| **True streaming TORCS ingest** | Current `POST /api/sessions/torcs-live` is lap-paced batch ingest. SSE pushing per-lap zone detections as `torcs_jm_par.py` writes them is v1.1 | `ingest/torcs_parser.py`, `api/main.py` |
+| **Full Ollama-only mode** | Today: chat only via `granite4:350m`. Guardian + Embedding equivalents not in the shipped Ollama model — see ADR-003 for the migration path | [`docs/adrs/ADR-003-llm-runtime-abstraction.md`](docs/adrs/ADR-003-llm-runtime-abstraction.md) |
+| **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (301 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
 
 ## What this is not
 

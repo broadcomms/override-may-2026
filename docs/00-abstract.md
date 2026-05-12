@@ -191,6 +191,18 @@ Safer wording in the product:
 
 “grounded in the relevant 2026 FIA energy-management regulation section”
 
+> Modified fixture at 9.30 MJ over cap — that's the demo
+This is gold for the video. The plan's whole pitch — "explainable AI race-strategy copilot grounded in regulation" — is concrete here:
+
+Validator's harvest_cap rule (which we activated via extract_harvest_cap_mj() returning 8.5 MJ from Issue 18 chunks) will fire on this fixture
+Zone detector's over-harvest pattern will fire
+The Recommendation card will cite C5.2.x and explain the violation
+Pass-1 catches it; the layered-defense story renders cleanly,
+
+When you record Segment 3 in Week 3, use the modified fixture as the "watch the system catch a real over-harvest violation" beat. Stronger rubric story than the synthetic layered_defense_demo.json because it's grounded in actual TORCS driving with a real regulation cap from the Docling extraction.
+
+The fact that the FastF1-tuned coefficients happen to land in the 3–7 MJ band on TORCS without re-tuning is real luck — both schemes integrate similar duty cycles. The calibration test now permanently locks this: if anyone later "improves" the constants for the wrong reason, the gate fires.
+The 9.30 MJ modified-fixture median is excellent. Over-harvest deliberately exceeds the 8.5 MJ cap → exercises the harvest_cap validator rule → produces a real "system catches a violation" beat for the demo video. The two fixtures now cover both the happy path AND the rejection path organically. That's a meaningful upgrade over the synthetic engineer_happy_demo we've been showing.
 
 
 ## The Most Important Insight
