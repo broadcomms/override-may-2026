@@ -1,0 +1,1827 @@
+{
+  "data": {
+    "edges": [
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideIngest",
+            "id": "OverrideIngest-dQGa1",
+            "name": "lap_window",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "lap_window",
+            "id": "OverrideZoneDetector-yO8Ad",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideIngest-dQGa1{œdataTypeœ:œOverrideIngestœ,œidœ:œOverrideIngest-dQGa1œ,œnameœ:œlap_windowœ,œoutput_typesœ:[œDataœ]}-OverrideZoneDetector-yO8Ad{œfieldNameœ:œlap_windowœ,œidœ:œOverrideZoneDetector-yO8Adœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideIngest-dQGa1",
+        "sourceHandle": "{œdataTypeœ:œOverrideIngestœ,œidœ:œOverrideIngest-dQGa1œ,œnameœ:œlap_windowœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideZoneDetector-yO8Ad",
+        "targetHandle": "{œfieldNameœ:œlap_windowœ,œidœ:œOverrideZoneDetector-yO8Adœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideIngest",
+            "id": "OverrideIngest-dQGa1",
+            "name": "lap_window",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "lap_window",
+            "id": "OverrideTTMForecast-noG0n",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideIngest-dQGa1{œdataTypeœ:œOverrideIngestœ,œidœ:œOverrideIngest-dQGa1œ,œnameœ:œlap_windowœ,œoutput_typesœ:[œDataœ]}-OverrideTTMForecast-noG0n{œfieldNameœ:œlap_windowœ,œidœ:œOverrideTTMForecast-noG0nœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideIngest-dQGa1",
+        "sourceHandle": "{œdataTypeœ:œOverrideIngestœ,œidœ:œOverrideIngest-dQGa1œ,œnameœ:œlap_windowœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideTTMForecast-noG0n",
+        "targetHandle": "{œfieldNameœ:œlap_windowœ,œidœ:œOverrideTTMForecast-noG0nœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideZoneDetector",
+            "id": "OverrideZoneDetector-yO8Ad",
+            "name": "zone",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "zone_payload",
+            "id": "OverrideRegRetriever-9ZgKO",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideZoneDetector-yO8Ad{œdataTypeœ:œOverrideZoneDetectorœ,œidœ:œOverrideZoneDetector-yO8Adœ,œnameœ:œzoneœ,œoutput_typesœ:[œDataœ]}-OverrideRegRetriever-9ZgKO{œfieldNameœ:œzone_payloadœ,œidœ:œOverrideRegRetriever-9ZgKOœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideZoneDetector-yO8Ad",
+        "sourceHandle": "{œdataTypeœ:œOverrideZoneDetectorœ,œidœ:œOverrideZoneDetector-yO8Adœ,œnameœ:œzoneœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideRegRetriever-9ZgKO",
+        "targetHandle": "{œfieldNameœ:œzone_payloadœ,œidœ:œOverrideRegRetriever-9ZgKOœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideRegRetriever",
+            "id": "OverrideRegRetriever-9ZgKO",
+            "name": "regulation",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "regulation_payload",
+            "id": "OverrideReasoning-JdJ4A",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideRegRetriever-9ZgKO{œdataTypeœ:œOverrideRegRetrieverœ,œidœ:œOverrideRegRetriever-9ZgKOœ,œnameœ:œregulationœ,œoutput_typesœ:[œDataœ]}-OverrideReasoning-JdJ4A{œfieldNameœ:œregulation_payloadœ,œidœ:œOverrideReasoning-JdJ4Aœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideRegRetriever-9ZgKO",
+        "sourceHandle": "{œdataTypeœ:œOverrideRegRetrieverœ,œidœ:œOverrideRegRetriever-9ZgKOœ,œnameœ:œregulationœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideReasoning-JdJ4A",
+        "targetHandle": "{œfieldNameœ:œregulation_payloadœ,œidœ:œOverrideReasoning-JdJ4Aœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideTTMForecast",
+            "id": "OverrideTTMForecast-noG0n",
+            "name": "forecast",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "forecast_payload",
+            "id": "OverrideReasoning-JdJ4A",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideTTMForecast-noG0n{œdataTypeœ:œOverrideTTMForecastœ,œidœ:œOverrideTTMForecast-noG0nœ,œnameœ:œforecastœ,œoutput_typesœ:[œDataœ]}-OverrideReasoning-JdJ4A{œfieldNameœ:œforecast_payloadœ,œidœ:œOverrideReasoning-JdJ4Aœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideTTMForecast-noG0n",
+        "sourceHandle": "{œdataTypeœ:œOverrideTTMForecastœ,œidœ:œOverrideTTMForecast-noG0nœ,œnameœ:œforecastœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideReasoning-JdJ4A",
+        "targetHandle": "{œfieldNameœ:œforecast_payloadœ,œidœ:œOverrideReasoning-JdJ4Aœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideReasoning",
+            "id": "OverrideReasoning-JdJ4A",
+            "name": "reasoning_bundle",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "reasoning_bundle",
+            "id": "OverrideValidator-lXOeL",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideReasoning-JdJ4A{œdataTypeœ:œOverrideReasoningœ,œidœ:œOverrideReasoning-JdJ4Aœ,œnameœ:œreasoning_bundleœ,œoutput_typesœ:[œDataœ]}-OverrideValidator-lXOeL{œfieldNameœ:œreasoning_bundleœ,œidœ:œOverrideValidator-lXOeLœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideReasoning-JdJ4A",
+        "sourceHandle": "{œdataTypeœ:œOverrideReasoningœ,œidœ:œOverrideReasoning-JdJ4Aœ,œnameœ:œreasoning_bundleœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideValidator-lXOeL",
+        "targetHandle": "{œfieldNameœ:œreasoning_bundleœ,œidœ:œOverrideValidator-lXOeLœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideValidator",
+            "id": "OverrideValidator-lXOeL",
+            "name": "validator_bundle",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "validator_bundle",
+            "id": "OverrideGuardian-y2zwv",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideValidator-lXOeL{œdataTypeœ:œOverrideValidatorœ,œidœ:œOverrideValidator-lXOeLœ,œnameœ:œvalidator_bundleœ,œoutput_typesœ:[œDataœ]}-OverrideGuardian-y2zwv{œfieldNameœ:œvalidator_bundleœ,œidœ:œOverrideGuardian-y2zwvœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideValidator-lXOeL",
+        "sourceHandle": "{œdataTypeœ:œOverrideValidatorœ,œidœ:œOverrideValidator-lXOeLœ,œnameœ:œvalidator_bundleœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideGuardian-y2zwv",
+        "targetHandle": "{œfieldNameœ:œvalidator_bundleœ,œidœ:œOverrideGuardian-y2zwvœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideGuardian",
+            "id": "OverrideGuardian-y2zwv",
+            "name": "guardian_bundle",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "guardian_bundle",
+            "id": "OverrideFanTranslator-t9tJH",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideGuardian-y2zwv{œdataTypeœ:œOverrideGuardianœ,œidœ:œOverrideGuardian-y2zwvœ,œnameœ:œguardian_bundleœ,œoutput_typesœ:[œDataœ]}-OverrideFanTranslator-t9tJH{œfieldNameœ:œguardian_bundleœ,œidœ:œOverrideFanTranslator-t9tJHœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideGuardian-y2zwv",
+        "sourceHandle": "{œdataTypeœ:œOverrideGuardianœ,œidœ:œOverrideGuardian-y2zwvœ,œnameœ:œguardian_bundleœ,œoutput_typesœ:[œDataœ]}",
+        "target": "OverrideFanTranslator-t9tJH",
+        "targetHandle": "{œfieldNameœ:œguardian_bundleœ,œidœ:œOverrideFanTranslator-t9tJHœ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œotherœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "OverrideGuardian",
+            "id": "OverrideGuardian-y2zwv",
+            "name": "guardian_bundle",
+            "output_types": [
+              "Data"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "ChatOutput-tR8Kp",
+            "inputTypes": [
+              "Data",
+              "JSON",
+              "DataFrame",
+              "Table",
+              "Message"
+            ],
+            "type": "other"
+          }
+        },
+        "id": "xy-edge__OverrideGuardian-y2zwv{œdataTypeœ:œOverrideGuardianœ,œidœ:œOverrideGuardian-y2zwvœ,œnameœ:œguardian_bundleœ,œoutput_typesœ:[œDataœ]}-ChatOutput-tR8Kp{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-tR8Kpœ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}",
+        "selected": false,
+        "source": "OverrideGuardian-y2zwv",
+        "sourceHandle": "{œdataTypeœ:œOverrideGuardianœ,œidœ:œOverrideGuardian-y2zwvœ,œnameœ:œguardian_bundleœ,œoutput_typesœ:[œDataœ]}",
+        "target": "ChatOutput-tR8Kp",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-tR8Kpœ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}"
+      }
+    ],
+    "nodes": [
+      {
+        "data": {
+          "id": "OverrideIngest-dQGa1",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Parse a Torx JSON or FastF1 export into a typed LapWindow (per ingest/schema.py). Mirrors the production runtime.",
+            "display_name": "Ingest & Aggregate",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "file_path",
+              "source",
+              "track_id",
+              "soc_max",
+              "session_id"
+            ],
+            "frozen": false,
+            "icon": "database",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "b6837b6de116",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "pandas",
+                    "version": "2.2.3"
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.ingest__aggregate"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "LapWindow",
+                "group_outputs": false,
+                "method": "run_ingest",
+                "name": "lap_window",
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #2: Ingest & Aggregate.\n\nWraps the production Torx / FastF1 parser and emits a `LapWindow` (per\n`ingest/schema.py`) for downstream nodes. This component is a thin\nadapter — all parsing logic lives in `ingest/{torx_parser,fastf1_parser}.py`\nand is shared with the FastAPI runtime.\n\nThe Langflow canvas is the design + demo layer (per ADR-001 + docs/04-langflow-canvas.md).\nProduction ingest runs through `api/main.py`.\n\nWiring in the canvas:\n  Upload Session File (FileInput) → Ingest & Aggregate → {Zone Detector, TTM Forecast}\n\"\"\"\n\nfrom __future__ import annotations\n\nimport json\nfrom pathlib import Path\nfrom typing import Any\n\nfrom lfx.custom import Component\nfrom lfx.io import DropdownInput, FloatInput, Output, StrInput\nfrom lfx.schema import Data\n\n\nclass OverrideIngest(Component):\n    display_name = \"Ingest & Aggregate\"\n    description = (\n        \"Parse a Torx JSON or FastF1 export into a typed LapWindow \"\n        \"(per ingest/schema.py). Mirrors the production runtime.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"database\"\n\n    inputs = [\n        StrInput(\n            name=\"file_path\",\n            display_name=\"File path\",\n            info=\"Absolute path to the Torx JSON or FastF1 cache export. \"\n                 \"Wire from a File component or paste a path during demo.\",\n            required=True,\n        ),\n        DropdownInput(\n            name=\"source\",\n            display_name=\"Source\",\n            options=[\"torx\", \"fastf1\"],\n            value=\"torx\",\n            info=\"Parser to use. 'torx' for Torx JSON, 'fastf1' for FastF1.\",\n        ),\n        StrInput(\n            name=\"track_id\",\n            display_name=\"Track ID\",\n            value=\"monza\",\n            info=\"Track identifier (lowercase slug).\",\n        ),\n        FloatInput(\n            name=\"soc_max\",\n            display_name=\"SoC max (MJ)\",\n            value=4.0,\n            info=\"Battery max stored energy. Per FIA 2026, soc_max=4.0 MJ.\",\n        ),\n        StrInput(\n            name=\"session_id\",\n            display_name=\"Session ID (optional)\",\n            value=\"\",\n            info=\"Leave empty to auto-generate a slug.\",\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"lap_window\", display_name=\"LapWindow\", method=\"run_ingest\", types=[\"Data\"]),\n    ]\n\n    def run_ingest(self) -> Data:\n        import json\n        from ingest.schema import LapFeatures, LapWindow\n\n        file_path = Path(str(self.file_path)).expanduser()\n        if not file_path.exists():\n            raise FileNotFoundError(f\"OverrideIngest: file not found at {file_path}\")\n\n        source = str(self.source).lower()\n        track_id = str(self.track_id) or \"monza\"\n        soc_max = float(self.soc_max)\n        session_id = str(self.session_id) or f\"langflow_{file_path.stem}\"\n\n        # Mirror api/main.py::_parse_upload: accept the canonical lap-features\n        # JSON shape (bare list or {\"laps\":[...]}). The dedicated torx_parser\n        # is post-G-2 (empty stub today); FastF1 parquet path uses pandas.\n        if source in {\"torx\", \"fastf1\"}:\n            if file_path.suffix == \".parquet\" and source == \"fastf1\":\n                import io, pandas as pd\n                df = pd.read_parquet(io.BytesIO(file_path.read_bytes()))\n                laps = [LapFeatures.model_validate(r) for r in df.to_dict(orient=\"records\")]\n            else:\n                payload = json.loads(file_path.read_text(encoding=\"utf-8\"))\n                rows = payload[\"laps\"] if isinstance(payload, dict) and \"laps\" in payload else payload\n                if not isinstance(rows, list):\n                    raise ValueError(\"OverrideIngest: expected JSON list or {'laps': [...]} wrapper\")\n                laps = [LapFeatures.model_validate(r) for r in rows]\n        else:\n            raise ValueError(f\"OverrideIngest: unknown source {source!r}\")\n\n        lap_window = LapWindow(\n            session_id=session_id,\n            track_id=track_id,\n            soc_max=soc_max,\n            laps=laps[:30],  # FR-2.x: 1–30 lap window\n        )\n        self.status = (\n            f\"Parsed {len(laps)} laps; emitting first {len(lap_window.laps)} as window. \"\n            f\"track={track_id} soc_max={soc_max:.2f} MJ\"\n        )\n        return Data(data=lap_window.model_dump(mode=\"json\"))\n"
+              },
+              "file_path": {
+                "_input_type": "StrInput",
+                "advanced": false,
+                "display_name": "File path",
+                "dynamic": false,
+                "info": "Absolute path to the Torx JSON or FastF1 cache export. Wire from a File component or paste a path during demo.",
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "file_path",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "https://storage.googleapis.com/auditguardx-marketing/assets/sample_torcs.json"
+              },
+              "session_id": {
+                "_input_type": "StrInput",
+                "advanced": false,
+                "display_name": "Session ID (optional)",
+                "dynamic": false,
+                "info": "Leave empty to auto-generate a slug.",
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "session_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "soc_max": {
+                "_input_type": "FloatInput",
+                "advanced": false,
+                "display_name": "SoC max (MJ)",
+                "dynamic": false,
+                "info": "Battery max stored energy. Per FIA 2026, soc_max=4.0 MJ.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "soc_max",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "float",
+                "value": 4
+              },
+              "source": {
+                "_input_type": "DropdownInput",
+                "advanced": false,
+                "combobox": false,
+                "dialog_inputs": {},
+                "display_name": "Source",
+                "dynamic": false,
+                "external_options": {},
+                "info": "Parser to use. 'torx' for Torx JSON, 'fastf1' for FastF1.",
+                "name": "source",
+                "options": [
+                  "torx",
+                  "fastf1"
+                ],
+                "options_metadata": [],
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "toggle": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "str",
+                "value": "torx"
+              },
+              "track_id": {
+                "_input_type": "StrInput",
+                "advanced": false,
+                "display_name": "Track ID",
+                "dynamic": false,
+                "info": "Track identifier (lowercase slug).",
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "track_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "monza"
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideIngest"
+        },
+        "dragging": false,
+        "id": "OverrideIngest-dQGa1",
+        "measured": {
+          "height": 567,
+          "width": 320
+        },
+        "position": {
+          "x": -2011.7518474333801,
+          "y": -1070.5614123601154
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideZoneDetector-yO8Ad",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Run the production zone detector over a LapWindow. Emits the first zone (single) for the demo flow plus the full list for inspection.",
+            "display_name": "Zone Detector",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "lap_window"
+            ],
+            "frozen": false,
+            "icon": "search",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "39c0beb856e5",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "analysis",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.zone_detector"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "First Zone",
+                "group_outputs": false,
+                "method": "emit_first_zone",
+                "name": "zone",
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              },
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "All Zones",
+                "group_outputs": false,
+                "method": "emit_all_zones",
+                "name": "zones_all",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #3: Zone Detector.\n\nHeuristic inefficient-zone detection over a LapWindow. Runs the production\ndetector (`analysis.zone_detector.detect_zones`) — same code path as the\nFastAPI runtime — and emits both the full list and the first zone (the demo\ncanvas processes one zone end-to-end; production runs all zones in parallel).\n\nPer docs/04-langflow-canvas.md, the demo flow walks ONE zone through the\nremaining stages. The full list is emitted on the `zones_all` port for\ninspection / future fan-out experiments.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideZoneDetector(Component):\n    display_name = \"Zone Detector\"\n    description = (\n        \"Run the production zone detector over a LapWindow. Emits the first \"\n        \"zone (single) for the demo flow plus the full list for inspection.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"search\"\n\n    inputs = [\n        DataInput(\n            name=\"lap_window\",\n            display_name=\"LapWindow\",\n            info=\"Output of Ingest & Aggregate.\",\n            required=True,\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"zone\", display_name=\"First Zone\", method=\"emit_first_zone\", types=[\"Data\"]),\n        Output(name=\"zones_all\", display_name=\"All Zones\", method=\"emit_all_zones\", types=[\"Data\"]),\n    ]\n\n    def _detect(self) -> tuple[list, dict]:\n        from ingest.schema import LapWindow\n        from analysis.zone_detector import detect_zones\n\n        if not isinstance(self.lap_window, Data):\n            raise TypeError(\"OverrideZoneDetector: lap_window must be a Data object\")\n        lw = LapWindow.model_validate(self.lap_window.data)\n        zones = detect_zones(lw.laps, lw.soc_max)\n        return zones, lw.model_dump(mode=\"json\")\n\n    def emit_first_zone(self) -> Data:\n        zones, lw_dict = self._detect()\n        if not zones:\n            self.status = \"no zones detected — recommend a different replay\"\n            return Data(data={})\n        first = zones[0]\n        self.status = (\n            f\"Detected {len(zones)} zone(s); using first: {first.zone_id} \"\n            f\"({first.zone_type.value}) for demo flow.\"\n        )\n        # Bundle both zone + lap_window so downstream Reasoning has both\n        return Data(\n            data={\n                \"zone\": first.model_dump(mode=\"json\"),\n                \"lap_window\": lw_dict,\n            }\n        )\n\n    def emit_all_zones(self) -> Data:\n        zones, _ = self._detect()\n        return Data(\n            data={\n                \"count\": len(zones),\n                \"zones\": [z.model_dump(mode=\"json\") for z in zones],\n            }\n        )\n"
+              },
+              "lap_window": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "LapWindow",
+                "dynamic": false,
+                "info": "Output of Ingest & Aggregate.",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "lap_window",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "selected_output": "zone",
+          "showNode": true,
+          "type": "OverrideZoneDetector"
+        },
+        "dragging": false,
+        "id": "OverrideZoneDetector-yO8Ad",
+        "measured": {
+          "height": 201,
+          "width": 320
+        },
+        "position": {
+          "x": -1514.9081838305456,
+          "y": -1050.3120665897918
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideTTMForecast-noG0n",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Optional 5-lap SoC forecast via Granite Time Series. Emits null when disabled or when TTM is unavailable.",
+            "display_name": "TTM-R2 Forecast",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "lap_window",
+              "enabled"
+            ],
+            "frozen": false,
+            "icon": "trending-up",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "b6e12d14aae3",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.ttmr2_forecast"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Forecast (or null)",
+                "group_outputs": false,
+                "method": "run_forecast",
+                "name": "forecast",
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #4: TTM-R2 Forecast.\n\n5-lap SoC trajectory forecast using IBM Granite Time Series (TTM-R2).\nTTM is *optional* per FR-3 — the pipeline must run end-to-end without it.\nThis component emits null when TTM is unavailable, and downstream nodes\ngracefully degrade (Reasoning sets confidence='low', etc.).\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import BoolInput, DataInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideTTMForecast(Component):\n    display_name = \"TTM-R2 Forecast\"\n    description = (\n        \"Optional 5-lap SoC forecast via Granite Time Series. \"\n        \"Emits null when disabled or when TTM is unavailable.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"trending-up\"\n\n    inputs = [\n        DataInput(\n            name=\"lap_window\",\n            display_name=\"LapWindow\",\n            required=True,\n        ),\n        BoolInput(\n            name=\"enabled\",\n            display_name=\"Enable TTM\",\n            value=False,\n            info=\"Off by default — TTM is optional. Enable for an enhanced demo.\",\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"forecast\", display_name=\"Forecast (or null)\", method=\"run_forecast\", types=[\"Data\"]),\n    ]\n\n    def run_forecast(self) -> Data:\n        if not bool(self.enabled):\n            self.status = \"TTM disabled — emitting null (graceful degradation per FR-3)\"\n            return Data(data={\"forecast\": None})\n\n        from ingest.schema import LapWindow\n        try:\n            from core.forecasting import forecast_soc  # type: ignore\n        except ImportError:\n            self.status = \"TTM module not available — emitting null\"\n            return Data(data={\"forecast\": None})\n\n        lw = LapWindow.model_validate(self.lap_window.data)\n        try:\n            fc = forecast_soc(lw)\n            self.status = f\"TTM-R2 emitted {len(fc.points) if fc else 0}-point forecast\"\n            return Data(data={\"forecast\": fc.model_dump(mode=\"json\") if fc else None})\n        except Exception as exc:\n            self.status = f\"TTM forecast failed: {exc} — emitting null\"\n            return Data(data={\"forecast\": None})\n"
+              },
+              "enabled": {
+                "_input_type": "BoolInput",
+                "advanced": false,
+                "display_name": "Enable TTM",
+                "dynamic": false,
+                "info": "Off by default — TTM is optional. Enable for an enhanced demo.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "enabled",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": false
+              },
+              "lap_window": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "LapWindow",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "lap_window",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideTTMForecast"
+        },
+        "dragging": false,
+        "id": "OverrideTTMForecast-noG0n",
+        "measured": {
+          "height": 243,
+          "width": 320
+        },
+        "position": {
+          "x": -1513.794075723788,
+          "y": -512.3163321361393
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "description": "Retrieve the most relevant FIA regulation chunk for the zone. Uses Granite Embedding on watsonx.ai (per ADR-001).",
+          "display_name": "Docling Reg Retriever",
+          "id": "OverrideRegRetriever-9ZgKO",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Retrieve the most relevant FIA regulation chunk for the zone. Uses Granite Embedding on watsonx.ai (per ADR-001).",
+            "display_name": "Docling Reg Retriever",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "zone_payload",
+              "chunks_path",
+              "threshold"
+            ],
+            "frozen": false,
+            "icon": "book-open",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "230816e115f1",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.docling_reg_retriever"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "RegulationChunk (or null)",
+                "group_outputs": false,
+                "loop_types": null,
+                "method": "run_retrieval",
+                "name": "regulation",
+                "options": null,
+                "required_inputs": null,
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "chunks_path": {
+                "_input_type": "StrInput",
+                "advanced": false,
+                "display_name": "Chunks JSON path",
+                "dynamic": false,
+                "info": "Falls back to extracted_chunks.sample.json if missing.",
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "chunks_path",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "data/regs/extracted_chunks.json"
+              },
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #5: Docling Regulation Retriever.\n\nRetrieves the highest-scoring regulation chunk for a zone, using the\nproduction retriever (`core.regs.retrieve_chunk`). Embeddings come from\nGranite Embedding 278m on watsonx.ai (per ADR-001). Chunks are loaded once\nper process from the pre-built `data/regs/extracted_chunks.json`.\n\nEmits None if no chunk meets the relevance threshold — downstream\nReasoning then sets `regulation_citation=null` and `confidence='low'` per\nthe prompt's hard rule (and the validator enforces it).\n\"\"\"\n\nfrom __future__ import annotations\n\nimport os\nfrom pathlib import Path\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, FloatInput, Output, StrInput\nfrom lfx.schema import Data\n\n\nclass OverrideRegRetriever(Component):\n    display_name = \"Docling Reg Retriever\"\n    description = (\n        \"Retrieve the most relevant FIA regulation chunk for the zone. \"\n        \"Uses Granite Embedding on watsonx.ai (per ADR-001).\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"book-open\"\n\n    inputs = [\n        DataInput(\n            name=\"zone_payload\",\n            display_name=\"Zone (from Zone Detector)\",\n            info=\"Bundled {zone, lap_window} from the Zone Detector's first-zone port.\",\n            required=True,\n        ),\n        StrInput(\n            name=\"chunks_path\",\n            display_name=\"Chunks JSON path\",\n            value=\"data/regs/extracted_chunks.json\",\n            info=\"Falls back to extracted_chunks.sample.json if missing.\",\n        ),\n        FloatInput(\n            name=\"threshold\",\n            display_name=\"Relevance threshold\",\n            value=0.45,\n            info=\"Below this, retrieve_chunk returns null.\",\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"regulation\", display_name=\"RegulationChunk (or null)\", method=\"run_retrieval\", types=[\"Data\"]),\n    ]\n\n    def run_retrieval(self) -> Data:\n        from ingest.schema import Zone\n        from core.regs import (\n            DEFAULT_CHUNKS_PATH,\n            WatsonxAIEmbeddingClient,\n            load_chunks,\n            retrieve_chunk,\n        )\n\n        payload = self.zone_payload.data\n        zone = Zone.model_validate(payload[\"zone\"])\n\n        path = Path(str(self.chunks_path))\n        if not path.exists():\n            sample = path.with_name(path.stem + \".sample.json\")\n            if sample.exists():\n                path = sample\n            else:\n                path = DEFAULT_CHUNKS_PATH\n\n        chunks, _meta = load_chunks(path)\n        if not chunks:\n            self.status = f\"No chunks at {path} — emitting null\"\n            return Data(data={\n                \"zone\": payload[\"zone\"],\n                \"lap_window\": payload[\"lap_window\"],\n                \"regulation\": None,\n            })\n\n        client = WatsonxAIEmbeddingClient()\n        result = retrieve_chunk(zone.zone_type, chunks, client, threshold=float(self.threshold))\n        if result is None:\n            self.status = \"No chunk met threshold — emitting null (validator enforces low-confidence path)\"\n            reg_payload = None\n        else:\n            chunk, score = result\n            self.status = (\n                f\"Retrieved {chunk.source.section} score={score:.3f} \"\n                f\"({chunk.text[:60]}...)\"\n            )\n            reg_payload = chunk.model_dump(mode=\"json\")\n\n        return Data(data={\n            \"zone\": payload[\"zone\"],\n            \"lap_window\": payload[\"lap_window\"],\n            \"regulation\": reg_payload,\n        })\n"
+              },
+              "threshold": {
+                "_input_type": "FloatInput",
+                "advanced": false,
+                "display_name": "Relevance threshold",
+                "dynamic": false,
+                "info": "Below this, retrieve_chunk returns null.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "threshold",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "float",
+                "value": 0.45
+              },
+              "zone_payload": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Zone (from Zone Detector)",
+                "dynamic": false,
+                "info": "Bundled {zone, lap_window} from the Zone Detector's first-zone port.",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "zone_payload",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideRegRetriever"
+        },
+        "dragging": false,
+        "id": "OverrideRegRetriever-9ZgKO",
+        "measured": {
+          "height": 365,
+          "width": 320
+        },
+        "position": {
+          "x": -1044.3383947319576,
+          "y": -1038.1678498702067
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideReasoning-JdJ4A",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Causal reasoning over a zone using Granite 4-h-small Instruct on watsonx.ai. Emits a typed ReasoningOutput.",
+            "display_name": "Granite Reasoning",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "regulation_payload",
+              "forecast_payload",
+              "temperature"
+            ],
+            "frozen": false,
+            "icon": "brain",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "e9c78e0118ad",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.granite_reasoning"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Reasoning bundle",
+                "group_outputs": false,
+                "method": "run_reasoning",
+                "name": "reasoning_bundle",
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #6: Granite Reasoning.\n\nRuns Granite 4-h-small (Instruct) on watsonx.ai per ADR-001. Same code path\nas the FastAPI runtime — `core.reasoning.reason_about_zone()`. The canvas\ndemo runs ONE pass; production has retry-with-stricter-prompt loops handled\ninside `core.pipeline.run_pipeline()`.\n\nInputs:\n  - regulation_payload: bundle of {zone, lap_window, regulation} from the\n    Reg Retriever.\n  - forecast_payload: bundle of {forecast} from TTM-R2 Forecast (forecast\n    may be null).\n\nThe single bundled output ferries everything downstream (validator + guardian\nboth need ReasoningOutput + RegulationChunk; this avoids a Mux node).\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, FloatInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideReasoning(Component):\n    display_name = \"Granite Reasoning\"\n    description = (\n        \"Causal reasoning over a zone using Granite 4-h-small Instruct on \"\n        \"watsonx.ai. Emits a typed ReasoningOutput.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"brain\"\n\n    inputs = [\n        DataInput(\n            name=\"regulation_payload\",\n            display_name=\"Regulation bundle (from Reg Retriever)\",\n            required=True,\n        ),\n        DataInput(\n            name=\"forecast_payload\",\n            display_name=\"Forecast bundle (from TTM-R2)\",\n            required=True,\n        ),\n        FloatInput(\n            name=\"temperature\",\n            display_name=\"Temperature\",\n            value=0.3,\n            info=\"REASONING_TEMPERATURE override. 0.3 by default.\",\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"reasoning_bundle\", display_name=\"Reasoning bundle\", method=\"run_reasoning\", types=[\"Data\"]),\n    ]\n\n    def run_reasoning(self) -> Data:\n        from ingest.schema import Forecast, LapWindow, RegulationChunk, Zone\n        from core.reasoning import WatsonxAIChatClient, reason_about_zone\n\n        reg_data = self.regulation_payload.data\n        fc_data = self.forecast_payload.data\n\n        zone = Zone.model_validate(reg_data[\"zone\"])\n        lw = LapWindow.model_validate(reg_data[\"lap_window\"])\n        reg = (\n            RegulationChunk.model_validate(reg_data[\"regulation\"])\n            if reg_data.get(\"regulation\")\n            else None\n        )\n        fc = (\n            Forecast.model_validate(fc_data[\"forecast\"])\n            if fc_data.get(\"forecast\")\n            else None\n        )\n\n        client = WatsonxAIChatClient()\n        out = reason_about_zone(\n            zone=zone,\n            lap_window=lw,\n            forecast=fc,\n            regulation=reg,\n            client=client,\n            temperature=float(self.temperature),\n        )\n        self.status = (\n            f\"Reasoning OK: {len(out.reasoning_chain)}-step chain, \"\n            f\"confidence={out.confidence}, \"\n            f\"citation={'present' if out.regulation_citation else 'null'}\"\n        )\n        return Data(data={\n            \"reasoning\": out.model_dump(mode=\"json\"),\n            \"regulation\": reg_data.get(\"regulation\"),\n            \"zone\": reg_data[\"zone\"],\n            \"lap_window\": reg_data[\"lap_window\"],\n        })\n"
+              },
+              "forecast_payload": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Forecast bundle (from TTM-R2)",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "forecast_payload",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              },
+              "regulation_payload": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Regulation bundle (from Reg Retriever)",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "regulation_payload",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              },
+              "temperature": {
+                "_input_type": "FloatInput",
+                "advanced": false,
+                "display_name": "Temperature",
+                "dynamic": false,
+                "info": "REASONING_TEMPERATURE override. 0.3 by default.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "temperature",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "float",
+                "value": 0.3
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideReasoning"
+        },
+        "dragging": false,
+        "id": "OverrideReasoning-JdJ4A",
+        "measured": {
+          "height": 327,
+          "width": 320
+        },
+        "position": {
+          "x": -582.326602509633,
+          "y": -795.7878280328297
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideValidator-lXOeL",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Deterministic Pass-1 over ReasoningOutput. Checks citation existence (verbatim), banned phrases, and section consistency.",
+            "display_name": "Pass 1: Validator",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "reasoning_bundle"
+            ],
+            "frozen": false,
+            "icon": "check-circle",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "4be0679af062",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.pass_1_validator"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Validator bundle",
+                "group_outputs": false,
+                "loop_types": null,
+                "method": "run_validator",
+                "name": "validator_bundle",
+                "options": null,
+                "required_inputs": null,
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #7: Pass-1 Validator.\n\nDeterministic Pass-1 of the two-pass safety architecture (per\ndocs/05-security.md). Runs the production validator\n(`core.validator.validate`) using `core/validator.yaml` rules. No LLM call —\npure regex + structural checks.\n\nIn production, a failed Pass-1 triggers a stricter-prompt regen\n(handled by `core.pipeline._process_one_zone_inner`). The canvas does ONE\npass for the demo; the rejection card is the layered-defense story.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideValidator(Component):\n    display_name = \"Pass 1: Validator\"\n    description = (\n        \"Deterministic Pass-1 over ReasoningOutput. Checks citation existence \"\n        \"(verbatim), banned phrases, and section consistency.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"check-circle\"\n\n    inputs = [\n        DataInput(\n            name=\"reasoning_bundle\",\n            display_name=\"Reasoning bundle\",\n            required=True,\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"validator_bundle\", display_name=\"Validator bundle\", method=\"run_validator\", types=[\"Data\"]),\n    ]\n\n    def run_validator(self) -> Data:\n        from ingest.schema import LapWindow, RegulationChunk, ReasoningOutput\n        from core.validator import validate\n\n        bundle = self.reasoning_bundle.data\n        reasoning = ReasoningOutput.model_validate(bundle[\"reasoning\"])\n        lap_window = LapWindow.model_validate(bundle[\"lap_window\"])\n        reg = (\n            RegulationChunk.model_validate(bundle[\"regulation\"])\n            if bundle.get(\"regulation\")\n            else None\n        )\n\n        result = validate(\n            reasoning,\n            lap_window,\n            regulation_chunks=[reg] if reg else None,\n        )\n        self.status = (\n            f\"Pass-1 {'PASSED' if result.passed else 'FAILED'}. \"\n            f\"{len(result.failed_rules)} failed rule(s).\"\n        )\n        return Data(data={\n            **bundle,\n            \"validator\": result.model_dump(mode=\"json\"),\n        })\n"
+              },
+              "reasoning_bundle": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Reasoning bundle",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "reasoning_bundle",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideValidator"
+        },
+        "dragging": false,
+        "id": "OverrideValidator-lXOeL",
+        "measured": {
+          "height": 201,
+          "width": 320
+        },
+        "position": {
+          "x": -166.14780413886794,
+          "y": -805.1392380881156
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideGuardian-y2zwv",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Granite Guardian 3-8b BYOC scoring over energy_safety + regulation_consistency.",
+            "display_name": "Pass 2: Guardian Score",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "validator_bundle"
+            ],
+            "frozen": false,
+            "icon": "shield",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "58684a67e949",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.pass_2_guardian_score"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Guardian bundle",
+                "group_outputs": false,
+                "loop_types": null,
+                "method": "run_guardian",
+                "name": "guardian_bundle",
+                "options": null,
+                "required_inputs": null,
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #8: Pass-2 Guardian Score.\n\nPass-2 of the two-pass safety architecture: Granite Guardian 3-8b on\nwatsonx.ai (per ADR-001) acting as a binary BYOC classifier over two\ncustom criteria — energy_safety and regulation_consistency. Scores are\nbinary 0.0/1.0 mapped from Yes/No, then averaged. <0.7 triggers\nregen in production; the canvas does ONE pass.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideGuardian(Component):\n    display_name = \"Pass 2: Guardian Score\"\n    description = (\n        \"Granite Guardian 3-8b BYOC scoring over energy_safety + regulation_consistency.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"shield\"\n\n    inputs = [\n        DataInput(\n            name=\"validator_bundle\",\n            display_name=\"Validator bundle\",\n            required=True,\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"guardian_bundle\", display_name=\"Guardian bundle\", method=\"run_guardian\", types=[\"Data\"]),\n    ]\n\n    def run_guardian(self) -> Data:\n        from ingest.schema import LapWindow, RegulationChunk, ReasoningOutput\n        from core.guardian import WatsonxAIGuardianClient, score_recommendation\n\n        bundle = self.validator_bundle.data\n        reasoning = ReasoningOutput.model_validate(bundle[\"reasoning\"])\n        lap_window = LapWindow.model_validate(bundle[\"lap_window\"])\n        reg = (\n            RegulationChunk.model_validate(bundle[\"regulation\"])\n            if bundle.get(\"regulation\")\n            else None\n        )\n\n        client = WatsonxAIGuardianClient()\n        result = score_recommendation(reasoning, lap_window, reg, client=client)\n        es = result.scores.get(\"energy_safety\")\n        rc = result.scores.get(\"regulation_consistency\")\n        self.status = (\n            f\"Pass-2 {'PASSED' if result.passed else 'FAILED'} \"\n            f\"(threshold {result.pass_threshold:.2f}). \"\n            f\"energy_safety={es:.1f} reg_consistency={rc:.1f}\"\n            if es is not None and rc is not None\n            else f\"Pass-2 {'PASSED' if result.passed else 'FAILED'} (no scores recorded)\"\n        )\n        return Data(data={\n            **bundle,\n            \"guardian\": result.model_dump(mode=\"json\"),\n        })\n"
+              },
+              "validator_bundle": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Validator bundle",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "validator_bundle",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideGuardian"
+        },
+        "dragging": false,
+        "id": "OverrideGuardian-y2zwv",
+        "measured": {
+          "height": 185,
+          "width": 320
+        },
+        "position": {
+          "x": 245.58605522324473,
+          "y": -707.4478410809111
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "OverrideFanTranslator-t9tJH",
+          "node": {
+            "base_classes": [
+              "Data",
+              "JSON"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Plain-language rewrite of ReasoningOutput for fan mode. Granite 4-h-small Instruct on watsonx.ai.",
+            "display_name": "Fan Translator",
+            "documentation": "https://github.com/anthropics/overdrive-may-2026",
+            "edited": false,
+            "field_order": [
+              "guardian_bundle"
+            ],
+            "frozen": false,
+            "icon": "users",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "f70bfa06f982",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "0.4.2"
+                  },
+                  {
+                    "name": "ingest",
+                    "version": null
+                  },
+                  {
+                    "name": "core",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "custom_components.fan_translator"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Fan output bundle",
+                "group_outputs": false,
+                "method": "run_fan",
+                "name": "fan_bundle",
+                "selected": "Data",
+                "tool_mode": true,
+                "types": [
+                  "Data",
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "\"\"\"OVERRIDE — Langflow Custom Component #10: Fan Translator.\n\nPlain-language rewrite of a ReasoningOutput for fan mode (per FR-7).\nLazy in production: only fires on `?mode=fan` requests. The canvas wires\nthis after the Mode Router's fan branch.\n\nUses Granite 4-h-small Instruct on watsonx.ai with a separate fan-mode\nsystem prompt (`prompts/fan_mode.system.md`).\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom lfx.custom import Component\nfrom lfx.io import DataInput, Output\nfrom lfx.schema import Data\n\n\nclass OverrideFanTranslator(Component):\n    display_name = \"Fan Translator\"\n    description = (\n        \"Plain-language rewrite of ReasoningOutput for fan mode. \"\n        \"Granite 4-h-small Instruct on watsonx.ai.\"\n    )\n    documentation: str = \"https://github.com/anthropics/overdrive-may-2026\"\n    icon = \"users\"\n\n    inputs = [\n        DataInput(\n            name=\"guardian_bundle\",\n            display_name=\"Guardian bundle (post Pass-2)\",\n            required=True,\n        ),\n    ]\n\n    outputs = [\n        Output(name=\"fan_bundle\", display_name=\"Fan output bundle\", method=\"run_fan\", types=[\"Data\"]),\n    ]\n\n    def run_fan(self) -> Data:\n        from ingest.schema import ReasoningOutput\n        from core.fan_mode import translate_to_fan_mode\n        from core.reasoning import WatsonxAIChatClient\n\n        bundle = self.guardian_bundle.data\n        reasoning = ReasoningOutput.model_validate(bundle[\"reasoning\"])\n\n        client = WatsonxAIChatClient()\n        fan_out = translate_to_fan_mode(reasoning, client=client)\n        self.status = f\"Fan translation OK ({len(fan_out.headline)} chars headline)\"\n        return Data(data={\n            **bundle,\n            \"fan\": fan_out.model_dump(mode=\"json\"),\n        })\n"
+              },
+              "guardian_bundle": {
+                "_input_type": "JSONInput",
+                "advanced": false,
+                "display_name": "Guardian bundle (post Pass-2)",
+                "dynamic": false,
+                "info": "",
+                "input_types": [
+                  "Data",
+                  "JSON"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "guardian_bundle",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": true,
+          "type": "OverrideFanTranslator"
+        },
+        "dragging": false,
+        "id": "OverrideFanTranslator-t9tJH",
+        "measured": {
+          "height": 185,
+          "width": 320
+        },
+        "position": {
+          "x": 661.7954695716456,
+          "y": -493.99287967482604
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "ChatOutput-tR8Kp",
+          "node": {
+            "base_classes": [
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Display a chat message in the Playground.",
+            "display_name": "Chat Output",
+            "documentation": "https://docs.langflow.org/chat-input-and-output",
+            "edited": false,
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "context_id",
+              "data_template",
+              "clean_data"
+            ],
+            "frozen": false,
+            "icon": "MessagesSquare",
+            "legacy": false,
+            "lf_version": "1.9.2",
+            "metadata": {
+              "code_hash": "84009527d08c",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "orjson",
+                    "version": "3.11.8"
+                  },
+                  {
+                    "name": "fastapi",
+                    "version": "0.136.1"
+                  },
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "lfx.components.input_output.chat_output.ChatOutput"
+            },
+            "minimized": true,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Output Message",
+                "group_outputs": false,
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "clean_data": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Basic Clean Data",
+                "dynamic": false,
+                "info": "Whether to clean data before converting to string.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "clean_data",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": true
+              },
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from collections.abc import Generator\nfrom typing import Any\n\nimport orjson\nfrom fastapi.encoders import jsonable_encoder\n\nfrom lfx.base.io.chat import ChatComponent\nfrom lfx.helpers.data import safe_convert\nfrom lfx.inputs.inputs import BoolInput, DropdownInput, HandleInput, MessageTextInput\nfrom lfx.schema.data import Data\nfrom lfx.schema.dataframe import DataFrame\nfrom lfx.schema.message import Message\nfrom lfx.schema.properties import Source\nfrom lfx.template.field.base import Output\nfrom lfx.utils.constants import (\n    MESSAGE_SENDER_AI,\n    MESSAGE_SENDER_NAME_AI,\n    MESSAGE_SENDER_USER,\n)\n\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    description = \"Display a chat message in the Playground.\"\n    documentation: str = \"https://docs.langflow.org/chat-input-and-output\"\n    icon = \"MessagesSquare\"\n    name = \"ChatOutput\"\n    minimized = True\n\n    inputs = [\n        HandleInput(\n            name=\"input_value\",\n            display_name=\"Inputs\",\n            info=\"Message to be passed as output.\",\n            input_types=[\"Data\", \"JSON\", \"DataFrame\", \"Table\", \"Message\"],\n            required=True,\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_AI,\n            advanced=True,\n            info=\"Type of sender.\",\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_AI,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"context_id\",\n            display_name=\"Context ID\",\n            info=\"The context ID of the chat. Adds an extra layer to the local memory.\",\n            value=\"\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"data_template\",\n            display_name=\"Data Template\",\n            value=\"{text}\",\n            advanced=True,\n            info=\"Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.\",\n        ),\n        BoolInput(\n            name=\"clean_data\",\n            display_name=\"Basic Clean Data\",\n            value=True,\n            advanced=True,\n            info=\"Whether to clean data before converting to string.\",\n        ),\n    ]\n    outputs = [\n        Output(\n            display_name=\"Output Message\",\n            name=\"message\",\n            method=\"message_response\",\n        ),\n    ]\n\n    def _build_source(self, id_: str | None, display_name: str | None, source: str | None) -> Source:\n        source_dict = {}\n        if id_:\n            source_dict[\"id\"] = id_\n        if display_name:\n            source_dict[\"display_name\"] = display_name\n        if source:\n            # Handle case where source is a ChatOpenAI object\n            if hasattr(source, \"model_name\"):\n                source_dict[\"source\"] = source.model_name\n            elif hasattr(source, \"model\"):\n                source_dict[\"source\"] = str(source.model)\n            else:\n                source_dict[\"source\"] = str(source)\n        return Source(**source_dict)\n\n    async def message_response(self) -> Message:\n        # First convert the input to string if needed\n        text = self.convert_to_string()\n\n        # Get source properties\n        source, _, display_name, source_id = self.get_properties_from_source_component()\n\n        # Create or use existing Message object\n        if isinstance(self.input_value, Message) and not self.is_connected_to_chat_input():\n            message = self.input_value\n            # Update message properties\n            message.text = text\n            # Preserve existing session_id from the incoming message if it exists\n            existing_session_id = message.session_id\n        else:\n            message = Message(text=text)\n            existing_session_id = None\n\n        # Set message properties\n        message.sender = self.sender\n        message.sender_name = self.sender_name\n        # Preserve session_id from incoming message, or use component/graph session_id\n        message.session_id = (\n            self.session_id or existing_session_id or (self.graph.session_id if hasattr(self, \"graph\") else None) or \"\"\n        )\n        message.context_id = self.context_id\n        message.flow_id = self.graph.flow_id if hasattr(self, \"graph\") else None\n        message.properties.source = self._build_source(source_id, display_name, source)\n\n        # Store message if needed\n        if message.session_id and self.should_store_message:\n            stored_message = await self.send_message(message)\n            self.message.value = stored_message\n            message = stored_message\n\n        # Set accumulated token usage from all upstream LLM vertices.\n        # This must happen AFTER send_message() because streaming captures\n        # usage from chunks and would overwrite accumulated totals.\n        if hasattr(self, \"_vertex\") and self._vertex is not None:\n            accumulated_usage = self._vertex._accumulate_upstream_token_usage()  # noqa: SLF001\n            if accumulated_usage:\n                message.properties.usage = accumulated_usage\n                if self.should_store_message and message.get_id():\n                    message = await self._update_stored_message(message)\n                    await self._send_message_event(message, id_=message.get_id())\n\n        self.status = message\n        return message\n\n    def _serialize_data(self, data: Data) -> str:\n        \"\"\"Serialize Data object to JSON string.\"\"\"\n        # Convert data.data to JSON-serializable format\n        serializable_data = jsonable_encoder(data.data)\n        # Serialize with orjson, enabling pretty printing with indentation\n        json_bytes = orjson.dumps(serializable_data, option=orjson.OPT_INDENT_2)\n        # Convert bytes to string and wrap in Markdown code blocks\n        return \"```json\\n\" + json_bytes.decode(\"utf-8\") + \"\\n```\"\n\n    def _validate_input(self) -> None:\n        \"\"\"Validate the input data and raise ValueError if invalid.\"\"\"\n        if self.input_value is None:\n            msg = \"Input data cannot be None\"\n            raise ValueError(msg)\n        if isinstance(self.input_value, list) and not all(\n            isinstance(item, Message | Data | DataFrame | str) for item in self.input_value\n        ):\n            invalid_types = [\n                type(item).__name__\n                for item in self.input_value\n                if not isinstance(item, Message | Data | DataFrame | str)\n            ]\n            msg = f\"Expected Data or DataFrame or Message or str, got {invalid_types}\"\n            raise TypeError(msg)\n        if not isinstance(\n            self.input_value,\n            Message | Data | DataFrame | str | list | Generator | type(None),\n        ):\n            type_name = type(self.input_value).__name__\n            msg = f\"Expected Data or DataFrame or Message or str, Generator or None, got {type_name}\"\n            raise TypeError(msg)\n\n    def convert_to_string(self) -> str | Generator[Any, None, None]:\n        \"\"\"Convert input data to string with proper error handling.\"\"\"\n        self._validate_input()\n        if isinstance(self.input_value, list):\n            clean_data: bool = getattr(self, \"clean_data\", False)\n            return \"\\n\".join([safe_convert(item, clean_data=clean_data) for item in self.input_value])\n        if isinstance(self.input_value, Generator):\n            return self.input_value\n        return safe_convert(self.input_value)\n"
+              },
+              "context_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Context ID",
+                "dynamic": false,
+                "info": "The context ID of the chat. Adds an extra layer to the local memory.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "context_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "data_template": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Data Template",
+                "dynamic": false,
+                "info": "Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "data_template",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "{text}"
+              },
+              "input_value": {
+                "_input_type": "HandleInput",
+                "advanced": false,
+                "display_name": "Inputs",
+                "dynamic": false,
+                "info": "Message to be passed as output.",
+                "input_types": [
+                  "Data",
+                  "JSON",
+                  "DataFrame",
+                  "Table",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "input_value",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              },
+              "sender": {
+                "_input_type": "DropdownInput",
+                "advanced": true,
+                "combobox": false,
+                "dialog_inputs": {},
+                "display_name": "Sender Type",
+                "dynamic": false,
+                "external_options": {},
+                "info": "Type of sender.",
+                "name": "sender",
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "options_metadata": [],
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "toggle": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "str",
+                "value": "Machine"
+              },
+              "sender_name": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Sender Name",
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "sender_name",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "AI"
+              },
+              "session_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "session_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "should_store_message": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Store Messages",
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "should_store_message",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": true
+              }
+            },
+            "tool_mode": false
+          },
+          "showNode": false,
+          "type": "ChatOutput"
+        },
+        "dragging": false,
+        "id": "ChatOutput-tR8Kp",
+        "measured": {
+          "height": 52,
+          "width": 192
+        },
+        "position": {
+          "x": 698.2472290805289,
+          "y": -798.6151612219478
+        },
+        "selected": true,
+        "type": "genericNode"
+      }
+    ],
+    "viewport": {
+      "x": 881.0192969703858,
+      "y": 837.7972859535971,
+      "zoom": 0.5825864151513834
+    }
+  },
+  "description": "Beyond Text Generation - Unleashing Business Opportunities.",
+  "endpoint_name": null,
+  "id": "f5944026-1965-4fe1-94ba-e8f145a7216f",
+  "is_component": false,
+  "last_tested_version": "1.9.2",
+  "locked": false,
+  "name": "Override Langflow Canvas",
+  "tags": []
+}
