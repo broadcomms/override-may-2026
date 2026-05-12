@@ -55,6 +55,7 @@ from pydantic import BaseModel
 from analysis.perturbations import apply_perturbation
 from core.fan_mode import FanModeParseError, translate_to_fan_mode
 from core.guardian import WatsonxAIGuardianClient, WatsonxGuardianClient
+from core.llm_clients import OllamaChatClient, probe_ollama_reachable
 from core.pipeline import run_pipeline
 from core.reasoning import WatsonxAIChatClient, WatsonxChatClient
 from core.regs import (
@@ -124,6 +125,36 @@ _fan_locks: dict[str, asyncio.Lock] = {}
 
 
 def get_chat_client() -> WatsonxChatClient:
+    """Factory — returns the chat client per ``OVERRIDE_LLM_RUNTIME`` env var.
+
+    Default ``watsonx`` returns the existing ``WatsonxAIChatClient`` (no
+    behavior change for v1.0 demo + video). ``ollama`` returns the new
+    ``OllamaChatClient`` — fails LOUD at boot if the Ollama endpoint isn't
+    reachable (gotcha: silent 60-second connection-refused on the first
+    reasoning call is hostile; surface misconfiguration at the front door).
+
+    Guardian + Embedding stay watsonx-only regardless of ``OVERRIDE_LLM_RUNTIME``
+    — granite4:350m doesn't expose the BYOC scoring API or the multilingual
+    embedding model. ``WATSONX_API_KEY`` is required even in ollama mode.
+    See ``docs/adrs/ADR-003-llm-runtime-abstraction.md``.
+    """
+    runtime = (os.environ.get("OVERRIDE_LLM_RUNTIME") or "watsonx").strip().lower()
+    if runtime == "ollama":
+        base_url = os.environ.get("OVERRIDE_OLLAMA_BASE_URL") or "http://torcs:11434"
+        ok, err = probe_ollama_reachable(base_url)
+        if not ok:
+            raise RuntimeError(
+                f"OVERRIDE_LLM_RUNTIME=ollama but Ollama at {base_url!r} is not reachable: "
+                f"{err}. Either bring up the TORCS lab container "
+                f"(`podman compose --profile torcs up` or `./scripts/run_torcs_lab.sh`), "
+                f"or point OVERRIDE_OLLAMA_BASE_URL at a reachable ollama instance, "
+                f"or set OVERRIDE_LLM_RUNTIME=watsonx (default)."
+            )
+        return OllamaChatClient(base_url=base_url)
+    if runtime != "watsonx":
+        logger.warning(
+            "OVERRIDE_LLM_RUNTIME=%r unrecognized; defaulting to watsonx", runtime,
+        )
     return WatsonxAIChatClient()
 
 

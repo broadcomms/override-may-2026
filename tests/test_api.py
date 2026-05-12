@@ -663,6 +663,65 @@ def test_what_if_invalid_request_body_returns_422(tmp_path):
     assert r.status_code == 422  # FastAPI Pydantic validation
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# OVERRIDE_LLM_RUNTIME factory (v6 plan task 2.10)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class _FakeWatsonxAIChatClient:
+    """Construction-stub for the watsonx impl. Lets us test the factory's
+    routing logic without triggering real IBM Cloud IAM auth, which the
+    actual WatsonxAIChatClient.__init__ does eagerly."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+def test_get_chat_client_defaults_to_watsonx(monkeypatch):
+    """Unset OVERRIDE_LLM_RUNTIME → factory returns the watsonx impl.
+    No behavior change for v1.0 demo + video path."""
+    monkeypatch.delenv("OVERRIDE_LLM_RUNTIME", raising=False)
+    monkeypatch.setattr("api.main.WatsonxAIChatClient", _FakeWatsonxAIChatClient)
+    from api.main import get_chat_client
+    client = get_chat_client()
+    assert isinstance(client, _FakeWatsonxAIChatClient)
+
+
+def test_get_chat_client_ollama_fails_loud_when_unreachable(monkeypatch):
+    """Fail-loud startup probe per v6 plan task 2.10 — refuse to boot
+    when OVERRIDE_LLM_RUNTIME=ollama but Ollama isn't reachable. Catches
+    misconfiguration at the front door instead of at the first reasoning
+    call (the silent 60-second-connection-refused failure mode)."""
+    monkeypatch.setenv("OVERRIDE_LLM_RUNTIME", "ollama")
+    monkeypatch.setenv("OVERRIDE_OLLAMA_BASE_URL", "http://nonexistent-host:9999")
+    from api.main import get_chat_client
+    with pytest.raises(RuntimeError, match="OVERRIDE_LLM_RUNTIME=ollama"):
+        get_chat_client()
+
+
+def test_get_chat_client_ollama_returns_ollama_client_when_reachable(monkeypatch):
+    """When the probe succeeds, factory returns an OllamaChatClient.
+    Stubs the probe to bypass the live HTTP call."""
+    monkeypatch.setenv("OVERRIDE_LLM_RUNTIME", "ollama")
+    monkeypatch.setenv("OVERRIDE_OLLAMA_BASE_URL", "http://test:11434")
+    monkeypatch.setattr("api.main.probe_ollama_reachable", lambda url: (True, None))
+    from api.main import get_chat_client
+    from core.llm_clients import OllamaChatClient
+    client = get_chat_client()
+    assert isinstance(client, OllamaChatClient)
+    assert client.base_url == "http://test:11434"
+
+
+def test_get_chat_client_unrecognized_runtime_falls_back_to_watsonx(monkeypatch):
+    """A typo in OVERRIDE_LLM_RUNTIME (e.g., 'olama') should fall back
+    to watsonx, not crash — surfaces a warning log but keeps the demo
+    functional."""
+    monkeypatch.setenv("OVERRIDE_LLM_RUNTIME", "olama")
+    monkeypatch.setattr("api.main.WatsonxAIChatClient", _FakeWatsonxAIChatClient)
+    from api.main import get_chat_client
+    client = get_chat_client()
+    assert isinstance(client, _FakeWatsonxAIChatClient)
+
+
 def test_what_if_invalid_perturbation_kind_returns_422(tmp_path):
     """A perturbation value outside the PerturbationKind Literal should
     fail at the Literal-enforcement boundary, distinct from the per-kind
