@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { OverrideApiError, api } from "@/api/client";
+import { OverrideApiError, api, type FixtureName } from "@/api/client";
 import type { TorcsRunSummary } from "@/api/types";
 import { FileUpload } from "@/components/FileUpload";
 
@@ -87,27 +87,30 @@ export function UploadPage() {
     }
   }, [navigate]);
 
-  const useSample = useCallback(async () => {
-    // The fixture path returns a valid Session synthesized from
-    // tests/fixtures/layered_defense_demo.json — see api/client.ts.
-    setIsUploading(true);
-    setError(null);
-    try {
-      const session = await api.createSession(
-        {
-          file: new File([], "sample.json", { type: "application/json" }),
-          source: "fastf1",
-          socMax: 4.0,
-        },
-        { fixture: true },
-      );
-      navigate(`/session/${session.summary.session_id}?fixture=1`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load sample.");
-    } finally {
-      setIsUploading(false);
-    }
-  }, [navigate]);
+  const useSample = useCallback(
+    async (fixtureName: FixtureName) => {
+      // The fixture path returns a valid Session synthesized from the
+      // corresponding tests/fixtures/*.json — see api/client.ts.
+      setIsUploading(true);
+      setError(null);
+      try {
+        const session = await api.createSession(
+          {
+            file: new File([], "sample.json", { type: "application/json" }),
+            source: fixtureName === "torcs_engineer" ? "torcs" : "fastf1",
+            socMax: 4.0,
+          },
+          { fixture: true, fixtureName },
+        );
+        navigate(`/session/${session.summary.session_id}?fixture=1`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load sample.");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [navigate],
+  );
 
   return (
     <div className="flex flex-col items-center pt-16 px-6">
@@ -120,7 +123,9 @@ export function UploadPage() {
         isUploading={isUploading}
         error={error}
         sampleReplays={[
-          { label: "Layered-defense demo (cached)", onClick: useSample },
+          { label: "TORCS engineer demo", onClick: () => useSample("torcs_engineer") },
+          { label: "Engineer happy-path demo", onClick: () => useSample("engineer_happy") },
+          { label: "Layered-defense demo (cached)", onClick: () => useSample("layered_defense") },
         ]}
       />
 
