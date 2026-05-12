@@ -1,0 +1,123 @@
+# OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002)
+#
+# Three services, two profiles, one shared volume. Modes:
+#
+#   podman compose up                                # Mode 1: OVERRIDE alone
+#     → only the override service. Fast (~10 s boot). Fixture-driven demo.
+#       The demo video uses this mode against fixture-mode UI; the live
+#       hosted demo URL on the Hetzner CX32 also runs this mode externally
+#       (per v6 §3.7 firewall rules: only 80/443 open externally).
+#
+#   podman compose --profile torcs up                # Mode 2: + live TORCS
+#     → override + torcs. The torcs service is the IBM SkillsBuild lab
+#       container; first-time pull is ~10 GB and 10–15 min (acceptable per
+#       v6 locked decision). Once cached, subsequent runs are fast.
+#       Telemetry written by gym_torcs's torcs_jm_par.py to /home/student/
+#       workspace/gym_torcs/telemetry/ inside torcs maps via the shared
+#       torcs-telemetry volume to /app/data/telemetry/ inside override —
+#       reachable via POST /api/sessions/torcs-live for live ingest.
+#
+#   podman compose --profile observability up        # Mode 3: + Jaeger
+#     → override + jaeger. Set OVERRIDE_TRACING=otlp in .env to wire OTel
+#       export to http://jaeger:4317. Trace UI at :16686.
+#
+# Profiles MUST be listed combinable: `podman compose --profile torcs
+# --profile observability up` brings the whole stack — useful for the
+# T-24h clean-machine walkthrough.
+#
+# No top-level `version:` key (gotcha #6 — deprecated in Compose V2).
+
+services:
+  # ───────────────────────────────────────────────────────────────────────
+  # override — API + built UI bundle (always-on, default profile)
+  # ───────────────────────────────────────────────────────────────────────
+  override:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: override:local
+    container_name: override
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      # When OVERRIDE_LLM_RUNTIME=ollama, route chat to the TORCS container's
+      # bundled Ollama via service-DNS on override-net. Default in .env
+      # stays watsonx; this is just the routing override for compose.
+      OVERRIDE_OLLAMA_BASE_URL: http://torcs:11434
+      # OTLP target when OVERRIDE_TRACING=otlp; resolves to the jaeger
+      # service only when the observability profile is up.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+    volumes:
+      # Session persistence — survives container restarts.
+      - ./data/sessions:/app/data/sessions:Z
+      # Shared TORCS-telemetry bus — POST /api/sessions/torcs-live reads
+      # JSONL from this directory inside the override container; gym_torcs
+      # writes to it from inside the torcs container.
+      - torcs-telemetry:/app/data/telemetry:Z
+    networks:
+      - override-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ───────────────────────────────────────────────────────────────────────
+  # torcs — IBM SkillsBuild lab container (profile: torcs)
+  # ───────────────────────────────────────────────────────────────────────
+  # Note: image is large (~10 GB). Profile-gating means the default
+  # `podman compose up` does NOT pull it. README documents the trade-off.
+  torcs:
+    image: docker.io/johnsloe/torcs-competition:amd64
+    container_name: torcs
+    profiles: [torcs]
+    ports:
+      - "5900:5900"        # VNC (drive via dedicated VNC client)
+      - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
+      - "3001:3001/udp"    # SCR — gym_torcs ↔ TORCS server channel
+      - "11434:11434"      # Ollama HTTP API (granite4:350m bundled)
+    volumes:
+      # gym_torcs source — committed under RaceYourCode/ in the repo root.
+      # ":Z" relabels for SELinux (no-op on Ubuntu/WSL); see gotcha #7.
+      - ./RaceYourCode:/home/student/workspace:Z
+      # Telemetry shared bus — see override service for the other end.
+      - torcs-telemetry:/home/student/workspace/gym_torcs/telemetry:Z
+      # The lab image ships with two known bugs (Ollama directory ownership
+      # + VS Code extension install hang); scripts/torcs_container_init.sh
+      # absorbs both at boot. Mounted read-only.
+      - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
+    # Entrypoint override chains to the image's real Cmd
+    # (/usr/local/bin/start.sh — pinned via `podman inspect` per
+    # docs/plans/torcs-entrypoint.md).
+    entrypoint: ["/bin/bash", "/usr/local/bin/torcs_init.sh"]
+    networks:
+      - override-net
+
+  # ───────────────────────────────────────────────────────────────────────
+  # jaeger — OpenTelemetry trace collector + UI (profile: observability)
+  # ───────────────────────────────────────────────────────────────────────
+  jaeger:
+    image: docker.io/jaegertracing/all-in-one:latest
+    container_name: jaeger
+    profiles: [observability]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"      # Jaeger UI — http://localhost:16686
+      - "4317:4317"        # OTLP gRPC (what override exports to)
+      - "4318:4318"        # OTLP HTTP
+    networks:
+      - override-net
+
+# Shared bus for the live-ingest path. Named volume (managed by Podman)
+# rather than a bind mount so file ownership / SELinux context is uniform
+# across both writer (torcs) and reader (override) services regardless
+# of the host's user-namespace mapping.
+volumes:
+  torcs-telemetry:
+
+networks:
+  override-net:

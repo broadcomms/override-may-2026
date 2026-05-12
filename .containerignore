@@ -1,0 +1,88 @@
+# OVERRIDE — files excluded from the container build context.
+# Podman reads .containerignore preferentially; .dockerignore is the
+# fallback name if this file is missing.
+#
+# v6 plan task 3.1 — keep the build context small so layer caching works.
+# `hands-on-labs/` is NOT excluded from RUNTIME (the torcs service
+# bind-mounts ./RaceYourCode at runtime), only from the BUILD context.
+
+# ── Version control + IDE ────────────────────────────────────────────────────
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+.venv*
+venv
+venv*
+ENV
+env
+*.egg-info
+build
+dist
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# ── Node / UI ────────────────────────────────────────────────────────────────
+# ui/node_modules excluded — Stage 1's `npm ci` reinstalls inside the
+# container from package-lock.json. ui/dist excluded — Stage 1 builds it
+# fresh inside the container.
+ui/node_modules
+ui/dist
+ui/.next
+ui/out
+*.tsbuildinfo
+ui/.env.*.local
+ui/.env.development.local
+
+# ── Local-only environment / secrets ─────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+
+# ── Test fixtures (some are large; the runtime doesn't need them) ────────────
+tests/__pycache__
+tests/.pytest_cache
+
+# ── Documentation that's large or in-flight ──────────────────────────────────
+docs/plans/previous-co-work-conversations.md
+docs/00-OVERRIDE_Software_Project_Documentation.docx
+docs/00-OVERRIDE_Complete_Project_Documentation.docx
+
+# ── Recordings / brand pre-renders (200 MB+ master .mov files; v6 §3.4) ─────
+recordings
+assets/graphics/RACE-TRACK.mp4
+
+# ── Regulation PDFs (gitignored; chunks json IS shipped) ─────────────────────
+data/regs/*.pdf
+data/regs/extracted/
+
+# ── Data / sessions / cache ──────────────────────────────────────────────────
+# Sessions live in a host-mounted volume at runtime, not the image.
+data/sessions
+data/fastf1-cache
+analysis/exploratory-plots
+
+# ── Lab directory — bind-mounted at runtime, not needed in the image build ──
+hands-on-labs
+
+# ── TORCS lab files (only used by the torcs service which has its own image)
+RaceYourCode
+
+# ── OS junk ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

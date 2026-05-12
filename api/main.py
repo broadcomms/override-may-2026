@@ -49,7 +49,8 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from analysis.perturbations import apply_perturbation
@@ -549,6 +550,55 @@ def create_app() -> FastAPI:
     ):
         delete_session(session_id)
         # Always 204 (idempotent)
+
+    # ── Static UI mount (v6 plan task 3.1) ───────────────────────────────────
+    # The container image builds ui/dist via Stage 1 of the Dockerfile and
+    # COPYs it to /app/ui/dist. When that directory exists, mount it so the
+    # single image + single port serves both the API (/api/*) and the SPA
+    # (/, /upload, /session/:id, etc).
+    #
+    # Local-dev path: developers running `uvicorn api.main:app` from the
+    # repo root without a build skip this — vite dev server at :3000 proxies
+    # /api/* to :8000, so the SPA serving stays a frontend concern.
+    #
+    # Routes:
+    #   /assets/*       → built JS/CSS/fonts from ui/dist/assets/
+    #   /favicon.*      → built favicon
+    #   /<spa-route>    → ui/dist/index.html (React Router takes over)
+    # API routes registered above (/api/*) win over the SPA catchall because
+    # they're registered earlier; the catchall is the LAST handler.
+    _ui_dist = Path(__file__).resolve().parent.parent / "ui" / "dist"
+    if _ui_dist.is_dir():
+        # Hashed-bundle assets — long-cache-friendly subpath.
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(_ui_dist / "assets")),
+            name="ui-assets",
+        )
+        _index_html = _ui_dist / "index.html"
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def _spa_catchall(full_path: str):
+            """Serve index.html for any non-/api/* path so React Router
+            handles client-side routes (e.g. /session/s_torcs_engineer_demo).
+            Bare files (favicon.ico, logo.png, manifest.json) in ui/dist root
+            also get served here."""
+            if full_path.startswith("api/"):
+                # Defensive: FastAPI route precedence should already prevent
+                # this branch, but guard against future route changes.
+                raise HTTPException(status_code=404)
+            candidate = _ui_dist / full_path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
+            return FileResponse(str(_index_html))
+
+        logger.info("ui-static: mounted ui/dist at /")
+    else:
+        logger.info(
+            "ui-static: %s missing — running API-only "
+            "(vite dev server expected on :3000 in dev mode)",
+            _ui_dist,
+        )
 
     return app
 
