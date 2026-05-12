@@ -74,6 +74,15 @@ services:
     image: docker.io/johnsloe/torcs-competition:amd64
     container_name: torcs
     profiles: [torcs]
+    # The init script absorbs two root-only fixes from RESULTS.md:
+    #   chown -R student:student /opt/ollama   (Ollama bundled-but-broken)
+    #   echo DONT_PROMPT_WSL_INSTALL=1 >> /etc/environment
+    # The image's default USER is `student` (UID 1000 typically) which
+    # can't perform either — RESULTS.md documents the manual `podman exec
+    # -u root` workaround. We invoke the entrypoint as root so the chown
+    # + echo succeed; start.sh inherits root and runs ollama/Xvfb/VNC as
+    # root, which works fine (the lab's documented workaround model).
+    user: "0:0"
     ports:
       - "5900:5900"        # VNC (drive via dedicated VNC client)
       - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
@@ -91,7 +100,7 @@ services:
       - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
     # Entrypoint override chains to the image's real Cmd
     # (/usr/local/bin/start.sh — pinned via `podman inspect` per
-    # docs/plans/torcs-entrypoint.md).
+    # the prior plan-file lifecycle artifact).
     entrypoint: ["/bin/bash", "/usr/local/bin/torcs_init.sh"]
     networks:
       - override-net

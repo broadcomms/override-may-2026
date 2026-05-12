@@ -28,6 +28,19 @@ WORKDIR /build
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
+# Copy fixture JSONs the UI imports via the @fixtures Vite alias.
+# vite.config.ts has `@fixtures → path.resolve(__dirname, "..", "tests",
+# "fixtures")` so `ui/src/api/client.ts` resolves `@fixtures/*.json` to
+# `tests/fixtures/*.json` at the REPO root — that path is outside the
+# `ui/` subtree and needs an explicit COPY into the build stage. The
+# image-internal layout matches the repo layout so the alias keeps
+# working: ui/ at WORKDIR's depth, tests/fixtures/ one up. tsbuildinfo
+# is sensitive to file mtime; copying after package.json keeps the
+# layer-cache hit ratio high.
+WORKDIR /
+COPY tests/fixtures/ ./tests/fixtures/
+WORKDIR /build
+
 # Now copy the rest of the UI source + build.
 COPY ui/ ./
 # Vite reads .env.production by default during `vite build`; we don't ship

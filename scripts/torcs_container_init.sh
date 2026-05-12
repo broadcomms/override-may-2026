@@ -61,9 +61,14 @@ pkill -f "code.*install-extension" 2>/dev/null || true
 
 # Suppress the WSL-install prompt loop entirely. The marker prevents the
 # install from running, but `code --version` or other `code` invocations
-# downstream could still trip the prompt.
-grep -q "DONT_PROMPT_WSL_INSTALL" /etc/environment 2>/dev/null || \
-    echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment
+# downstream could still trip the prompt. compose runs this script as root
+# (user: "0:0" in the torcs service) so the >> /etc/environment write
+# succeeds; defensive `|| true` keeps the script working if someone
+# strips the user: override (e.g., for testing as student).
+{
+    grep -q "DONT_PROMPT_WSL_INSTALL" /etc/environment 2>/dev/null || \
+        echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment
+} || true
 
 # ── Telemetry capture dir owned by student so the logger can write ──────────
 # Volume-permission UID-remap interaction (v6 plan gotcha #11): the
