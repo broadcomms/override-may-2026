@@ -498,7 +498,7 @@ def drive_example(c):
 import math
 
 # ================= USER CONFIGURABLE PARAMETERS =================
-TARGET_SPEED = 150  # Target speed in km/h. Increasing this makes the car go faster but may reduce stability.
+TARGET_SPEED = 100  # Target speed in km/h. Increasing this makes the car go faster but may reduce stability.
 STEER_GAIN = 30     # Steering sensitivity. Higher values make the car turn more aggressively.
 CENTERING_GAIN = 0.20  # How strongly the car corrects its position toward the center of the track.
 BRAKE_THRESHOLD = 0.9  # Angle threshold for braking. Lower values brake earlier.
