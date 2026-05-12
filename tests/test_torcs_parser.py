@@ -226,8 +226,9 @@ REAL_BASELINE_FIXTURE = (
 @pytest.mark.skipif(
     not REAL_BASELINE_FIXTURE.exists(),
     reason=(
-        "torcs_baseline.json not yet captured — task 1.5 produces it from a real "
-        "TORCS lab run (lap-task 1 baseline). Test activates automatically once present."
+        "data/samples/torcs_baseline.jsonl not yet captured — task 1.5 produces it "
+        "from a real TORCS lab run (lap-task 1 baseline). Test activates automatically "
+        "once present."
     ),
 )
 def test_torcs_baseline_energy_calibration():

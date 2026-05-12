@@ -253,11 +253,14 @@ def parse_torcs_lap(
     if lap_time < MIN_LAP_TIME_S:
         return None
 
-    # Speed: gym_torcs ``speedX`` is in m/s along the car's forward axis;
-    # convert to km/h. Use the absolute value because speedX can be slightly
-    # negative during spins / off-track.
+    # Speed: TORCS' SCR protocol reports ``speedX`` in km/h directly (not
+    # m/s — easy to mis-assume because most simulators use SI). Use the
+    # absolute value because speedX can be slightly negative during spins
+    # or off-track recoveries. Verified against TORCS_HOME/src/drivers
+    # source + calibration capture (target ~100 km/h with TARGET_SPEED=100
+    # was reading 361 km/h before this fix).
     speeds_kmh = [
-        abs(_coerce_float(t.get("speedX", 0.0))) * 3.6 for t in lap_ticks
+        abs(_coerce_float(t.get("speedX", 0.0))) for t in lap_ticks
     ]
     avg_speed = statistics.mean(speeds_kmh) if speeds_kmh else 0.0
     max_speed = max(speeds_kmh) if speeds_kmh else 0.0
