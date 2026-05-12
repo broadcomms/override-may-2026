@@ -94,3 +94,7 @@ RaceYourCode/gym_torcs/*.rgb
 recordings/*.mov
 recordings/*.mp4
 !recordings/final.mp4
+
+# Temporary dev artifacts
+*.tmp
+temp/
