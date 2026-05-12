@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# scripts/torcs_container_init.sh — compose-time entrypoint override for
+# the IBM SkillsBuild lab container `docker.io/johnsloe/torcs-competition`.
+#
+# The lab image ships with two known bugs that bite on every fresh start
+# (documented in hands-on-labs/01_torcs_lab/RESULTS.md). This script
+# absorbs both at boot, then chains to the image's real Cmd. Mounted
+# read-only into the torcs service in docker-compose.yml.
+#
+# Two bugs absorbed:
+#
+#   1. Ollama directory ownership
+#      The image ships /opt/ollama owned by root, but `ollama serve` runs
+#      as user `student` and needs to write models there. start.sh's
+#      step [2/6] hits "permission denied" and fails silently with
+#      "WARNING: Ollama did not start in time".
+#      Fix: chown -R student:student /opt/ollama before start.sh runs.
+#      Narrow /tmp chown to ollama-specific paths only (review #5 from
+#      v6 plan task 3.1b) — recursive chown on the whole /tmp tree would
+#      clobber XFCE/Xvfb/DBus lock files student doesn't own.
+#
+#   2. VS Code extension install hang
+#      start.sh's step [1/6] runs `code --install-extension ms-python.python`
+#      inside the container, but on WSL2 the bundled `code` CLI prints
+#      "please install VS Code in Windows" and hangs the whole script.
+#      We're not editing code in the container (task 1.5 needs telemetry
+#      capture only), so pre-create the marker directories the script's
+#      skip-condition greps for, then suppress the hang defensively.
+#
+# After both absorptions, exec into the image's real entrypoint
+# `/usr/local/bin/start.sh` (Cmd, not Entrypoint — confirmed via
+# `podman inspect --format '{{json .Config}}'` and recorded in
+# docs/plans/torcs-entrypoint.md during v6 task 1.1).
+#
+# Idempotent — running twice has no extra effect (chmod/chown on the
+# same paths, mkdir -p on the marker dirs, pkill ignored when no match).
+
+set -e
+
+# ── Fix 1 — Ollama directory ownership ──────────────────────────────────────
+# Recursive chown on /opt/ollama is safe (image-internal, not bind-mounted).
+chown -R student:student /opt/ollama 2>/dev/null || true
+# /tmp is shared between XFCE/Xvfb/DBus and ollama; only chown the paths
+# ollama actually uses. Wildcard catches ollama-XXX socket dirs that get
+# created on subsequent ollama serve invocations.
+chown student:student /tmp/ollama.log 2>/dev/null || true
+chown -R student:student /tmp/ollama 2>/dev/null || true
+chown student:student /tmp/ollama-* 2>/dev/null || true
+
+# ── Fix 2 — VS Code extension install hang ──────────────────────────────────
+# Pre-create the marker dirs that start.sh's step [1/6] greps for. Once
+# present, the script's "already installed, skipping" branch fires and
+# the install step (which hangs under WSL2) is avoided.
+mkdir -p /home/student/.vscode/extensions/ms-python.python \
+         /home/student/.vscode/extensions/Continue.continue 2>/dev/null || true
+chown -R student:student /home/student/.vscode 2>/dev/null || true
+
+# Defensive: also kill any code.install-extension process if one slipped
+# through (e.g., student modified a marker dir). Silent when no match.
+pkill -f "code.*install-extension" 2>/dev/null || true
+
+# Suppress the WSL-install prompt loop entirely. The marker prevents the
+# install from running, but `code --version` or other `code` invocations
+# downstream could still trip the prompt.
+grep -q "DONT_PROMPT_WSL_INSTALL" /etc/environment 2>/dev/null || \
+    echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment
+
+# ── Telemetry capture dir owned by student so the logger can write ──────────
+# Volume-permission UID-remap interaction (v6 plan gotcha #11): the
+# torcs-telemetry named volume mounts here. Rootless Podman would normally
+# create it root-owned in the user namespace; chown'ing as root (this init
+# script runs as root before the image hands off to student) gives student
+# write access regardless of UID-remap shape.
+mkdir -p /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
+chown -R student:student /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
+chmod 0775 /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
+
+# ── Chain to the lab image's real Cmd ───────────────────────────────────────
+# Confirmed via `podman inspect docker.io/johnsloe/torcs-competition:amd64`:
+#   Entrypoint: None
+#   Cmd:        ["/usr/local/bin/start.sh"]
+# (See docs/plans/torcs-entrypoint.md — deleted in the same PR as this
+# script ships, per plan-file-lifecycle.)
+exec /usr/local/bin/start.sh "$@"
