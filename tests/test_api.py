@@ -663,6 +663,25 @@ def test_what_if_invalid_request_body_returns_422(tmp_path):
     assert r.status_code == 422  # FastAPI Pydantic validation
 
 
+def test_what_if_invalid_perturbation_kind_returns_422(tmp_path):
+    """A perturbation value outside the PerturbationKind Literal should
+    fail at the Literal-enforcement boundary, distinct from the per-kind
+    required-field validators."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    r = client.post(
+        f"/api/sessions/{sid}/what-if",
+        json={"perturbation": "garbage_kind", "n": 1},
+    )
+    assert r.status_code == 422
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # DELETE /api/sessions/{id}
 # ──────────────────────────────────────────────────────────────────────────────
