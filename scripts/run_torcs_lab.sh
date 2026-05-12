@@ -87,23 +87,30 @@ podman rm -f "${TORCS_NAME}" >/dev/null 2>&1 || true
 # 3. Override entrypoint to a bash wrapper that mkdirs the markers, then
 #    chains into /usr/local/bin/start.sh (the image's real Cmd).
 # Port forwarding rationale:
-#   5900   VNC (raw protocol)
-#   6080   noVNC web UI (the browser endpoint judges/you actually hit)
+#   5900       VNC (raw protocol) — drive TORCS from a VNC client
+#   6080       noVNC web UI — drive TORCS from a browser, http://localhost:6080
 #   3001/udp   SCR — gym_torcs ↔ TORCS server channel for the AI driver
-# NOT forwarded:
-#   11434  Ollama — most dev hosts already run a native Ollama on this port
-#                   (per README quickstart). The container's Ollama is only
-#                   reachable from INSIDE the container during task 1.5
-#                   (capture path doesn't need it anyway). Week 3 compose
-#                   routes OVERRIDE_LLM_RUNTIME=ollama via service-to-service
-#                   DNS on override-net, not via host port forwarding.
+#   11434      Ollama HTTP API — the lab image ships granite4:350m bundled
+#              and listens here. Forwarded for *dev convenience*: enables
+#              `curl http://localhost:11434/api/tags` from the WSL host (2-second
+#              "is Ollama reachable + is granite4:350m loaded?" sanity check),
+#              and lets a host-side uvicorn (Week 2 step 2.10 manual gate) hit
+#              http://localhost:11434 for the OVERRIDE_LLM_RUNTIME=ollama
+#              end-to-end test without exec'ing into the container.
+#
+# Security note (Week 3 §3.7): on the deployed Hetzner CX32 VM, the cloud
+# firewall closes 5900, 6080, 3001/udp, 11434, and 16686 externally — only
+# 80/443 (Caddy → 8000) are public. Ollama-over-the-open-internet has no
+# auth and would be a takeover vector. The host port forward here exposes
+# Ollama on the dev box's loopback only (localhost binds reach localhost).
+# Belt-and-suspenders security is fine; security via absence-of-port-forward
+# enforced in the wrong abstraction layer (compose YAML) is not.
 exec podman run -it --rm \
     --name "${TORCS_NAME}" \
     -p 5900:5900 \
     -p 6080:6080 \
     -p 3001:3001/udp \
     -p 11434:11434 \
-    -p 3001:3001/udp \
     -e DONT_PROMPT_WSL_INSTALL=1 \
     -v "${WORKSPACE}:/home/student/workspace:Z" \
     --entrypoint /bin/bash \
