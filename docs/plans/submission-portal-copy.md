@@ -69,11 +69,13 @@ The publicly visible AI in this space — AWS F1 Insights, Oracle's Red Bull str
 ## 5. Solution statement (portal field: **Solution** / **What it does**)
 
 ```
-OVERRIDE is a copilot, not a strategist. It takes a session replay (TORCS Lab simulator export or FastF1 historical), aggregates lap-level energy features, detects inefficient deployment zones, then explains each one with a verbatim citation from the 2026 FIA technical regulations parsed by Docling.
+OVERRIDE is a copilot, not a strategist. It takes a session replay — TORCS Lab simulator capture, FastF1 historical, or a live drive in the bundled IBM SkillsBuild TORCS container — aggregates lap-level energy features, detects inefficient deployment zones, then explains each one with a verbatim citation from the 2026 FIA technical regulations parsed by Docling.
 
 Two modes:
 • Engineer Mode — full reasoning chains, regulation citations, validator + Guardian safety scores, what-if exploration.
 • Fan Mode — same intelligence, plain language, no acronyms.
+
+What-if simulation (FR-8). For any detected zone, the engineer can ask: what if I delay my first deploy by N laps? What if I skip this harvest opportunity entirely? What if I extend the next Override by one lap? OVERRIDE re-runs the full pipeline against the perturbed session and renders a side-by-side Before / After diff — same reasoning, same Guardian gate, same regulation citation against the alternate strategy. The cache is keyed by a deterministic hash of the request, so the same exploration is cheap to revisit.
 
 Two-pass safety architecture:
 • Pass 1 — deterministic validation of citation-existence (verbatim match), banned-language filter, and section-consistency rules.
@@ -91,23 +93,29 @@ Decision support, never replacement. The engineer is always the decision-maker.
 ## 6. How to try it (portal field: **How to use** / **Get started** / **Demo**)
 
 ```
-Quick start — local, ~3 minutes after credentials are set:
+Quick start with Podman compose (the shipping shape) — ~2 minutes after credentials are set:
 
-1. Clone the repo and create a Python 3.12 virtual environment.
-2. Install dependencies: pip install -r requirements.txt
-3. Copy .env.example to .env and fill in your watsonx.ai credentials (WATSONX_API_KEY, WATSONX_PROJECT_ID, WATSONX_URL). The IBM SkillsBuild challenge provides Essentials-tier access.
-4. Run the gate G-1 sanity check: python scripts/test_watsonx.py — confirms credentials work and the three Granite models respond.
-5. Start the API: uvicorn api.main:app --reload --port 8000
-6. In a second terminal: cd ui && npm install && npm run dev
-7. Open http://localhost:3000 and drag data/sessions/sample_torcs.json onto the upload zone.
+1. Clone the repo. Copy .env.example to .env and fill in your watsonx.ai credentials (WATSONX_API_KEY, WATSONX_PROJECT_ID, WATSONX_URL). The IBM SkillsBuild challenge provides Essentials-tier access.
+2. podman compose up         # one image, UI + API at http://localhost:8000
 
-The pipeline runs end-to-end in about 8 seconds. The recommendation card shows cause / consequence / recommendation with a verbatim FIA citation, plus validator and Guardian safety badges.
+Three modes via profile flags:
+• podman compose up                                — OVERRIDE alone (fixture-driven demo).
+• podman compose --profile torcs up                — adds the IBM SkillsBuild TORCS lab container (drive in a browser at http://localhost:6080). First pull is ~10 GB and 10–15 min; subsequent runs are fast.
+• podman compose --profile observability up        — adds Jaeger UI at http://localhost:16686. Set OVERRIDE_TRACING=otlp in .env to wire traces. Docker compose works equivalently.
 
-For the design + demo layer (Langflow visual canvas mirroring the production pipeline as 9 nodes), follow langflow/README.md — separate Python venv, then import langflow/override.flow.json.
+Drop data/sessions/sample_torcs.json (or either real TORCS capture under data/samples/) onto the upload zone. The pipeline runs end-to-end in about 8 seconds. The recommendation card shows cause / consequence / recommendation with a verbatim FIA citation, plus validator and Guardian safety badges. Click any zone to explore counterfactuals (FR-8 what-if).
 
-For observability (Jaeger tracing of every pipeline stage), set OVERRIDE_TRACING=otlp and run a Jaeger all-in-one container per docs/plans/p3.6-jaeger-trace-capture.md.
+If running --profile torcs and driving the lab live, the upload page surfaces a "Live TORCS detected" banner with per-run "Ingest" buttons — one click pipes the JSONL through ingest/torcs_parser.py and lands a fresh session on the dashboard.
 
-Full architecture diagram, schema, and API documentation are in docs/03-architecture.md, docs/04-schema.md, and docs/04-api.md.
+Local-venv path (for hacking on the code):
+  python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+  .venv/bin/python scripts/test_watsonx.py    # G-1 gate
+  .venv/bin/uvicorn api.main:app --reload --port 8000
+  cd ui && npm install && npm run dev          # http://localhost:3000
+
+Optional: route chat through the TORCS container's bundled Ollama (granite4:350m) by setting OVERRIDE_LLM_RUNTIME=ollama. Guardian + Embedding stay on watsonx; this is the v1.1 migration preview. See docs/adrs/ADR-003-llm-runtime-abstraction.md.
+
+Full architecture, schema, and API documentation: docs/03-architecture.md, docs/04-schema.md, docs/04-api.md.
 ```
 
 ---
@@ -131,8 +139,11 @@ Tag with these (combine ANDs as the portal allows):
 **Other stack:**
 - Python 3.12, FastAPI, Pydantic v2
 - React 18 + TypeScript + Vite + Tailwind + Recharts
-- OpenTelemetry + Jaeger
-- pytest (231 unit tests + 4 network integration tests, all green)
+- OpenTelemetry + Jaeger (profile-gated in compose)
+- Podman / Docker compose — multi-stage Node-20 → Python-3.12 image, three services, two profiles (`torcs`, `observability`)
+- IBM SkillsBuild TORCS lab container — bundled as a profile-gated compose service for live driving; gym_torcs source committed under `RaceYourCode/` for one-clone reproducibility
+- Hybrid LLM runtime: `OVERRIDE_LLM_RUNTIME=watsonx` (default) routes chat to watsonx.ai; `=ollama` routes to the lab container's bundled `granite4:350m` for the v1.1 migration preview (ADR-003)
+- pytest (301 unit tests + 4 network integration tests = 305 green)
 
 **Categories** (verify what BeMyApp offers — likely):
 - Sports & Racing / Sports analytics
@@ -161,9 +172,9 @@ Built solo over 23 days. Development accelerated using IBM Bob.
 |---|---|
 | Demo video (YouTube unlisted) | `<PASTE_YOUTUBE_URL_HERE>` — verify it plays in incognito tab before publishing |
 | GitHub repository | `<PASTE_GITHUB_URL_HERE>` |
-| Live demo (if hosted) | OVERRIDE runs locally; no hosted demo. Use the YouTube link instead. |
+| Live demo (if hosted) | If 3.7 provisions the ephemeral Hetzner CX32 VM: `http://<vm-ip>:8000` (or `https://override.duckdns.org` if DuckDNS+Caddy succeeds). Note in the description: "Ephemeral hosted demo for the judging window only — tear-down after 2026-05-31. For the live TORCS drive path, clone the repo and `podman compose --profile torcs up` locally (noVNC is intentionally not exposed publicly — see docs/07-deployment.md §firewall)." If 3.7 was cut (per v6 plan cut #4), leave as "OVERRIDE runs locally; use the YouTube link instead." |
 
-> Replace placeholders during the T-2h step in `final-lock-checklist.md`.
+> Replace placeholders during the T-2h step in `final-lock-checklist.md`. The hosted-URL slot is conditional on 3.7's outcome — record the actual decision (with VM IP / DuckDNS hostname or "cut") in `docs/07-deployment.md`.
 
 ---
 
@@ -181,6 +192,8 @@ License text in `LICENSE` at repo root. All code original. Brand assets (logo, i
 
 ```
 Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab simulator. Grounded in IBM Granite 4.x Instruct, Granite Guardian 3-8b, Granite Embedding 278m-multilingual, with Docling for FIA regulation extraction and Langflow for the visual design canvas.
+
+`RaceYourCode/gym_torcs/*` derives from Gym-TORCS (https://github.com/ugo-nama-kun/gym_torcs — MIT-licensed, © 2016 Naoto Yoshida), bundled via the IBM SkillsBuild hands-on-labs/01_torcs_lab distribution. Original LICENSE preserved at `RaceYourCode/gym_torcs/LICENSE`.
 
 All visuals original. No F1 broadcast footage, no team livery, no FIA trademark imagery. Regulations parsed from the publicly published 2026 FIA Formula 1 Technical Regulations (Section C, Issue 18, dated 2026-05-07).
 
@@ -244,7 +257,8 @@ If a judge or organizer asks any of these post-submission, here are the pre-appr
 |---|---|
 | "Why didn't you ship TTM-R2 forecasting?" | "TTM-R2 is documented as optional in the FR-3 graceful degradation guarantee. The pipeline runs end-to-end without it. Sessions that lack a forecast lower their reported confidence accordingly. Shipping it would have added ~5 hours of build time without changing the explainability story, which is the rubric-relevant feature." |
 | "Why FastAPI runtime, not Langflow?" | "Langflow is the design + demo layer. Production runtime is FastAPI for performance, type safety (Pydantic v2 throughout), and observability. Langflow visually documents the architecture and powers the demo recording; it does not gate the production code path. See ADR-001." |
-| "Where's the test data from?" | "Synthetic TORCS-shaped JSON committed in `data/sessions/sample_torcs.json` plus FastF1 historical replays from public sources. No live team telemetry. No broadcast video. No proprietary feeds. Reproducible end-to-end." |
+| "Where's the test data from?" | "Three lanes, all reproducible: (1) Synthetic TORCS-shaped JSON committed in `data/sessions/sample_torcs.json` (deterministic, 5 laps, fires `low-roi-deploy`); (2) Real TORCS-lab captures emitted by the bundled telemetry logger, committed under `data/samples/torcs_baseline.jsonl` (median harvest ≈ 3.8 MJ/lap — in-budget reference) and `torcs_modified.jsonl` (median ≈ 9.3 MJ/lap — over the 8.5 MJ cap, exercises the harvest_cap validator rule organically); (3) FastF1 historical replays from public sources. No live team telemetry. No broadcast video. No proprietary feeds." |
+| "Do you support live driving?" | "Yes — `podman compose --profile torcs up` boots the IBM SkillsBuild TORCS lab container alongside OVERRIDE. Drive in a browser via noVNC at :6080; the bundled telemetry logger writes JSONL into a shared volume; the UI surfaces a 'Live TORCS detected' banner with one-click ingest via `POST /api/sessions/torcs-live`. The pipeline (ingest → reasoning → Guardian → grounding) runs against the captured laps the same way it runs against pre-recorded fixtures. The demo video uses fixtures for determinism; the live path is for judges exploring the cloned repo." |
 | "How do you handle regulations changing?" | "We never hardcode article numbers. The validator's `citation_existence` rule requires the cited passage to appear character-for-character in the source chunk. When the FIA ships a new Issue, only `data/regs/extracted_chunks.json` regenerates via `scripts/build_chunks.py`. Code doesn't move." |
 | "What's the safety story?" | "Two-pass: deterministic Pass-1 (5 rule classes including verbatim citation existence + banned-language filter) plus Granite Guardian Pass-2 (two BYOC criteria: energy_safety and regulation_consistency). Below threshold triggers regeneration; after retries exhausted, ships with `final_confidence: low` plus a 'Treat as exploratory' banner. The layered defense rejection card is a demo asset, not a hidden failure mode." |
 | "What's the cost per session?" | "On watsonx.ai Essentials tier, ~$0.05 per session for the full 5-zone pipeline including Pass-2 retries and Fan translation. Verified end-to-end at 8.2 seconds for a single zone in the live Langflow demo." |
