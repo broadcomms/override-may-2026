@@ -16,17 +16,51 @@ breaks across versions, so we don't hand-author it.
 
 ---
 
-## 1. One-time setup (~10 min)
+## 1. Quickstart — compose mode (recommended, ~5 min)
 
-### 1.1 Separate venv (Langflow needs Python 3.10/3.11; production uses 3.12)
+The fastest path is `podman compose --profile langflow up`. It builds a
+Langflow image (langflow 1.9.2 + OVERRIDE's runtime deps), bind-mounts
+`core/`, `ingest/`, `analysis/`, `guardian/`, `prompts/`, and the components
+themselves at `/workspace/...`, and reads watsonx credentials from `.env`.
 
 ```bash
-brew install python@3.12   # if missing
+cp .env.example .env          # fill WATSONX_API_KEY + WATSONX_PROJECT_ID
+podman compose --profile langflow up
+```
+
+First build is ~3–5 min (`Dockerfile.langflow` layers `requirements.txt`
+onto the official `langflowai/langflow` base). Subsequent starts are
+fast — code is bind-mounted, so editing a component on the host shows
+up after a Langflow UI reload, no rebuild needed.
+
+Langflow opens at http://localhost:7860. Skip to §3 (assemble the canvas).
+
+> Pair it with another profile if needed:
+> `podman compose --profile langflow --profile torcs up` brings up the
+> live TORCS lab alongside the canvas (handy if you want the canvas's
+> File Input node to pick up a freshly-driven JSONL capture from the
+> shared `torcs-telemetry` volume — files live in `/app/data/telemetry/`
+> on the override side, mounted into langflow at `/workspace/data/telemetry/`
+> if you add that volume entry).
+
+## 1b. Alternative — separate venv on the host (~10 min)
+
+For hacking on the components directly with a local Python toolchain (no
+container rebuild on every edit), the historical venv path still works:
+
+### 1b.1 Separate venv
+
+Langflow supports Python 3.10–3.13 on Linux. The repo's `requirements-langflow.txt`
+pins `langflow==1.9.2`, which works under 3.12. The split exists to keep
+Langflow's ~200 transitive deps out of the production runtime's pip set
+— a dependency-graph hedge, not an interpreter version conflict.
+
+```bash
 python3.12 -m venv .venv-langflow
 .venv-langflow/bin/pip install -r requirements-langflow.txt
 ```
 
-### 1.2 Make the OVERRIDE codebase importable
+### 1b.2 Make the OVERRIDE codebase importable
 
 The Custom Components do `from core.regs import ...`, `from ingest.schema import ...`, etc. Langflow needs the project root on `PYTHONPATH`:
 
@@ -36,7 +70,7 @@ export PYTHONPATH="$(pwd):$PYTHONPATH"
 
 Run this from the OVERRIDE project root before starting Langflow. (You can also add it to `~/.zshrc` if you want it permanent.)
 
-### 1.3 watsonx credentials
+### 1b.3 watsonx credentials
 
 The components that touch Granite (Reg Retriever, Reasoning, Guardian, Fan Translator) read credentials from environment variables — same as the FastAPI runtime. Source `.env` before starting Langflow:
 
@@ -47,7 +81,7 @@ set -a && source .env && set +a
 This exposes `WATSONX_API_KEY`, `WATSONX_URL`, `WATSONX_PROJECT_ID`,
 `GRANITE_INSTRUCT`, `GRANITE_GUARDIAN`, `GRANITE_EMBEDDING`.
 
-### 1.4 Pre-built regulation chunks
+### 1b.4 Pre-built regulation chunks
 
 The Reg Retriever loads `data/regs/extracted_chunks.json`. If you haven't
 run Docling extraction yet, the component falls back to the committed
@@ -56,7 +90,7 @@ chunks file (Issue 18 Section C, 384 chunks).
 
 ---
 
-## 2. Launch Langflow with the OVERRIDE components
+## 2. Launch Langflow (venv path)
 
 ```bash
 LANGFLOW_COMPONENTS_PATH="$(pwd)/langflow/override_components" \

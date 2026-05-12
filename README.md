@@ -148,9 +148,12 @@ podman compose --profile torcs up                  # adds noVNC at :6080, Ollama
 
 # Mode 3 — OVERRIDE + Jaeger (for trace capture)
 podman compose --profile observability up          # adds Jaeger UI at :16686
+
+# Mode 4 — OVERRIDE + Langflow design canvas (visual mirror of the pipeline)
+podman compose --profile langflow up               # adds Langflow at :7860
 ```
 
-The image is multi-stage (Node 20 alpine → Python 3.12 slim) and serves both the API and the built UI from `:8000`. TORCS and Jaeger are profile-gated, so the default `podman compose up` doesn't pull the 10 GB lab image. Profile flags combine: `podman compose --profile torcs --profile observability up` brings up the whole stack. Docker compose works too if that's what's installed (`docker compose up`) — the file is V2-compatible and uses no Podman-only features.
+The image is multi-stage (Node 20 alpine → Python 3.12 slim) and serves both the API and the built UI from `:8000`. TORCS, Jaeger, and Langflow are profile-gated, so the default `podman compose up` doesn't pull the 10 GB lab image or build the Langflow image. Profile flags combine: `podman compose --profile torcs --profile observability --profile langflow up` brings up the whole stack. Docker compose works too if that's what's installed (`docker compose up`) — the file is V2-compatible and uses no Podman-only features.
 
 ### Run locally (for hacking on the code)
 
@@ -171,7 +174,7 @@ cp .env.example .env
 
 # 4. In a second terminal, run the UI
 cd ui && npm install && npm run dev
-# Open http://localhost:3000 → upload data/sessions/sample_torcs.json
+# Open http://localhost:8000 → upload data/sessions/sample_torcs.json
 ```
 
 Granite Instruct + Guardian + Embedding all run on watsonx.ai (US-South); only Docling chunk extraction runs locally. No 12 GB local model download. See [`docs/adrs/ADR-001-watsonx-runtime.md`](docs/adrs/ADR-001-watsonx-runtime.md) for the runtime split rationale.

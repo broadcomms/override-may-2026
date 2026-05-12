@@ -1,0 +1,58 @@
+# OVERRIDE — Langflow design/demo image (compose service: langflow)
+#
+# Why a second Dockerfile (not stage-bundled into the main image):
+#
+# 1. Industry-standard microservices split — one process per container.
+#    The langflow process is independent of the FastAPI runtime — different
+#    lifecycle, restart semantics, log streams. Bundling them collapses
+#    that boundary for zero deployment benefit.
+# 2. Independent dependency graph — langflow transitively pulls langchain,
+#    chromadb, and ~200 others. Resolving them into the production image's
+#    pip set is a coin flip across minor bumps. Keeping the graphs separate
+#    is the standing hedge that motivated requirements-langflow.txt in
+#    the first place.
+# 3. Profile-gated — `podman compose up` default mode does NOT build this
+#    image. Only `podman compose --profile langflow up` does. So the
+#    lean default path is unchanged.
+#
+# Base = the official langflow image (pinned to match requirements-langflow.txt's
+# 1.9.2 — the version the OVERRIDE custom components were validated against).
+# OVERRIDE's production deps layered on top via requirements.txt so the
+# components' `from core.regs import ...` / `from ingest.schema import ...`
+# transitive imports resolve.
+#
+# Code (core/, ingest/, analysis/, prompts/, guardian/, langflow/override_components/,
+# data/) is bind-mounted read-only at runtime from the host — see the langflow
+# service in docker-compose.yml. That keeps component edits hot-reload-friendly
+# without rebuilding this image.
+
+FROM docker.io/langflowai/langflow:1.9.2
+
+USER root
+WORKDIR /tmp
+
+# Build tools for any wheels that need compilation (pyarrow / docling family
+# typically ship wheels on linux/amd64 + linux/arm64, but the safety net
+# is cheap and matches the main Dockerfile's stance).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# Layer OVERRIDE's runtime deps onto langflow's image. Pip will reconcile
+# pins against langflow's installed graph — if conflicts surface during
+# a build, address them by tightening this image's requirements (do NOT
+# loosen the main Dockerfile's pins for the production runtime).
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+ && rm /tmp/requirements.txt
+
+# Workspace = bind-mount target for repo code (see compose volumes).
+WORKDIR /workspace
+ENV PYTHONPATH=/workspace
+ENV LANGFLOW_COMPONENTS_PATH=/workspace/langflow/override_components
+
+# Drop back to the non-root user the langflow image ships with for runtime.
+USER user
+
+EXPOSE 7860
+CMD ["langflow", "run", "--host", "0.0.0.0", "--port", "7860"]

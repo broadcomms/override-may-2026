@@ -1,15 +1,20 @@
-# OVERRIDE — Langflow design/demo layer (separate venv)
+# OVERRIDE — Langflow design/demo layer (separate venv / separate image)
 #
-# Why a separate venv: Langflow currently ships with its own packaging
-# constraints. The production runtime targets Python 3.12 (see
-# requirements.txt), so we keep Langflow isolated.
+# Why a separate dependency set: Langflow transitively pulls langchain,
+# chromadb, and ~200 other deps. Merging them into the production runtime's
+# pip set is a coin flip across minor bumps — keeping the graphs separate
+# is a standing hedge, not an interpreter version conflict (Langflow 1.9.x
+# supports Python 3.10–3.13 on Linux).
 #
 # Per docs/04-langflow-canvas.md, Langflow is the **design + demo layer**, not
 # the production runtime. It powers the canvas screenshot and a one-shot demo
 # flow during the video recording. FastAPI carries the production path.
 #
-# Setup:
-#   /opt/homebrew/bin/python3.12 -m venv .venv-langflow
+# Setup (compose path — recommended):
+#   podman compose --profile langflow up
+#
+# Setup (host venv path — for live component editing without rebuilds):
+#   python3.12 -m venv .venv-langflow
 #   .venv-langflow/bin/pip install -r requirements-langflow.txt
 #
 # Pinning rationale: the OVERRIDE custom components target the Langflow 1.9.x

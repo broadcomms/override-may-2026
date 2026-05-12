@@ -58,7 +58,7 @@ Goal: every dependency installed, repo initialized, telemetry schema understood,
   - `scripts/test_watsonx.py` returns `✓ watsonx.ai smoke test passed for all configured models` — both `ibm/granite-4-h-small` and `ibm/granite-guardian-3-8b` reachable.
   - Granite model IDs + watsonx region + project-id-var pinned in `models.json` (`runtime: "watsonx"`).
   - `hf download ibm-granite/granite-timeseries-ttm-r2` completes (TTM-R2 stays local; revision SHA recorded in `models.json`).
-  - Python deps installed in `.venv` (Python 3.12) and locked: `docling fastf1 huggingface_hub[cli] transformers fastapi uvicorn python-multipart pandas pydantic ibm-watsonx-ai`. Langflow lives in a separate Python 3.11 venv (`requirements-langflow.txt`).
+  - Python deps installed in `.venv` (Python 3.12) and locked: `docling fastf1 huggingface_hub[cli] transformers fastapi uvicorn python-multipart pandas pydantic ibm-watsonx-ai`. Langflow lives in a separate dependency set (`requirements-langflow.txt`) — usable via the host venv path or via `podman compose --profile langflow up` against `Dockerfile.langflow`.
   - Repo `<username>-override-may-2026` exists, public, Apache 2.0.
 - **Verification gate G-1**: `models.json` has `runtime: "watsonx"` with both Granite model IDs and TTM-R2 revision. `scripts/test_watsonx.py` exit code 0. Until then, no reasoning code is written. Triggers risk R16. See `docs/adrs/ADR-001-watsonx-runtime.md` for why we moved off local Ollama.
 

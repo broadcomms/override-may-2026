@@ -1,6 +1,6 @@
 # OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002)
 #
-# Three services, two profiles, one shared volume. Modes:
+# Four services, three profiles, one shared volume. Modes:
 #
 #   podman compose up                                # Mode 1: OVERRIDE alone
 #     → only the override service. Fast (~10 s boot). Fixture-driven demo.
@@ -21,9 +21,16 @@
 #     → override + jaeger. Set OVERRIDE_TRACING=otlp in .env to wire OTel
 #       export to http://jaeger:4317. Trace UI at :16686.
 #
+#   podman compose --profile langflow up             # Mode 4: + Langflow canvas
+#     → override + langflow. Visual design layer at :7860, custom components
+#       in langflow/override_components/ pre-loaded. First-time build of the
+#       langflow image is ~3–5 min (langflow base + OVERRIDE deps); subsequent
+#       starts are fast. Pure documentation surface — does NOT replace the
+#       FastAPI runtime. See langflow/README.md and docs/04-langflow-canvas.md.
+#
 # Profiles MUST be listed combinable: `podman compose --profile torcs
-# --profile observability up` brings the whole stack — useful for the
-# T-24h clean-machine walkthrough.
+# --profile observability --profile langflow up` brings the whole stack —
+# useful for the T-24h clean-machine walkthrough.
 #
 # No top-level `version:` key (gotcha #6 — deprecated in Compose V2).
 
@@ -121,12 +128,62 @@ services:
     networks:
       - override-net
 
+  # ───────────────────────────────────────────────────────────────────────
+  # langflow — design/demo canvas (profile: langflow)
+  # ───────────────────────────────────────────────────────────────────────
+  # Mirrors the production pipeline as a visual graph. Custom components in
+  # langflow/override_components/ are thin shims over the same core/ modules
+  # the FastAPI runtime uses — so there's no second pipeline, just a second
+  # entry point. Bind-mounting the code dirs keeps component edits live
+  # without rebuilding this image. Reads watsonx credentials from .env.
+  #
+  # See langflow/README.md §2 (compose mode) for assembly + screenshot steps,
+  # and Dockerfile.langflow for the dependency-layering rationale.
+  langflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.langflow
+    image: override-langflow:local
+    container_name: langflow
+    profiles: [langflow]
+    restart: unless-stopped
+    ports:
+      - "7860:7860"        # Langflow UI — http://localhost:7860
+    env_file: .env
+    environment:
+      PYTHONPATH: /workspace
+      LANGFLOW_COMPONENTS_PATH: /workspace/langflow/override_components
+    volumes:
+      # OVERRIDE business logic — read-only; same code as the FastAPI runtime.
+      # Component imports (from core.*, ingest.*, analysis.*) resolve via
+      # PYTHONPATH=/workspace.
+      - ./core:/workspace/core:ro,Z
+      - ./ingest:/workspace/ingest:ro,Z
+      - ./analysis:/workspace/analysis:ro,Z
+      - ./guardian:/workspace/guardian:ro,Z
+      - ./prompts:/workspace/prompts:ro,Z
+      - ./langflow:/workspace/langflow:ro,Z
+      - ./models.json:/workspace/models.json:ro,Z
+      # Regulation chunks (Docling output / sample fallback). Read-only;
+      # langflow's Reg Retriever component loads from here.
+      - ./data/regs:/workspace/data/regs:ro,Z
+      # Sample sessions for the demo flow's File Input node.
+      - ./data/sessions:/workspace/data/sessions:ro,Z
+      # Persist Langflow's own state (saved flows, user prefs) across restarts.
+      - langflow-data:/app/.langflow:Z
+    networks:
+      - override-net
+
 # Shared bus for the live-ingest path. Named volume (managed by Podman)
 # rather than a bind mount so file ownership / SELinux context is uniform
 # across both writer (torcs) and reader (override) services regardless
 # of the host's user-namespace mapping.
 volumes:
   torcs-telemetry:
+  # Langflow's own state directory (saved flows, prefs). Named so it
+  # survives `podman compose down` without `-v`; cleared explicitly via
+  # `podman volume rm overdrive-may-2026_langflow-data` if needed.
+  langflow-data:
 
 networks:
   override-net:
