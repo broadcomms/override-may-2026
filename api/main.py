@@ -52,6 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from analysis.perturbations import apply_perturbation
 from core.fan_mode import FanModeParseError, translate_to_fan_mode
 from core.guardian import WatsonxAIGuardianClient, WatsonxGuardianClient
 from core.pipeline import run_pipeline
@@ -69,6 +70,8 @@ from ingest.schema import (
     Recommendation,
     RegulationSource,
     Session,
+    WhatIfRequest,
+    WhatIfResult,
 )
 
 from .errors import api_error, map_watsonx_exception, new_request_id
@@ -407,6 +410,108 @@ def create_app() -> FastAPI:
 
         return rec.model_dump(mode="json")
 
+    @app.post("/api/sessions/{session_id}/what-if")
+    async def what_if(
+        request: Request,
+        body: WhatIfRequest,
+        session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+        chat_client: WatsonxChatClient = Depends(get_chat_client),
+        embedding_client: WatsonxEmbeddingClient = Depends(get_embedding_client),
+        guardian_client: WatsonxGuardianClient = Depends(get_guardian_client),
+    ):
+        """FR-8 what-if perturbations — pin three exploratory scenarios.
+
+        Spec lives at ``docs/plans/whatif-semantics.md`` (deleted in this PR
+        per plan-file-lifecycle). The handler composes three pure pieces:
+          1. ``analysis.perturbations.apply_perturbation`` mutates the lap
+             list per the request (delay_first_deploy / skip_harvest_zone /
+             extend_override).
+          2. ``core.pipeline.run_pipeline`` runs the FULL pipeline against
+             the perturbed laps — same reasoning + Pass-1 + Pass-2 + Fan
+             path as ``POST /api/sessions``. No fork.
+          3. Result cached on disk at
+             ``data/sessions/{id}/whatif/{sha256(request)[:16]}.json``
+             so a judge clicking the same scenario repeatedly during demo
+             exploration doesn't re-spend watsonx tokens.
+
+        Returns a ``WhatIfResult`` pairing original + perturbed
+        Recommendation lists for the UI's side-by-side diff renderer.
+        """
+        rid = getattr(request.state, "request_id", new_request_id())
+
+        original = load_session(session_id)
+        if original is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Session {session_id} not found.",
+                request_id=rid,
+            )
+
+        # Validate the zone exists in the session when the perturbation needs it.
+        # Builds the zone_id → lap_number lookup the dispatcher consumes.
+        zone_lookup: dict[str, int] = {
+            r.zone.zone_id: r.zone.lap_number for r in original.recommendations
+        }
+        if body.zone_id is not None and body.zone_id not in zone_lookup:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Zone {body.zone_id} not found in session {session_id}.",
+                request_id=rid,
+            )
+
+        # Cache key per gotcha #4 — sha256 of the canonical Pydantic JSON.
+        # 16 hex chars is more than enough; filename-safe; deterministic
+        # across runs.
+        import hashlib
+        cache_key = hashlib.sha256(body.model_dump_json().encode()).hexdigest()[:16]
+
+        sessions_root = _sessions_root_for_request()
+        whatif_dir = sessions_root / session_id / "whatif"
+        cache_path = whatif_dir / f"{cache_key}.json"
+
+        # Cache hit → fast path; no pipeline re-run, no watsonx tokens.
+        if cache_path.exists():
+            return WhatIfResult.model_validate_json(cache_path.read_text()).model_dump(mode="json")
+
+        # Cache miss — apply the perturbation, re-run the pipeline.
+        perturbed_laps, note = apply_perturbation(
+            original.laps, body, zone_lap_lookup=zone_lookup,
+        )
+
+        try:
+            perturbed_session = await run_pipeline(
+                laps=perturbed_laps,
+                soc_max=4.0,  # matches POST /api/sessions default; per gotcha pipeline reads from LapFeatures bounds
+                chat_client=chat_client,
+                embedding_client=embedding_client,
+                guardian_client=guardian_client,
+                source=original.summary.source,
+                track_id=original.summary.track_id,
+                chunks_path=_chunks_path(),
+            )
+        except Exception as e:
+            raise map_watsonx_exception(e, request_id=rid)
+
+        result = WhatIfResult(
+            request=body,
+            cache_key=cache_key,
+            original=list(original.recommendations),
+            perturbed=list(perturbed_session.recommendations),
+            note=note,
+        )
+
+        # Persist to cache. Best-effort — a write failure shouldn't fail the
+        # request (the user has the data in the response).
+        try:
+            whatif_dir.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(result.model_dump_json(indent=2))
+        except OSError as e:
+            logger.warning("what_if cache write failed (%s): %s", cache_path, e)
+
+        return result.model_dump(mode="json")
+
     @app.delete("/api/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def remove_session(
         session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
@@ -415,6 +520,19 @@ def create_app() -> FastAPI:
         # Always 204 (idempotent)
 
     return app
+
+
+def _sessions_root_for_request() -> Path:
+    """Resolve the sessions storage root the same way api/storage.py does.
+
+    Duplicated locally to keep the storage helpers minimal-surface and
+    avoid leaking the path resolution into every API call site. Matches
+    storage._sessions_root() exactly.
+    """
+    raw = os.environ.get("SESSIONS_DIR")
+    if raw:
+        return Path(raw)
+    return Path(__file__).resolve().parent.parent / "data" / "sessions"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

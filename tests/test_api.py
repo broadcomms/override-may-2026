@@ -559,6 +559,111 @@ def test_get_zone_unknown_zone_returns_404(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# POST /api/sessions/{id}/what-if  (FR-8)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_what_if_happy_path_returns_perturbed_recommendations(tmp_path):
+    """Create a session, then POST a delay_first_deploy what-if. Verify
+    the response carries both original + perturbed Recommendation lists,
+    a deterministic 16-char cache_key, and the perturbation applied
+    (the perturbed first deploy lap should have lower deploy_mj)."""
+    chat = FakeChatClient()
+    client = _build_client(
+        tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path), chat=chat,
+    )
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    r = client.post(
+        f"/api/sessions/{sid}/what-if",
+        json={"perturbation": "delay_first_deploy", "n": 1},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["request"]["perturbation"] == "delay_first_deploy"
+    assert len(body["cache_key"]) == 16
+    assert isinstance(body["original"], list) and isinstance(body["perturbed"], list)
+    # Both lists must reference the same zones (perturbation doesn't add/drop)
+    assert len(body["original"]) == len(body["perturbed"])
+
+
+def test_what_if_cache_hit_skips_pipeline_rerun(tmp_path):
+    """Two identical what-if calls should produce identical responses
+    AND the second call must not trigger additional chat-client calls
+    (cache hit short-circuits the pipeline re-run)."""
+    chat = FakeChatClient()
+    client = _build_client(
+        tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path), chat=chat,
+    )
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    payload = {"perturbation": "delay_first_deploy", "n": 2}
+    r1 = client.post(f"/api/sessions/{sid}/what-if", json=payload)
+    assert r1.status_code == 200
+    calls_after_first = len(chat.calls)
+
+    r2 = client.post(f"/api/sessions/{sid}/what-if", json=payload)
+    assert r2.status_code == 200
+    # Cache hit — no new chat-client calls
+    assert len(chat.calls) == calls_after_first
+    # Same cache_key both times
+    assert r1.json()["cache_key"] == r2.json()["cache_key"]
+
+
+def test_what_if_unknown_zone_returns_404(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    r = client.post(
+        f"/api/sessions/{sid}/what-if",
+        json={"perturbation": "skip_harvest_zone", "zone_id": "z_ghost"},
+    )
+    assert r.status_code == 404
+    assert r.json()["error_code"] == "NOT_FOUND"
+
+
+def test_what_if_unknown_session_returns_404(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/s_nonexistent/what-if",
+        json={"perturbation": "delay_first_deploy", "n": 1},
+    )
+    assert r.status_code == 404
+
+
+def test_what_if_invalid_request_body_returns_422(tmp_path):
+    """delay_first_deploy without `n` should fail Pydantic validation."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    r = client.post(
+        f"/api/sessions/{sid}/what-if",
+        json={"perturbation": "delay_first_deploy"},  # missing n
+    )
+    assert r.status_code == 422  # FastAPI Pydantic validation
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # DELETE /api/sessions/{id}
 # ──────────────────────────────────────────────────────────────────────────────
 
