@@ -80,3 +80,17 @@ RaceYourCode/gym_torcs/*.pyc
 RaceYourCode/gym_torcs/telemetry/
 RaceYourCode/gym_torcs/results/
 RaceYourCode/gym_torcs/*.rgb
+
+# Recordings policy (v6 plan task 3.4):
+#   * .mov / .mp4 masters → gitignore (200 MB+ each typical; 3.6 produces
+#     fresh ones, prior takes stay on disk locally as rehearsal context
+#     but don't ship in the repo).
+#   * recordings/final.mp4 — the FINAL exported video tracked separately
+#     ONLY if size stays under a sensible cap (judgment call in 3.6;
+#     YouTube unlisted URL is the canonical pointer either way).
+#   * recordings/voiceover/*.m4a stems — tracked, ≤3 MB total, useful
+#     submission-grade evidence + remix material if a single segment
+#     needs a re-mix without re-recording all seven.
+recordings/*.mov
+recordings/*.mp4
+!recordings/final.mp4
