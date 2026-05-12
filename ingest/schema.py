@@ -21,7 +21,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # ──────────────────────────────────────────────────────────────────────────────
 # §3  Lap-level features
@@ -331,6 +331,107 @@ class Session(BaseModel):
     regulation_source: Optional[RegulationSource] = None
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# §8  What-if perturbations (FR-8)
+#
+# Spec: docs/plans/whatif-semantics.md (deleted in the FR-8 ship PR per
+# plan-file-lifecycle). Three perturbations operate on list[LapFeatures]
+# and return a new list; the endpoint composes them with run_pipeline().
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+PerturbationKind = Literal[
+    "delay_first_deploy",   # shift first deploy event by n laps (energy conserved)
+    "skip_harvest_zone",    # zero harvest_mj on a target zone's lap (energy LOST)
+    "extend_override",      # add 0.5 MJ deploy for extra_laps after a target zone
+]
+
+
+class WhatIfRequest(BaseModel):
+    """One perturbation request — input to POST /api/sessions/{id}/what-if.
+
+    Frozen so a stable ``model_dump_json()`` representation hashes
+    deterministically into the disk cache key
+    ``sha256(...).hexdigest()[:16]`` (v6 plan gotcha #4). Per-perturbation
+    fields validated via the cross-field validator below.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    perturbation: PerturbationKind = Field(description="which what-if to apply")
+    # Required for skip_harvest_zone + extend_override; ignored for delay_first_deploy.
+    zone_id: Optional[str] = Field(
+        default=None,
+        pattern=r"^z_[A-Za-z0-9_]+$",
+        description="target zone (required for skip_harvest_zone, extend_override)",
+    )
+    # Required for delay_first_deploy; ignored for the other two.
+    n: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="laps to shift the first deploy by (delay_first_deploy only)",
+    )
+    # Optional for extend_override; defaults to 1 per whatif-semantics.md §Perturbation 3.
+    extra_laps: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="additional laps of Override deploy (extend_override only)",
+    )
+
+    @model_validator(mode="after")
+    def _enforce_required_fields(self) -> "WhatIfRequest":
+        if self.perturbation == "delay_first_deploy":
+            if self.n is None:
+                raise ValueError(
+                    "delay_first_deploy requires `n` (laps to shift the first deploy)"
+                )
+        elif self.perturbation == "skip_harvest_zone":
+            if not self.zone_id:
+                raise ValueError("skip_harvest_zone requires `zone_id`")
+        elif self.perturbation == "extend_override":
+            if not self.zone_id:
+                raise ValueError("extend_override requires `zone_id`")
+        return self
+
+
+class WhatIfResult(BaseModel):
+    """Output of POST /api/sessions/{id}/what-if.
+
+    Pairs the original session's recommendations with the perturbed-session
+    recommendations so the UI's WhatIfDiff component can render
+    side-by-side Before/After cards (whatif-semantics.md §"What the UI
+    diff renders"). Both lists have matching zone_ids — perturbation
+    doesn't add or remove zones, only changes the energy state the zone
+    detector + reasoning operates on. New zones surfacing post-perturbation
+    appear in ``perturbed`` without a matching ``original`` partner; the
+    UI labels these "newly detected" rather than "before/after."
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    request: WhatIfRequest
+    cache_key: str = Field(
+        min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$",
+        description="sha256(request.model_dump_json())[:16] — disk cache filename",
+    )
+    original: list[Recommendation] = Field(
+        description="recommendations from the unperturbed pipeline run",
+    )
+    perturbed: list[Recommendation] = Field(
+        description="recommendations after applying the perturbation",
+    )
+    note: Optional[str] = Field(
+        default=None,
+        description=(
+            "honest message about edge-case handling — e.g. 'extension "
+            "truncated: battery exhausted on lap 4', 'no deploy events to "
+            "delay in this session'. None when no edge case fired."
+        ),
+    )
+
+
 __all__ = [
     "LapFeatures",
     "LapWindow",
@@ -347,4 +448,7 @@ __all__ = [
     "Recommendation",
     "SessionSummary",
     "Session",
+    "PerturbationKind",
+    "WhatIfRequest",
+    "WhatIfResult",
 ]
