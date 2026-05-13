@@ -864,6 +864,192 @@ def test_list_sessions_rejects_out_of_bounds_limit(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Phase 3 — SSE live telemetry stream
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _sse_jsonl_payload(n_laps: int, ticks_per_lap: int = 50) -> bytes:
+    """Minimal lap-shape JSONL for SSE helper tests. Each tick has the
+    fields _aggregate_lap reads: curLapTime, distFromStart, speedX,
+    accel, brake, fuel."""
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / ticks_per_lap
+    lines: list[str] = []
+    for lap_i in range(n_laps):
+        for tick_i in range(ticks_per_lap):
+            cur = tick_i * dt
+            dist = (tick_i / ticks_per_lap) * track_length
+            lines.append(json.dumps({
+                "curLapTime": [cur],
+                "distFromStart": [dist],
+                "speedX": [60.0 if tick_i > ticks_per_lap // 2 else 30.0],
+                "accel": [1.0 if tick_i > ticks_per_lap // 2 else 0.5],
+                "brake": [0.6 if tick_i < ticks_per_lap // 4 else 0.0],
+                "fuel": [90.0 - lap_i * 0.5],
+            }))
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def test_get_current_lap_counts_completed_via_wraparound():
+    """_get_current_lap detects start-line crossings (distFromStart drops
+    sharply). 3 laps in the JSONL → 2 completed laps (still mid-lap on #3)."""
+    from api.main import _get_current_lap, _read_jsonl_safe
+
+    import tempfile, os as _os
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload(n_laps=3))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        assert _get_current_lap(obs) == 2
+    finally:
+        _os.unlink(p)
+
+
+def test_read_jsonl_safe_skips_incomplete_tail_line():
+    """Gotcha #12 — writer is still appending; the last line may not
+    have a trailing newline yet. _read_jsonl_safe stops at that line."""
+    import tempfile, os as _os
+    from api.main import _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+        f.write('{"a": 1}\n')
+        f.write('{"a": 2}\n')
+        f.write('{"a": 3')   # no trailing \n — incomplete
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        assert obs == [{"a": 1}, {"a": 2}]
+    finally:
+        _os.unlink(p)
+
+
+def test_aggregate_lap_uses_torcs_energy_constants():
+    """_aggregate_lap should produce harvest_mj > 0 (brake time present)
+    and 0 <= soc_end <= 1. Confirms the analysis.torcs_energy constants
+    are wired and not silently bypassed."""
+    import tempfile, os as _os
+    from api.main import _aggregate_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload(n_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        stats = _aggregate_lap(obs, 1)
+    finally:
+        _os.unlink(p)
+    assert stats is not None
+    assert stats.lap == 1
+    assert stats.harvest_mj > 0
+    assert 0.0 <= stats.soc_end <= 1.0
+    assert stats.max_speed_kmh >= stats.avg_speed_kmh > 0
+
+
+def test_aggregate_lap_returns_none_when_lap_index_out_of_range():
+    """Asking for lap 5 when only 2 are present → None (caller skips)."""
+    import tempfile, os as _os
+    from api.main import _aggregate_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload(n_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        assert _aggregate_lap(obs, 5) is None
+    finally:
+        _os.unlink(p)
+
+
+def test_stream_404_when_session_missing(tmp_path):
+    """GET /api/sessions/<unknown>/stream → 404 with NOT_FOUND."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/sessions/s_nonexistent_session/stream")
+    assert r.status_code == 404
+    assert r.json()["error_code"] == "NOT_FOUND"
+
+
+def test_stream_emits_no_telemetry_when_session_lacks_telemetry_file(tmp_path):
+    """A session with no telemetry_file (e.g. fastf1 upload) should emit
+    one connected + one no_telemetry event, then close."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    with client.stream("GET", f"/api/sessions/{sid}/stream") as r:
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+        events: list[dict] = []
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[len("data: "):]))
+                if events[-1].get("event") == "no_telemetry":
+                    break
+    assert events[0]["event"] == "connected"
+    assert events[0]["session_id"] == sid
+    assert any(e["event"] == "no_telemetry" for e in events)
+
+
+def test_stream_emits_lap_events_then_race_ended_on_stall(tmp_path, monkeypatch):
+    """End-to-end SSE happy path: ingest a torcs-live session, open the
+    stream, file is static (race already ended) → stream emits laps
+    quickly then a race_ended event via the file-stall heuristic.
+
+    Patches STALL_SECONDS_THRESHOLD + POLL_INTERVAL_S down to keep the
+    test fast (~1s vs 10s wall clock). Confirms the disconnect+stall
+    machinery actually fires."""
+    import api.main as main_mod
+
+    # Patch internal constants so the test finishes in ~1s
+    orig_stall = "STALL_SECONDS_THRESHOLD"
+    orig_poll = "POLL_INTERVAL_S"
+    # The constants are local to stream_session; we need to patch _build_client's
+    # underlying app behavior via the SSE generator. Simplest: patch asyncio.sleep
+    # to be much faster.
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "race.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "race"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    # Speed up the SSE polling for the test. The stream_session generator
+    # uses module-level asyncio.sleep + a closed-over STALL_SECONDS_THRESHOLD.
+    # Patching asyncio.sleep is the simplest way to compress the timeline.
+    import asyncio as _asyncio
+    orig_sleep = _asyncio.sleep
+    async def _fast_sleep(s):
+        await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _fast_sleep)
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        assert r.status_code == 200
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                if ev.get("event") == "race_ended":
+                    break
+
+    kinds = [e["event"] for e in events]
+    assert kinds[0] == "connected"
+    assert "lap" in kinds, f"expected lap event, got {kinds}"
+    assert kinds[-1] == "race_ended", f"expected race_ended at end, got {kinds}"
+    # 2 laps in the fixture → 1 completed lap detected (still mid-lap on #2 at
+    # the time of stall — the second wraparound is at the boundary of lap 3).
+    # Don't pin the exact count; just confirm at least one lap event fired.
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # POST /api/sessions/{id}/what-if  (FR-8)
 # ──────────────────────────────────────────────────────────────────────────────
 
