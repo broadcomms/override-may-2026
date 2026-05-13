@@ -40,6 +40,7 @@ function isLocalHost(): boolean {
 export function TorcsControlPanel() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
+  const [sessionExists, setSessionExists] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +48,21 @@ export function TorcsControlPanel() {
     try {
       const s = await api.torcsControlStatus();
       setStatus(s);
+      // Phase 2 UX fix: the daemon hands out a session_id on /control/start,
+      // but the actual Session row only exists after the user ingests the
+      // resulting JSONL via /api/sessions/torcs-live. Probe getSession to
+      // know whether the "View live →" link is safe to render — otherwise
+      // it 404s and the panel reads as broken.
+      if (s.active && s.session_id) {
+        try {
+          await api.getSession(s.session_id);
+          setSessionExists(true);
+        } catch {
+          setSessionExists(false);
+        }
+      } else {
+        setSessionExists(false);
+      }
     } catch (_e) {
       // Endpoint always returns 200 in normal operation; a thrown error
       // means the backend is down — silently keep last-known state.
@@ -72,9 +88,16 @@ export function TorcsControlPanel() {
       // don't auto-navigate here to avoid landing on a 404.
       await refresh();
       setError(
-        `Race started — pid ${resp.pid}, session_id ${resp.session_id}. ` +
-          `Drive in noVNC at http://localhost:6080; once the JSONL lands, ` +
-          `click "Ingest →" on the Live TORCS banner below.`,
+        `Driver client started — pid ${resp.pid}, session_id ${resp.session_id}.\n\n` +
+          `Next steps (the IBM SkillsBuild lab requires TORCS itself to be launched ` +
+          `manually in noVNC before the driver client can connect):\n` +
+          `1. Open http://localhost:6080/vnc.html → Applications → Games → TORCS.\n` +
+          `2. In TORCS: Race → Quick Race → Configure → set scr_server as a driver.\n` +
+          `3. Click "New Race" — TORCS launches; the AI driver connects via UDP :3001.\n` +
+          `4. Once a lap completes, click "Ingest →" on the Live TORCS banner below ` +
+          `to land the session for analysis.\n\n` +
+          `Or skip steps 1-3 if TORCS is already running in noVNC — the driver is ` +
+          `already trying to connect.`,
       );
     } catch (e) {
       const msg =
@@ -175,7 +198,7 @@ export function TorcsControlPanel() {
           >
             Stop race
           </button>
-          {status.active && status.session_id && (
+          {status.active && status.session_id && sessionExists && (
             <button
               type="button"
               onClick={() =>
@@ -186,6 +209,14 @@ export function TorcsControlPanel() {
             >
               View live → {status.session_id}
             </button>
+          )}
+          {status.active && status.session_id && !sessionExists && (
+            <span
+              className="ml-auto text-xs text-muted"
+              title="The daemon spawned gym_torcs but no telemetry has been ingested yet. Drive in noVNC, then click 'Ingest →' on the Live TORCS banner below."
+            >
+              awaiting ingest…
+            </span>
           )}
         </div>
       )}
