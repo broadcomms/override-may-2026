@@ -133,3 +133,82 @@ internal compose network.
   - ADR-002 (TORCS as primary sandbox)
   - ADR-003 (LLM runtime abstraction — the only other internal-network
     HTTP boundary in the stack)
+
+---
+
+## Amendment — Phase 2.5: daemon launches TORCS (2026-05-13)
+
+### Context for the amendment
+
+Phase 2 as originally shipped had the operator manually launching TORCS in noVNC (open Applications → Games → TORCS, configure scr_server as a driver, click New Race), then clicking Start race in OVERRIDE to spawn the SCR client. Three real symptoms surfaced during the live drive test:
+
+1. **Partial first lap** in the live telemetry stream — the SCR client joined 30–60s into lap 1 that the operator had already started in TORCS, producing a "L1 = 8s" misleading row. Hot-fixed in commit `111fdfe` with the partial-segment-skip helper.
+2. **Track name / target laps** were operator-supplied metadata rather than ground truth — if the operator typed "Aalborg" but TORCS was actually running Forza, the SessionSummary showed "Aalborg" anyway.
+3. **TORCS HUD shows fuel / current-lap / best-time / penalty / track minimap**, but the SCR protocol only exposes physics-level sensors (`fuel`, `distFromStart`, `speedX`, ...). Race-config-level data (track name, target lap count) lives upstream of the SCR boundary.
+
+The architectural insight: if **we** control the race-config write, all that "upstream" data becomes ours because we set it. Phase 2.5 puts the daemon in charge of writing `quickrace.xml` and launching TORCS itself, so the entire race-config flow is OVERRIDE-controlled.
+
+### What Phase 2.5 changes
+
+The daemon now owns BOTH subprocesses (TORCS engine + SCR client) instead of just the SCR client:
+
+```
+StartRaceRequest{ track, laps, auto_launch_torcs=true }
+   ↓
+write ~student/.torcs/config/raceman/quickrace.xml (surgical patch of the stock template)
+   ↓
+SIGKILL stale torcs-bin, verify via pgrep
+   ↓
+spawn torcs -r <quickrace.xml> with DISPLAY=:1
+   ↓
+poll netstat -uln for UDP :3001 binding (15s timeout, 0.5s interval)
+   ↓
+spawn torcs_jm_par.py (SCR client) — connects immediately at race tick 0
+   ↓
+state = ACTIVE; live telemetry streams from the first tick
+```
+
+### Six-state race lifecycle (replaces Phase 2's `active: bool`)
+
+```
+idle → launching → waiting_scr → connecting → active → stopping → cleanup → idle
+```
+
+Legal transitions are gated by `_ALLOWED_TRANSITIONS` in `control_daemon.py`; illegal moves raise `ValueError` and force-cleanup. `/control/status` surfaces the current `state` field; the UI's `TorcsControlPanel` renders a state-aware badge (Launching → Waiting → Connecting → Live → Stopping → Cleaning up). `active: bool` retained on the response for backward compatibility with pre-2.5 clients.
+
+### Six operational gotchas absorbed
+
+1. **UDP readiness polling**: `netstat -uln \| grep ":3001 "` (probed: `ss` and `lsof` are not on the lab image; `netstat` is).
+2. **Stale-TORCS kill**: only `pkill -9 -f torcs-bin`. Probed: `scr_server` is a `.so` (`/usr/local/torcs/lib/torcs/drivers/scr_server/scr_server.so`) loaded into torcs-bin, not a separate process.
+3. **`scr_server` driver section is load-bearing**: the regex patch of `quickrace.xml` only touches `<attstr name="name" val=".."/>` (track), `<attstr name="category" val=".."/>`, and `<attnum name="laps" val=".."/>`. The Drivers section is left untouched. A defensive guard in `_write_quickrace_config` refuses to write if `name="module" val="scr_server"` is missing from the patched output.
+4. **Two-subprocess stop order**: SCR client first (lets gym_torcs flush its trailing JSONL on clean SIGTERM), THEN TORCS. Reversed order drops the last few seconds of telemetry as gym_torcs writes to a dead UDP socket.
+5. **Verified kill**: after `pkill`, `pgrep -f torcs-bin` confirms the reap; raises `RuntimeError` with the live PIDs if the kill didn't take.
+6. **Process supervision via `ActiveRace` dataclass** replaces the `_active_process` singleton from Phase 2. Both `torcs_proc` and `scr_proc` Popens travel together; `_reap_on_signal` walks both on daemon shutdown.
+
+### Ground-truth probes (2026-05-13)
+
+| Probe | Result | Consequence |
+|---|---|---|
+| `which torcs` (in container) | `/usr/local/torcs/bin/torcs` | `TORCS_BIN` default — NOT `/usr/local/bin/torcs` |
+| Xvfb display | `:1` (`Xvfb :1 -screen 0 1920x1080x24`) | `DISPLAY=:1` env passed to torcs Popen |
+| `~/.torcs/` exists? | No — created on first launch + chowned to student | `_write_quickrace_config` does `mkdir + chown` |
+| `ss` / `lsof` installed? | Neither; only `netstat` | UDP readiness uses `netstat -uln` |
+| `scr_server` separate process? | No — `.so` loaded into torcs-bin | Kill only `torcs-bin`; pgrep verification on that one process |
+| Stock `quickrace.xml` schema | 90-line standard TORCS race manager | Use as TEMPLATE; surgical regex patch on 3 attributes; no XML parser needed |
+
+### New endpoint surface
+
+- `GET /control/tracks` (daemon) → `GET /api/torcs/tracks` (override proxy): scans the lab's `/usr/local/torcs/share/games/torcs/tracks/` once, caches the result, returns `{tracks: [{name, category}]}`. UI populates the dropdown from this.
+- `StatusResponse.state` (daemon): exposes the six-state race lifecycle; UI badge picks colors + labels off this. `active: bool` retained for compat.
+- `StartRaceRequest.auto_launch_torcs: bool = True`: opt-out switch for operators who want the legacy Phase 2 behavior (drive against a manually-launched TORCS during dev).
+- `StopResponse.scr_exit_code` + `StopResponse.torcs_exit_code`: separate exit codes for the two subprocesses; legacy `exit_code` no longer present.
+
+### Cuts list (if Phase 2.5 falls over at T-24h)
+
+Additive, not load-bearing on the original Phase 2 ship:
+
+- **L1**: skip `/control/tracks` endpoint, UI uses the hardcoded 6-pack fallback.
+- **L2**: drop the 6-state machine, return to `active: bool`.
+- **L3**: drop `auto_launch_torcs` default — operator launches TORCS manually in noVNC as in Phase 2. The partial-lap-skip safety net from commit `111fdfe` still masks the symptom.
+
+Each cut preserves the architecture; only progressively reduces polish.

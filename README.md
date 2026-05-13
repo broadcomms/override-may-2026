@@ -279,7 +279,7 @@ Deferred from v1.0 for clean ship; documented here rather than half-implemented:
 | **TTM-R2 5-lap SoC forecasting** (FR-3) | Deferred — graceful-degradation guardrail makes it optional; energy curve renders an explicit "Forecast unavailable" badge | `core/forecasting.py` (stub), [`docs/06-roadmap.md`](docs/06-roadmap.md) |
 | **Section B (Sporting Regulations) grounding** | PDF cached at `data/regs/`; not yet in the chunk corpus. Adds Override-Mode availability rules to `unused-override` zone citations (currently ships with `regulation_citation = null`) | [`docs/regulation-source.md`](docs/regulation-source.md) §"deliberately out of scope" |
 | **Full Ollama-only mode** | Today: chat only via `granite4:350m`. Guardian + Embedding equivalents not in the shipped Ollama model — see ADR-003 for the migration path | [`docs/adrs/ADR-003-llm-runtime-abstraction.md`](docs/adrs/ADR-003-llm-runtime-abstraction.md) |
-| **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (334 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
+| **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (340 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
 
 ## What this is not
 

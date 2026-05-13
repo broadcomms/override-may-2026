@@ -5,10 +5,10 @@ OVERRIDE's quality gate is `pytest` on the Python side and `tsc --noEmit && vite
 ## Counts (current state)
 
 ```
-pytest -q -m "not network"   # 334 unit tests, ~10 s, no external calls
+pytest -q -m "not network"   # 340 unit tests, ~10 s, no external calls
 pytest -q -m "network"       #   4 network-marked integration tests (live watsonx; ~30 s)
                              # ─────────────────────────
-                             # 338 total green
+                             # 344 total green
 ```
 
 Baseline at v6-plan start was 231 unit tests. The increase came from FR-8 (perturbations + endpoint), live-ingest endpoint + status helper, TORCS parser + calibration regression, hybrid LLM client (Ollama Protocol impl), concurrency fix for fan-mode saves, regulation-retrieval front-matter filtering, assorted edge-case coverage shipped during Weeks 1–3, and Phase 1 session-boundary work (11 new tests covering `_extract_start_time`, the `/torcs-status` enrichment, `/torcs-live` metadata embedding, `GET /api/sessions` pagination + backward compat).

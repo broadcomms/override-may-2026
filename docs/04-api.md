@@ -33,9 +33,10 @@
 | `POST` | `/api/sessions/torcs-live` | Ingest a JSONL capture from the shared TORCS-telemetry volume |
 | `GET`  | `/api/torcs-status` | Discover what TORCS runs are available on the shared volume |
 | `GET`  | `/api/sessions/{session_id}/stream` | Live per-lap SSE stream for an `active` session |
-| `GET`  | `/api/torcs/control-status` | Reports daemon configuration + reachability (Phase 2) |
-| `POST` | `/api/torcs/start-race` | Proxy to the in-container daemon's /control/start (Phase 2) |
-| `POST` | `/api/torcs/stop-race` | Proxy to /control/stop — idempotent (Phase 2) |
+| `GET`  | `/api/torcs/control-status` | Reports daemon configuration + reachability (Phase 2; gains `state` in 2.5) |
+| `GET`  | `/api/torcs/tracks` | List of available TORCS tracks for the UI dropdown (Phase 2.5) |
+| `POST` | `/api/torcs/start-race` | Proxy to /control/start — daemon launches TORCS + SCR client (Phase 2.5) |
+| `POST` | `/api/torcs/stop-race` | Proxy to /control/stop — idempotent; returns separate scr+torcs exit codes (Phase 2.5) |
 
 > **Phase 2 control plane endpoints** require the `torcs` compose profile to be running + `TORCS_CONTROL_SECRET` set in `.env`. Defense in depth: even when the env is misconfigured, the UI's hostname guard + the API's `503 CONTROL_DISABLED` keep the surface coherent. See ADR-004 for the architectural decision and threat model.
 | `GET`  | `/api/regulation-source` | The canonical source metadata for the deployed regulation extraction |
