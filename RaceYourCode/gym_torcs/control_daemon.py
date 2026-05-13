@@ -295,26 +295,56 @@ def _scr_port_bound() -> bool:
     return bool(re.search(rf":{SCR_PORT}\s", r.stdout))
 
 
-async def _wait_for_scr_port(timeout_s: float = LAUNCH_TIMEOUT_S) -> bool:
-    """Poll netstat for UDP :3001 binding. Async-friendly (await sleep)."""
+async def _wait_for_scr_port(
+    torcs_proc: Optional[subprocess.Popen] = None,
+    timeout_s: float = LAUNCH_TIMEOUT_S,
+) -> bool:
+    """Poll netstat for UDP :3001 binding.
+
+    Hardened version: if a torcs Popen handle is passed, also fail
+    immediately when that process exits (early death detection). Returns
+    True only when port is bound AND torcs (if supervised) is still alive
+    — closes the race condition where torcs briefly bound :3001 during
+    startup, the daemon saw it as ready, then torcs died.
+    """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
+        if torcs_proc is not None and torcs_proc.poll() is not None:
+            logger.warning(
+                "torcs exited (code=%s) before SCR port bound — see %s",
+                torcs_proc.returncode, TORCS_LAUNCH_LOG,
+            )
+            return False
         if _scr_port_bound():
             return True
         await asyncio.sleep(SCR_PORT_POLL_INTERVAL_S)
     return False
 
 
+TORCS_LAUNCH_LOG = "/tmp/torcs-launch.log"
+SCR_CLIENT_LOG = "/tmp/scr-client.log"
+
+
 def _launch_torcs(raceman_path: str) -> subprocess.Popen:
-    """Spawn `torcs -r <xml>` with DISPLAY set to the lab Xvfb."""
+    """Spawn `torcs -r <xml>`. Output → LOG FILE, not PIPE.
+
+    Why a log file and not subprocess.PIPE: torcs writes ~tens-of-KB of
+    diagnostics on startup (GL info, audio init, SCR-driver init).
+    subprocess.PIPE only allocates a 64 KB kernel buffer; with no reader
+    on the daemon side, torcs blocks on the first write() that overflows.
+    Result is the wrapper hangs, eventually exits as a zombie, torcs-bin
+    is orphaned, and SCR :3001 goes dead — exactly the symptom observed
+    2026-05-13. File-backed stdout drains naturally; daemon never blocks.
+    """
     env = os.environ.copy()
     env["DISPLAY"] = TORCS_DISPLAY
+    log = open(TORCS_LAUNCH_LOG, "w")  # closed when the process exits
     return subprocess.Popen(
         [TORCS_BIN, "-r", raceman_path],
         env=env,
         cwd=TORCS_USER_HOME,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
+        stdout=log,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
@@ -322,7 +352,9 @@ def _launch_torcs(raceman_path: str) -> subprocess.Popen:
 
 def _launch_scr_client(req_session_id: str, req_track: str, req_laps: int,
                       req_telemetry_filename: Optional[str]) -> subprocess.Popen:
-    """Spawn torcs_jm_par.py (the SCR client) with the right env."""
+    """Spawn torcs_jm_par.py (the SCR client). Same file-backed stdout
+    treatment as _launch_torcs — gym_torcs writes per-tick observations
+    to stdout that would otherwise overflow a PIPE buffer in seconds."""
     env = os.environ.copy()
     env["OVERRIDE_SESSION_ID"] = req_session_id
     env["OVERRIDE_TRACK"] = req_track
@@ -331,12 +363,13 @@ def _launch_scr_client(req_session_id: str, req_track: str, req_laps: int,
         env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR.rstrip("/") + "/" + req_telemetry_filename
     else:
         env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
+    log = open(SCR_CLIENT_LOG, "w")
     return subprocess.Popen(
         ["python3", TORCS_SCRIPT],
         env=env,
         cwd=GYM_TORCS_DIR,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
+        stdout=log,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
@@ -458,7 +491,32 @@ async def control_status() -> StatusResponse:
     # FastAPI runs them concurrently with stop/start. Eventual consistency
     # is acceptable; the worst case is a stale state value briefly visible
     # to a poller.
+    #
+    # Detect-dead-subprocesses fix (2026-05-13): poll both Popen objects.
+    # If either has exited while state is ACTIVE/CONNECTING/WAITING_SCR, the
+    # race is dead — surface it via `last_error` and demote the state. This
+    # turns "torcs died and the daemon kept lying" into "torcs died and the
+    # UI sees `state=cleanup` next poll."
     r = _race
+    if r.state in (RaceState.WAITING_SCR, RaceState.CONNECTING, RaceState.ACTIVE):
+        torcs_dead = r.torcs_proc is not None and r.torcs_proc.poll() is not None
+        scr_dead = r.scr_proc is not None and r.scr_proc.poll() is not None
+        if torcs_dead or scr_dead:
+            died = []
+            if torcs_dead:
+                died.append(f"torcs (exit={r.torcs_proc.returncode})")  # type: ignore[union-attr]
+            if scr_dead:
+                died.append(f"scr-client (exit={r.scr_proc.returncode})")  # type: ignore[union-attr]
+            r.last_error = "Subprocess(es) died unexpectedly: " + ", ".join(died)
+            if r.scr_proc is not None and scr_dead:
+                r.last_exit_code = r.scr_proc.returncode
+            # Force-cleanup; cannot use transition_to since some moves
+            # would be illegal from the current state. Direct assignment
+            # is acceptable here — we're recovering from external death.
+            logger.warning("control_status: %s", r.last_error)
+            r.state = RaceState.CLEANUP
+            r.state_since = time.monotonic()
+
     now = time.monotonic()
     return StatusResponse(
         state=r.state,
@@ -547,18 +605,27 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                 # Surface the new PID + transition before we await the port poll.
                 _race.torcs_proc = torcs_proc
                 _race.transition_to(RaceState.WAITING_SCR)
-                if not await _wait_for_scr_port(LAUNCH_TIMEOUT_S):
-                    # Reap the dead torcs before bailing
+                if not await _wait_for_scr_port(torcs_proc, LAUNCH_TIMEOUT_S):
+                    # Reap the dead torcs before bailing. Capture log tail
+                    # so /control/status surfaces a useful error message.
                     await _terminate_proc(torcs_proc, "torcs")
+                    log_tail = ""
+                    try:
+                        from pathlib import Path as _P
+                        log_text = _P(TORCS_LAUNCH_LOG).read_text(errors="replace")
+                        log_tail = log_text[-500:] if log_text else "(empty)"
+                    except OSError:
+                        log_tail = "(could not read log)"
                     _race.transition_to(
                         RaceState.CLEANUP,
-                        error=f"scr_server :{SCR_PORT} not bound within {LAUNCH_TIMEOUT_S}s",
+                        error=f"torcs failed to bind UDP :{SCR_PORT}. Log tail: {log_tail}",
                     )
                     raise HTTPException(
                         status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                         detail=(
                             f"TORCS launched but SCR server did not bind UDP :{SCR_PORT} "
-                            f"within {LAUNCH_TIMEOUT_S}s. Check torcs stderr for race-config errors."
+                            f"within {LAUNCH_TIMEOUT_S}s. Last lines of {TORCS_LAUNCH_LOG}: "
+                            + log_tail
                         ),
                     )
                 _race.transition_to(RaceState.CONNECTING)
