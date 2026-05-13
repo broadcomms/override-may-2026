@@ -48,6 +48,7 @@ import type {
   TorcsStartRaceResponse,
   TorcsStatusResponse,
   TorcsStopRaceResponse,
+  TorcsTracksResponse,
   VersionResponse,
   WhatIfRequest,
   WhatIfResult,
@@ -567,9 +568,14 @@ export const api = {
     // carry the state). Fixture mode short-circuits to "disabled" so the
     // hosted demo and fixture flows behave identically.
     if (resolveFixture(opts)) {
-      return { enabled: false, reachable: false, active: false, session_id: null, detail: null };
+      return { enabled: false, reachable: false, active: false, state: null, session_id: null, detail: null };
     }
     return jsonFetch<TorcsControlStatus>("/api/torcs/control-status", { signal: opts?.signal });
+  },
+
+  async torcsTracks(opts?: ApiOpts): Promise<TorcsTracksResponse> {
+    if (resolveFixture(opts)) return { tracks: [] };
+    return jsonFetch<TorcsTracksResponse>("/api/torcs/tracks", { signal: opts?.signal });
   },
 
   async startTorcsRace(
@@ -584,9 +590,10 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         track: params.track ?? "aalborg",
-        laps: params.laps ?? 10,
+        laps: params.laps ?? 5,
         track_name: params.track_name ?? null,
         notes: params.notes ?? null,
+        auto_launch_torcs: params.auto_launch_torcs ?? true,
       }),
       signal: opts?.signal,
     });

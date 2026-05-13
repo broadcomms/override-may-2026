@@ -221,35 +221,62 @@ export interface LiveLapStats {
 // Phase 2 — TORCS control plane (Start/Stop race)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Phase 2.5 — daemon-side race lifecycle. `active` retained on the
+// response for backward compat; `state` is the precise value.
+export type TorcsRaceState =
+  | "idle"
+  | "launching"
+  | "waiting_scr"
+  | "connecting"
+  | "active"
+  | "stopping"
+  | "cleanup";
+
 export interface TorcsControlStatus {
   enabled: boolean;        // env configured on override?
   reachable: boolean;      // daemon /health responded?
-  active: boolean;         // a race is currently running?
+  active: boolean;         // (compat) state === "active"
+  state: TorcsRaceState | null;
   session_id: string | null;
   detail: string | null;
 }
 
+export interface TorcsTrack {
+  name: string;
+  category: "road" | "oval" | "dirt";
+}
+
+export interface TorcsTracksResponse {
+  tracks: TorcsTrack[];
+}
+
 export interface TorcsStartRaceParams {
   track?: string;          // default "aalborg"
-  laps?: number;           // default 10
+  laps?: number;           // default 5 (was 10 — demo-friendly)
   track_name?: string;     // free-form, ≤80 chars
   notes?: string;          // free-form, ≤500 chars
+  auto_launch_torcs?: boolean;  // default true; daemon launches TORCS itself
 }
 
 export interface TorcsStartRaceResponse {
   session_id: string;
-  pid: number;
+  pid: number;                       // SCR-client PID
   telemetry_dir: string;
   track: string;
   laps: number;
-  track_name_hint: string | null;
-  notes_hint: string | null;
+  track_name_hint?: string | null;   // OVERRIDE-side echo (optional)
+  notes_hint?: string | null;
+  torcs_pid?: number | null;         // Phase 2.5 — populated when auto_launch=true
 }
 
 export interface TorcsStopRaceResponse {
   status: "stopped" | "no_active_race";
   session_id: string | null;
-  exit_code: number | null;
+  // Phase 2.5 two-subprocess stop: separate exit codes for SCR client and TORCS.
+  scr_exit_code?: number | null;
+  torcs_exit_code?: number | null;
+  // Backward-compat: pre-Phase-2.5 daemon only returned `exit_code` (singular).
+  exit_code?: number | null;
 }
 
 export interface Session {
