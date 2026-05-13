@@ -270,13 +270,36 @@ export function SessionPage() {
           session is still mid-race. Falls away after `race_ended` →
           reloadKey bump → refetch returns COMPLETED status. */}
       {session.summary.status === "active" && !fixture && (
-        <LiveTelemetry
-          sessionId={sessionId}
-          onRaceEnded={() => setReloadKey((k) => k + 1)}
-        />
+        <>
+          <LiveTelemetry
+            sessionId={sessionId}
+            onRaceEnded={() => setReloadKey((k) => k + 1)}
+          />
+          {/* Phase 2 v1.0 — when a race is still active, the stub Session
+              has no laps/recommendations/forecast yet. The empty
+              EnergyCurve + ZoneHeatmap + "No inefficient zones detected"
+              cards render as if the analysis already ran and found
+              nothing, which is misleading. Suppress all three sections
+              and surface a clear "next step" banner instead. They
+              return once status flips to completed via Ingest. */}
+          <div
+            className="rounded-card border border-muted/40 bg-surface/40 p-4 text-sm text-muted"
+            role="status"
+          >
+            <strong className="text-text">Race in progress.</strong> Per-lap stats are
+            streaming live above. Full analysis (energy curve, zone heatmap, regulation-grounded
+            recommendations, what-if simulation) lands once you ingest this race via the
+            <span className="font-mono"> Ingest → </span> button on{" "}
+            <a href="/upload" className="text-accent hover:underline">/upload</a>.
+            The session row will swap from <em>active</em> to <em>completed</em> automatically.
+          </div>
+        </>
       )}
 
-      {/* Energy curve + zone heatmap */}
+      {/* Energy curve + zone heatmap — hidden while the race is still
+          active; the stub Session has empty laps/forecast and the
+          placeholder text reads as broken. */}
+      {session.summary.status !== "active" && (
       <section className="mb-6 space-y-3">
         <EnergyCurve
           laps={session.laps}
@@ -290,8 +313,10 @@ export function SessionPage() {
           onZoneClick={onZoneClick}
         />
       </section>
+      )}
 
-      {/* Recommendations */}
+      {/* Recommendations — same gate: empty during an active race. */}
+      {session.summary.status !== "active" && (
       <section className="space-y-4">
         <h2 className="text-sm uppercase tracking-wider text-muted mb-1">
           Recommendations ({session.recommendations.length})
@@ -347,6 +372,7 @@ export function SessionPage() {
           })
         )}
       </section>
+      )}
 
       {/* Footer — regulation source rendered from the struct, never hardcoded */}
       {session.regulation_source && (

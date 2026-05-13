@@ -64,7 +64,15 @@ export function TorcsControlPanel() {
     setBusy(true);
     setError(null);
     try {
-      const resp = await api.startTorcsRace({ track: "aalborg", laps: 10 });
+      // Pass a human-readable track_name so the Sessions list shows
+      // "Aalborg" rather than the verbose torcs-live/s_torcs_live_... slug.
+      // v1.1 will surface a track-picker in the UI; for v1.0 default to Aalborg
+      // (the most-tested track in the IBM SkillsBuild lab).
+      const resp = await api.startTorcsRace({
+        track: "aalborg",
+        laps: 10,
+        track_name: "Aalborg",
+      });
       // The session row doesn't exist on disk yet — gym_torcs needs to
       // run, telemetry needs to land, then the user (or a future
       // automation step) POSTs torcs-live. For v1.0 the user manually
