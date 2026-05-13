@@ -151,6 +151,9 @@ export interface Recommendation {
   guardian: GuardianResult;
 }
 
+export type SessionSourceKind = "upload" | "torcs_live";
+export type SessionStatusKind = "completed" | "active" | "cancelled";
+
 export interface SessionSummary {
   session_id: string;
   uploaded_at: string;          // ISO-8601
@@ -160,6 +163,26 @@ export interface SessionSummary {
   zone_count: number;
   track_id: string | null;
   note: string | null;
+  // Phase 1 lifecycle fields — backward-compatible (defaults: upload + completed)
+  session_source: SessionSourceKind;
+  status: SessionStatusKind;
+  track_name: string | null;
+  target_laps: number | null;
+  started_at: string | null;     // ISO-8601
+  completed_at: string | null;   // ISO-8601
+  telemetry_file: string | null;
+}
+
+export interface SessionListResponse {
+  sessions: SessionSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SessionListParams {
+  limit?: number;
+  offset?: number;
 }
 
 export interface Session {

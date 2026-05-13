@@ -39,6 +39,8 @@ import type {
   Recommendation,
   RegulationSource,
   Session,
+  SessionListParams,
+  SessionListResponse,
   SessionSummary,
   TorcsStatusResponse,
   VersionResponse,
@@ -143,6 +145,14 @@ function layeredDefenseSession(): Session {
     track_id: f.input.track_id,
     note:
       "Layered-defense demo — Pass-1 caught a fabricated citation; Pass-2 said both criteria 'No risk'. The system surfaces the failure rather than silently dropping it.",
+    // Phase 1 lifecycle defaults (fixtures predate the field; UPLOAD/COMPLETED is the right shape)
+    session_source: "upload",
+    status: "completed",
+    track_name: null,
+    target_laps: null,
+    started_at: null,
+    completed_at: null,
+    telemetry_file: null,
   };
   const reg = recommendation.reasoning.regulation_citation;
   return {
@@ -372,6 +382,26 @@ export const api = {
       return fixtureSession(resolveFixtureName(opts, sessionId));
     }
     return jsonFetch<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      signal: opts?.signal,
+    });
+  },
+
+  async listSessions(
+    params: SessionListParams = {},
+    opts?: ApiOpts,
+  ): Promise<SessionListResponse> {
+    // Phase 1 — drives the Session History page at /sessions. No
+    // fixture-mode synthesis: fixtures are deep-link targets, not list
+    // entries. When the backend is unreachable in fixture mode the
+    // page renders an empty state gracefully.
+    if (resolveFixture(opts)) {
+      return { sessions: [], total: 0, limit: params.limit ?? 50, offset: params.offset ?? 0 };
+    }
+    const qs = new URLSearchParams();
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return jsonFetch<SessionListResponse>(`/api/sessions${suffix}`, {
       signal: opts?.signal,
     });
   },
