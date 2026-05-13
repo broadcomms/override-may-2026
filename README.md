@@ -278,10 +278,10 @@ Deferred from v1.0 for clean ship; documented here rather than half-implemented:
 |---|---|---|
 | **TTM-R2 5-lap SoC forecasting** (FR-3) | Deferred — graceful-degradation guardrail makes it optional; energy curve renders an explicit "Forecast unavailable" badge | `core/forecasting.py` (stub), [`docs/06-roadmap.md`](docs/06-roadmap.md) |
 | **Section B (Sporting Regulations) grounding** | PDF cached at `data/regs/`; not yet in the chunk corpus. Adds Override-Mode availability rules to `unused-override` zone citations (currently ships with `regulation_citation = null`) | [`docs/regulation-source.md`](docs/regulation-source.md) §"deliberately out of scope" |
-| **GET /api/sessions list endpoint + SessionsPage** | Storage helper exists; endpoint not wired. SessionsPage carries an explicit v1.1 framing rather than "coming soon" | `ui/src/pages/SessionsPage.tsx` |
-| **True streaming TORCS ingest** | Current `POST /api/sessions/torcs-live` is lap-paced batch ingest. SSE pushing per-lap zone detections as `torcs_jm_par.py` writes them is v1.1 | `ingest/torcs_parser.py`, `api/main.py` |
+| **Interactive TORCS control (start/stop race from UI)** | Phase 2 of the v1.1 plan — HTTP control daemon inside the torcs container with shared-secret auth. v1.0 ships with terminal-driven race control via `python3 torcs_jm_par.py` | [`docs/roadmap-v1.1/interactive-torcs-integration-v3-final.md`](docs/roadmap-v1.1/interactive-torcs-integration-v3-final.md) §2 |
+| **Live per-lap SSE telemetry stream** | Phase 3 of the v1.1 plan — pushes lap completions as gym_torcs writes them; v1.0 ships lap-paced batch ingest only via `POST /api/sessions/torcs-live` | [`docs/roadmap-v1.1/interactive-torcs-integration-v3-final.md`](docs/roadmap-v1.1/interactive-torcs-integration-v3-final.md) §3 |
 | **Full Ollama-only mode** | Today: chat only via `granite4:350m`. Guardian + Embedding equivalents not in the shipped Ollama model — see ADR-003 for the migration path | [`docs/adrs/ADR-003-llm-runtime-abstraction.md`](docs/adrs/ADR-003-llm-runtime-abstraction.md) |
-| **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (301 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
+| **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (316 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
 
 ## What this is not
 

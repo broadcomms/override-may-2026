@@ -149,24 +149,34 @@ Upload a replay. Multipart form. Triggers the full pipeline synchronously: inges
 
 ### 4.4 `GET /api/sessions`
 
-Lists `SessionSummary` objects sorted by `uploaded_at` descending.
+Lists `SessionSummary` objects sorted by `uploaded_at` descending. Wired
+in Phase 1 (was deferred to Tier 2 in earlier v6 plan); backs the Session
+History UI at `/sessions`.
 
 **Query parameters**
 
 | Param | Type | Default | Notes |
 |---|---|---|---|
-| `limit` | int | `20` | clamped to `[1, 100]` |
-| `offset` | int | `0` | |
+| `limit` | int | `50` | clamped to `[1, 200]`; `> 200` returns `422` |
+| `offset` | int | `0` | `>= 0`; `< 0` returns `422` |
 
-**Response 200** — `SessionList` per [`04-schema.md` §11](./04-schema.md#11-api-surface-types).
+**Response 200** — `SessionListResponse`:
 
 ```json
 {
-  "sessions": [ /* SessionSummary × N */ ],
-  "next_offset": 20,
-  "total": 47
+  "sessions": [ /* SessionSummary × N (newest first) */ ],
+  "total": 47,
+  "limit": 50,
+  "offset": 0
 }
 ```
+
+Each `SessionSummary` includes the Phase 1 lifecycle fields documented
+in [`04-schema.md` §11](./04-schema.md#11-api-surface-types): `session_source`
+(`upload` | `torcs_live`), `status` (`completed` | `active` | `cancelled`),
+plus optional `track_name`, `target_laps`, `started_at`, `completed_at`,
+`telemetry_file`. Sessions persisted before Phase 1 inherit `session_source=upload`
+and `status=completed` defaults — backward-compatible.
 
 ### 4.5 `GET /api/sessions/{session_id}`
 
@@ -266,12 +276,31 @@ Ingest a JSONL telemetry capture from the shared `torcs-telemetry` named volume 
 **Request body** (`application/json`)
 
 ```json
-{ "run_id": "baseline" }
+{
+  "run_id": "baseline",
+  "track_name": "Monza",
+  "target_laps": 10,
+  "notes": "calibration lap, baseline setup"
+}
 ```
 
-`run_id` is constrained to `^[A-Za-z0-9_-]+$` (Pydantic-validated; the path resolves as `/app/data/telemetry/{run_id}.jsonl`).
+Required:
+- `run_id` — `^[A-Za-z0-9_-]+$`, 1–64 chars (path resolves as `/app/data/telemetry/{run_id}.jsonl`)
+
+Optional Phase 1 metadata (all embed into the resulting `SessionSummary`):
+- `track_name` — string ≤ 80 chars
+- `target_laps` — int 0–999
+- `notes` — string ≤ 500 chars (written to `summary.note`)
 
 **Response 201** — full `Session` per [`04-schema.md` §11](./04-schema.md#11-api-surface-types), identical shape to `POST /api/sessions`. The pipeline runs end-to-end (`ingest/torcs_parser.parse_torcs_session` → analysis → reasoning → Pass-1 + Pass-2 → optional fan-mode hydration) using the same `Depends()` wired watsonx clients as the multipart upload path.
+
+`session.summary` is enriched at the API boundary (the pipeline itself stays domain-pure) with:
+- `session_source = "torcs_live"`
+- `status = "completed"`
+- `track_name`, `target_laps`, `notes` from the request body
+- `started_at` — UTC datetime, parsed from the first observation's `t` field (the Phase 1 logger injection in `RaceYourCode/gym_torcs/torcs_jm_par.py`). Falls back to file `st_mtime` if the capture is older or `t` is unparseable.
+- `completed_at` — UTC datetime from file `st_mtime` (last-written timestamp)
+- `telemetry_file` — basename of the originating JSONL (e.g. `"baseline.jsonl"`)
 
 **Response 400** — `error_code: "EMPTY_RUN"` when the file exists but yields zero observations after the JSONL safe-read skips incomplete tails.
 
@@ -294,13 +323,20 @@ Discovery helper for the live-ingest path. Lists every `*.jsonl` file in `/app/d
     {
       "run_id": "baseline",
       "size_bytes": 64753245,
-      "lap_count_estimate": 12
+      "lap_count_estimate": 12,
+      "started_at": "2026-05-12T18:12:31+00:00",
+      "last_written_at": "2026-05-12T18:23:45+00:00",
+      "duration_seconds": 674.0
     }
   ]
 }
 ```
 
-`lap_count_estimate` is a cheap heuristic from the parser (uses the `distFromStart` start-line crossings without parsing the full file). Cheap to compute; exact lap count comes back in the `Session.summary.lap_count` after a real ingest.
+Phase 1 enrichment per run:
+- `lap_count_estimate` — cheap heuristic from file size (~5000 ticks per lap at 50 Hz).
+- `started_at` — UTC ISO-8601, derived from the first observation's `t` field via `_extract_start_time` (logger injection). Falls back to `last_written_at` if `t` is absent.
+- `last_written_at` — UTC ISO-8601, from file `st_mtime`.
+- `duration_seconds` — `last_written_at − started_at`, clamped to ≥ 0.
 
 When the `torcs` compose profile isn't running, the named volume still exists but is empty → `{ "available": false, "runs": [] }`. The UI uses this to hide the banner entirely, making the live-TORCS affordance pure progressive enhancement.
 

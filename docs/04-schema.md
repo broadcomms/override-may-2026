@@ -302,6 +302,15 @@ class Recommendation(BaseModel):
 Lightweight session-level metadata (returned by `GET /api/sessions`).
 
 ```python
+class SessionSource(str, Enum):
+    UPLOAD = "upload"          # default; POST /api/sessions (multipart) or fixture-mode
+    TORCS_LIVE = "torcs_live"  # POST /api/sessions/torcs-live volume-ingest path
+
+class SessionStatus(str, Enum):
+    COMPLETED = "completed"    # default; pipeline finished, recommendations available
+    ACTIVE = "active"          # race in progress (v1.1 control daemon — not emitted in v1.0)
+    CANCELLED = "cancelled"    # race stopped before completion (v1.1)
+
 class SessionSummary(BaseModel):
     session_id: str
     uploaded_at: datetime
@@ -312,9 +321,21 @@ class SessionSummary(BaseModel):
     track_id: Optional[str] = None
     note: Optional[str] = None         # surface-level message about the session
                                        # (e.g., "Truncated from 147 to 120 laps")
+    # Phase 1 lifecycle metadata (all optional, backward-compatible defaults).
+    session_source: SessionSource = SessionSource.UPLOAD
+    status: SessionStatus = SessionStatus.COMPLETED
+    track_name: Optional[str] = None       # human-readable track label, e.g. "Monza"
+    target_laps: Optional[int] = None      # operator-supplied lap-count goal
+    started_at: Optional[datetime] = None  # first-observation `t` from the JSONL capture
+    completed_at: Optional[datetime] = None  # capture file st_mtime at ingest time
+    telemetry_file: Optional[str] = None   # basename only (no path); set when session_source=TORCS_LIVE
 ```
 
 `note` is rendered as a small caption on the session card and on `/sessions`. It is not error-channel — errors use `ApiError`. Use it for non-fatal events the user should know about (truncation, derived energy state, missing track ID, etc.).
+
+**Backward compatibility**: existing entries in `data/sessions/_index.json` from before the Phase 1 ship don't carry the new fields; Pydantic applies the `UPLOAD` / `COMPLETED` defaults at load time. No migration step needed.
+
+**`source` vs `session_source`** — orthogonal concepts. `source` describes which parser ran (TORCS observation shape vs FastF1 parquet shape). `session_source` describes how the session got into the system (multipart upload vs volume-ingest endpoint). A TORCS-source session can come from either ingest path; a FastF1-source session always comes from `UPLOAD`.
 
 ### `Session`
 
@@ -329,16 +350,19 @@ class Session(BaseModel):
     regulation_source: Optional[RegulationSource]   # for the citations cited; null if none used
 ```
 
-### `SessionList`
+### `SessionListResponse`
 
-Paged listing returned by `GET /api/sessions`.
+Paged listing returned by `GET /api/sessions` (Phase 1 ship).
 
 ```python
-class SessionList(BaseModel):
-    sessions: list[SessionSummary]
-    next_offset: Optional[int]               # null when there are no more results
-    total: int
+class SessionListResponse(BaseModel):
+    sessions: list[SessionSummary]   # newest first by uploaded_at
+    total: int                       # total session count across all pages
+    limit: int                       # echoes the query param (default 50, max 200)
+    offset: int                      # echoes the query param (default 0)
 ```
+
+The historical `SessionList` shape (`{sessions, next_offset, total}`) was a v6-plan-era draft; v1.0 ships `SessionListResponse` with explicit `limit` / `offset` echo so the client can render page indicators without computing them locally.
 
 ### `LapsResponse`
 
