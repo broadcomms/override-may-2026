@@ -30,7 +30,9 @@ This document is the runbook for the Cloudflare Tunnel deployment (v6 plan §3.7
                                        └──────────────────────────────────────────────┘
 ```
 
-Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → `torcs` → Public Hostnames):
+Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → `torcs` → Public Hostnames).
+
+> **Currently live in v1.0: `override.patrickndille.com` only.** The table below documents the route topology pattern; additional gated routes can be added by extending the Cloudflare Tunnel configuration with Access policies as shown in §3. The torcs/jaeger/ollama/langflow rows below are reference for anyone wanting to expand the deployment — they are NOT live on the v1 submission.
 
 | Subdomain | → Local service | Auth | Purpose |
 |---|---|---|---|
