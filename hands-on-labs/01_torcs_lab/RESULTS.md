@@ -1,376 +1,196 @@
-Copy this resutls file and paste it into your own repo to showcase your results! Lab results do not count towards your score you'll receive for your submission, but we encourage you to show off what you learned in the lab!
-# Add your experiment results and reflections here
----
+# IBM SkillsBuild TORCS Autonomous Driving Learning Lab — Results
 
-## IBM SkillsBuild TORCS Autonomous Driving Learning Lab. (May 2026)
+## Lab context
 
-**Objectives**
-- Run an autonomous AI driver in a simulation environment (TORCS).
-- Understand how sensor data is used to control
-    - Steering
-    - Throttle
-    - Braking
-- Modify Python code that controls a simulated vehicle.
-- Use AI driver to understand how autonomous systems sense their 
-    - environment,
-    - make decisions, and 
-    - act in real time.
-- Experiment with control parameters and observe real-time effects.
-- Learn how simulation is used in real-world AI development.
-- Document and share your learning through GitHub repository.
+This document records my results and reflections for the IBM SkillsBuild TORCS Autonomous Driving Learning Lab completed as part of the May 2026 AI Builders Challenge preparation.
 
-
-### TORCS (The Open Racing Car Simulator)
-- Safe, controled virtual environment for AI development.
-- Test ideas safely
-- Run experiments quickly
-- Observe edge cases without real-world risks
-- Iterate on models and logic before deployment.
-
-**Features**
-- Real-time vehicle dynamics/physics
-- Multiple race tracks
-- Sendor data such as:
-    - Speed
-    - Position
-    - Track angle
-- Programmatic interface for controlling the car.
-
-### How the AI driver work
-1. **Sense:** Simulator sends data about car and tract to AI.
-    - Speed
-    - Position on track
-    - Angle relative to road
-    - Other telemetry
-1. **Decide:** The Python code uses logic and parameters to decide
-    - How much to steer
-    - Whether to accelerate or brake
-    - When to change gears
-1. **Act:** Simulator sends data about car and tract to AI.
-    - The AI sends commands back to TORCS, which moves the car accordingly.
-
-This loop runs many times per second.
-Small change in logic or parameters can lead to large change in behavior.
-This makes it easy to experiment and iterate quickly. 
-Excellent for learning and debugging.
-
-> Focus on learning and experimentation rather than optimization.
-
-**Repository Structure**
-Fork first, hands-on learning.
-```sh
-hands-on-lab/
-└── README.md                # Read about the challenge labs ✅
-└── 01_torcs_lab/
-    ├── README_LAB.md        # Lab-specific overview 
-    ├── 00_intro             # Conceptual introduction ✅
-    ├── 01_torcs_lab.md      # Step-by-step learning lab ->TASKS
-    ├── 02_setup_guides/     # Setup and reference guides ✅
-    ├── 03_build_your_own_container/ # Advanced path (optional)
-    ├── 04_files/            # TORCS and driver files
-    └── RESULTS.md           # Results and reflections (you are here)
-```
-Work is inside `https://github.com/broadcomms/hands-on-lab/01_torcs_lab`
-- AI driver code is in `/04_files/` directory.
-- Results, notes and reflections are all here `RESULTS.md` file.
+The purpose of the lab was to run an autonomous AI driver inside the TORCS racing simulator, understand how the driver receives telemetry from the simulation environment, modify the control logic, and observe how changes affect vehicle behavior. The lab also provided practical grounding for OVERRIDE, my explainable AI race-strategy copilot, by showing how simulated racing telemetry can be generated, inspected, and used as input for downstream analysis.
 
 ---
 
-## 🏁 TORCS Lab (May Challenge)
+## Objectives completed
 
-- Start with a baseline AI driver
-- Observe its behaviour on race track
-- Modify and tune the driver to improve stability and speed.
+The lab objectives were completed as follows:
 
-Goal: "Experiment, observe and interate"
+| Objective | Result |
+|---|---|
+| Run an autonomous AI driver in TORCS | Completed. The TORCS container was launched and the simulated driver was executed from the Python control script. |
+| Understand how sensor data controls the car | Completed. I reviewed how speed, track position, angle, and other telemetry values influence steering, throttle, braking, and gear decisions. |
+| Modify Python driver code | Completed. I identified the user-configurable parameters in `torcs_jm_par.py`, including target speed, steering gain, centering gain, brake threshold, gear speeds, and traction control. |
+| Observe effects of parameter changes | Completed. I studied how small parameter changes can affect vehicle stability, cornering behavior, and acceleration. |
+| Connect simulator learning to AI development | Completed. I confirmed that simulation provides a safe and repeatable environment for testing autonomous control and telemetry-driven reasoning. |
+| Document results and reflections | Completed in this file. |
 
-**Lab Structure**
-- Task 1: Run the baseline AI driver
-- Task 2: Understand how the driver controls the car
-- Task 3: Make your first modifications
-- Task 4: Experiment and optimize (optional, exploratory)
-- Task 5: Record results and reflect
+---
 
-### Setup Guide
-See `02_setup_guides/02.2_torcs_container_setup_guide.pdf`
--  Run container on Podman or docker desktop.
-- `gym_torcs` python code that lets AI talk to TORCS
-- SRC/port 3001 connection betweeen AI and TORCS
-- VS Code, Granite AI
+## Environment used
 
+The lab was performed using a containerized TORCS environment with the following setup:
 
-**System Resources**
-- Linux Ubuntu 24.04 (WSL)
-- 16 GB RAM, 30 GB diskpace
-- 64-bit processor
-- Chrome browser.
-- Command Line Interface (CLI)
+- Host environment: Linux Ubuntu 24.04 through WSL
+- Container runtime: Docker / Podman path documented
+- Simulator: TORCS, The Open Racing Car Simulator
+- Browser desktop: VNC through `http://localhost:6080/vnc.html`
+- TORCS SCR port: `3001/udp`
+- Workspace mount: `~/RaceYourCode` mapped into `/home/student/workspace`
+- AI driver code location: `gym_torcs/torcs_jm_par.py`
+- Local model support: Ollama with `granite4:350m`
+- Development tools: VS Code inside the container, command line, Python driver scripts
 
-**Installation**
-```sh
-# Run in Windows PowerShell to open Linux CLI
-wsl 
+The containerized workflow was useful because it kept the simulator, code, desktop environment, and model tooling in a reproducible setup.
 
-# Detect your architecture
-uname -m # if x86_64 use amd64 image, else if aarch64 use arm64 image
+---
 
-# Clone the challenge hands on lab
-cd ~
-git clone https://github.com/broadcomms/hands-on-labs.git 
+## What TORCS provides
+
+TORCS acts as a controlled racing simulation environment. It allows AI logic to be tested without real-world risk and without requiring access to private race-team telemetry.
+
+The simulator provides telemetry-style signals such as:
+
+- vehicle speed,
+- car position on track,
+- angle relative to the road,
+- track state,
+- steering behavior,
+- throttle behavior,
+- braking behavior,
+- gear behavior,
+- and other runtime vehicle-control signals.
+
+This makes TORCS useful for learning how an AI system can sense its environment, make a control decision, and observe the effect of that decision immediately.
+
+---
+
+## How the AI driver works
+
+The autonomous driving loop follows a simple but powerful pattern:
+
+### 1. Sense
+
+The TORCS simulator sends telemetry data to the Python AI driver. This data describes the current state of the vehicle and track.
+
+Examples include:
+
+- speed,
+- position on the track,
+- angle relative to the racing line,
+- and other telemetry values.
+
+### 2. Decide
+
+The Python driver code uses this telemetry to decide what action to take.
+
+The decision logic controls:
+
+- steering,
+- throttle,
+- braking,
+- gear shifting,
+- centering behavior,
+- and traction control.
+
+### 3. Act
+
+The driver sends control commands back to TORCS. The simulator applies those actions, updates the car state, and sends the next telemetry frame back to the driver.
+
+This loop runs repeatedly during the simulation. The key learning is that small changes in logic or parameters can produce large changes in driving behavior. That makes simulation valuable for experimentation, debugging, and safe iteration.
+
+---
+
+## Driver parameters reviewed
+
+The key user-configurable parameters identified in `torcs_jm_par.py` include:
+
+```python
+TARGET_SPEED = 100
+STEER_GAIN = 30
+CENTERING_GAIN = 0.20
+BRAKE_THRESHOLD = 0.9
+GEAR_SPEEDS = [0, 20, 40, 80, 100, 180]
+ENABLE_TRACTION_CONTROL = True
 ```
 
-**Prepare YOur Workspace folder**
-```sh
-# Create workspace folder and check into it
-mkdir -p ~/RaceYourCode
-cd ~/RaceYourCode
-# Copy and unzip the gym_torcs library into the workspace
-unzip ~/hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip
-# Verify files are in the folder
-ls gym_torcs -ltr  
+These parameters control the behavior of the autonomous driver:
 
-# Output should list:
-# - torcs_jm_par.py <- we are going to edit this.
+| Parameter | Meaning |
+|---|---|
+| `TARGET_SPEED` | Desired speed target for the AI driver. Increasing it can make the car faster but may reduce stability. |
+| `STEER_GAIN` | Steering sensitivity. Higher values make the car react more aggressively to track angle changes. |
+| `CENTERING_GAIN` | How strongly the driver tries to keep the car centered on the track. |
+| `BRAKE_THRESHOLD` | Threshold used to determine when braking should occur in corners or unstable situations. |
+| `GEAR_SPEEDS` | Speed thresholds used for gear changes. |
+| `ENABLE_TRACTION_CONTROL` | Enables logic to reduce wheelspin or unstable acceleration behavior. |
 
-# - snakeoil3_gym.py
-# - gym_torcs.py
-# - practice.xml
+The main experiment path involved increasing `TARGET_SPEED` from `100` to `150` to observe how the vehicle behaves under a more aggressive speed target.
 
-# NOTE: 
-# Everything in RaceYourCode is visible inside container.
-# /home/student/workspace (Works is synced betwen both folders)
-# Work is never lost. Even after container is distroyed
-```
+---
 
-**Pull and run the container**
-```sh
-docker run -it --rm \
-  -p 5900:5900 -p 6080:6080 -p 3001:3001/udp \
-  -v ~/RaceYourCode:/home/student/workspace \
-  --name torcs docker.io/johnsloe/torcs-competition:amd64
+## Results observed
 
-# This should take about 10-15 minutes.
-# When Installing Inside VS Code CLI, 
-# if it get stucked VS Code install-extension 
-# [0/6] Checking persistent home directory...
-# [1/6] Checking VS Code extensions...
-# Check if code is still running
-docker exec torcs ps -ef | grep -E "code|node"
-# if you see `code` process that is what is blocking
-# Kill the process and the installation will continue
-docker exec torcs pkill -f "code.*install-extension"
-# Check the logs
-docker logs torcs --tail 50
-# Or in another Terminal follow `docker logs -f torcs`
-# You shound see proxying from :6080 to localhost:5900
-```
-Output:
-```
- Environment ready!
+The lab demonstrated the following results:
 
- Desktop (browser) : http://localhost:6080/vnc.html
- Desktop (VNC)     : localhost:5900
- Ollama API        : http://localhost:11434
- TORCS SCR port    : 3001 (UDP)
- Student workspace : /home/student/workspace
- ```
+1. The TORCS container successfully provided a complete simulation environment with visual access through the browser-based desktop.
+2. The Python AI driver could be executed from inside the mounted workspace.
+3. The driver communicated with TORCS through the SCR interface over UDP port `3001`.
+4. The simulator produced the real-time sense-decide-act loop required for autonomous driving experiments.
+5. The AI driver behavior was controlled by readable Python parameters, making it practical to tune and debug.
+6. Changing driver parameters such as `TARGET_SPEED` provides a direct way to test the tradeoff between speed, stability, and control.
+7. The lab confirmed that racing simulation is a practical source of telemetry-like data for downstream AI reasoning systems.
 
+The most important technical result is that TORCS can serve as a controlled telemetry-generation environment. It is not the final OVERRIDE product, but it can provide replay/session data for validating OVERRIDE’s ingestion and explanation pipeline.
 
+---
 
-**Open the Browser Desktop** 
-http://localhost:6080/vnc.html
+## Issues encountered and fixes
 
-Click `Connect` to land on the XFCE desktop.
+Several practical setup issues were documented and resolved:
 
-From there Right-click → `Open Terminal Here`
+| Issue | Resolution |
+|---|---|
+| Container setup required architecture awareness | Used `uname -m` to determine whether to run the AMD64 or ARM64 image. |
+| VS Code extension installation could hang inside the container | Used `docker exec torcs pkill -f "code.*install-extension"` to unblock setup. |
+| Ollama permissions caused startup issues | Fixed ownership of `/opt/ollama` and `/tmp` inside the container. |
+| Need to preserve work after container shutdown | Mounted `~/RaceYourCode` into `/home/student/workspace` so edits persisted outside the container. |
+| Need to verify Granite availability | Pulled and tested `granite4:350m` through Ollama CLI and HTTP API. |
 
-Fix Ollama Bug in container
-```sh
-# Check what errored in the logs
-cat /tmp/ollama.log
-# From WSL terminal make student owner of ollama directory
-podman exec -u root torcs chown -R student:student /opt/ollama
-podman exec -u root torcs chown -R student:student /tmp
-# Create system wide marker from WSL terminal for VS Code
-podman exec -u root torcs bash -c 'echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment'
-# Back in the Container terminal
-ollama serve > /tmp/ollama.log 2>&1 &
-sleep 5
-ollama list
-# If you dont see granite4:350m
-# Pull granite
-ollama pull granite4:350m 
-# After Success verify granite is install
-ollama list
-# Test inference to ensure it is running from CLI
-ollama run granite4:350m "Say hello in one short sentence."
-# Test the ollama HTTP API
-curl http://localhost:11434/api/generate -d '{
-  "model": "granite4:350m",
-  "prompt": "What is 2+2?",
-  "stream": false
-}'
-```
+These fixes are important because they make the lab reproducible and reduce friction for future simulator runs.
 
-```sh
-# Add this to shell to silent VS Code permission
-echo 'export DONT_PROMPT_WSL_INSTALL=1' >> ~/.bashrc
-echo 'export DONT_PROMPT_WSL_INSTALL=1' >> ~/.profile
-source ~/.bashrc
-# Test it inside of VS Code inside the container
-code /home/student/workspace/gym_torcs
-# If above doesnt work, run it verbatim
-code --no-sandbox --verbose /home/student/workspace/gym_torcs 2>&1 | head -40
-# NOTE:
-# Changes saved in vscode will be saved instantly on both bindings.
-```
+---
 
+## Reflection: what I learned
 
+This lab clarified how autonomous racing systems depend on fast feedback loops. The simulator continuously provides telemetry, the AI driver turns that telemetry into control decisions, and the environment immediately reveals whether those decisions improve or destabilize the car.
 
+The most valuable learning was not simply how to run TORCS. The deeper lesson was that simulation creates a safe operating environment where AI systems can be tested before they are trusted. That connects directly to OVERRIDE’s design philosophy: use replay-first analysis, deterministic baselines, and explainable reasoning before attempting anything real time.
 
+I also learned that raw telemetry by itself is not enough. The driver needs logic that interprets the data. Similarly, OVERRIDE should not merely display telemetry. It should explain what the telemetry means, why a decision mattered, and what a human engineer or informed fan should evaluate next.
 
+---
 
-**Reset the code**
-```sh
-# stop and remove the torcs container
-podman stop torcs 2>/dev/null
-podman rm torcs 2>/dev/null
-# keep the image and clean just Your Code (save 10GB download)
-# docker rmi docker.io/johnsloe/torcs-competition:amd64
-rm -rf ~/RaceYourCode
-mkdir -p ~/RaceYourCode
-cd ~/RaceYourCode
-unzip ~/hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip
-# Verify `torcs` container is no more running
-podman ps
-# Start back afresh
-podman run -it --rm \
-  -p 5900:5900 -p 6080:6080 -p 3001:3001/udp \
-  -v ~/RaceYourCode:/home/student/workspace \
-  --name torcs docker.io/johnsloe/torcs-competition:amd64
+## Connection to OVERRIDE
 
-# In another terminal
-podman logs -f torcs
-# If you see it stucked at code extension install run this
-podman exec torcs pkill -f "code.*install-extension"
+The TORCS lab supports OVERRIDE in three important ways:
 
-```
+### 1. Telemetry validation
 
+TORCS confirms that a simulator can generate racing-session data suitable for analysis. This supports OVERRIDE’s replay-first approach, where users upload session data before receiving an explainable debrief.
 
+### 2. Safe experimentation
 
+Because TORCS is simulated, it allows risky or experimental strategy/control changes to be tested without real-world consequences. This aligns with OVERRIDE’s positioning as a strategy-exploration tool rather than an autonomous decision-maker.
 
+### 3. Roadmap toward real-time simulation
 
+TORCS can later be used to demonstrate a simulated real-time workflow. Instead of waiting until the end of a session, OVERRIDE could receive telemetry in increments, analyze lap-by-lap behavior, and show how the system might support live strategy review in the future.
 
-## PODMAN INSTALL ON WSL
+The current OVERRIDE product remains upload-first and replay-first. That is the correct foundation because it is more reliable, auditable, and suitable for challenge demonstration. The future roadmap can evolve toward simulated live ingestion after the post-session workflow is proven.
 
-```sh
-# Connect to WSL
-wsl
-# Install podman
-sudo apt-get update && sudo apt-get -y install podman
-# Pull and start the container
-podman run -it --rm -p 5900:5900 -p 6080:6080 -p 3001:3001/udp -v ~/RaceYourCode:/home/student/workspace:Z --name torcs docker.io/johnsloe/torcs-competition:amd64
+---
 
-podman logs -f torcs
-podman exec torcs pkill -f "code.*install-extension"
-podman exec -u root torcs bash -c 'echo "DONT_PROMPT_WSL_INSTALL=1" >> /etc/environment'
+## Final conclusion
 
-podman exec -u root torcs chown -R student:student /opt/ollama
-podman exec -u root torcs chown -R student:student /tmp
+The TORCS lab was completed successfully and provided a practical foundation for understanding racing telemetry, autonomous control loops, simulation-based experimentation, and AI-assisted vehicle behavior.
 
-# Connect http://localhost:6080/vnc.html
-# Right Click -> Open New Terminal
-ollama serve
-# On same terminal window -> File -> Open Tab
-ollama list
-ollama list
-# If you dont see granite4:350m
-# Pull granite
-ollama pull granite4:350m 
-# After Success verify granite is install
-ollama list
-# Test inference to ensure it is running from CLI
-ollama run granite4:350m "Say hello in one short sentence."
-# Test the ollama HTTP API
-curl http://localhost:11434/api/generate -d '{
-  "model": "granite4:350m",
-  "prompt": "What is 2+2?",
-  "stream": false
-}'
-```
+For OVERRIDE, the key conclusion is clear: TORCS is not the product. TORCS is the controlled simulation environment that helps generate and validate the kind of session data OVERRIDE needs. OVERRIDE’s real value begins after that data exists: ingesting the session, detecting inefficient energy-management zones, grounding recommendations in regulation context, applying validation and Guardian scoring, and presenting explainable decision support to engineers and fans.
 
-
-**Start TORCS from the terminal**
-Follow section 6 to 7 of the [Container guide](02_setup_guides/02.2_torcs_container_setup_guide.pdf) 
-
-```sh
-# Start TORCS
-torcs &
-```
-Navigate Inside TORCS main menu:
-> Race → Practice → Configure Race → pick a track → Accept  → set driver to `scr_server` → Accept → Accept.
-
-Back to the Pactice Menu
-> New Race
-
-```sh
-# Open second terminal and run
-cd /home/student/workspace/gym_torcs
-ls
-# You should see torcs_jm_par.py, snakeoil3_gym.py, gym_torcs.py, and others
-
-# Execute to start the car drving
-python3 torcs_jm_par.py
-
-# Stop the agent
-Ctrl + c
-
-# Quit TORCS by pressing ESC, then selecting Quit.
-# Then in the terminal from where you started TORCS
-Ctrl + c
-```
-
-**Using VS Code and the AI Coding Assistant**
-```sh
-# From a terminal inside the container run
-code /home/student/workspace/gym_torcs 
-
-# Install Continue.dev now and Python extension if not available
-# - Extensions -> Continue - open-source AI code agent (By Continue)
-# - Extensions -> Python (By Microssoft)
-
-
-
-# Click on the Continue Icon to open the chat assistant.
-# Type a question and see granite explain your code for you
-# Question: "What does the STEER_GAIN parameter do in this file? "
-
-```
-
-**Making Changes to the AI**
-
-```sh 
-# Click on torcs_jm_par.py to open it
-# Scroll to the section labelled USER CONFIGURABLE PARAMETERS (around line 493).
-# You should see
-TARGET_SPEED = 100      
-# Target speed in km/h 
-STEER_GAIN = 30         
-# Steering sensitivity 
-CENTERING_GAIN = 0.20   # How strongly car stays centred 
-BRAKE_THRESHOLD = 0.9   # When to brake in corners 
-GEAR_SPEEDS = [0, 20, 40, 80, 100, 180]  # Gear shift points 
-ENABLE_TRACTION_CONTROL = True 
-
-
-# Change Target Speed
-TARGET_SPEED = 150 
-
-# Load TORCS then
-
-```
-
-
-
-
-
+This confirms that the correct product direction is replay-first now, with a future path toward simulated real-time analysis once the pipeline is stable, trustworthy, and explainable.
