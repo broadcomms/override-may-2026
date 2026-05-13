@@ -40,7 +40,6 @@ function isLocalHost(): boolean {
 export function TorcsControlPanel() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
-  const [sessionExists, setSessionExists] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,21 +47,6 @@ export function TorcsControlPanel() {
     try {
       const s = await api.torcsControlStatus();
       setStatus(s);
-      // Phase 2 UX fix: the daemon hands out a session_id on /control/start,
-      // but the actual Session row only exists after the user ingests the
-      // resulting JSONL via /api/sessions/torcs-live. Probe getSession to
-      // know whether the "View live →" link is safe to render — otherwise
-      // it 404s and the panel reads as broken.
-      if (s.active && s.session_id) {
-        try {
-          await api.getSession(s.session_id);
-          setSessionExists(true);
-        } catch {
-          setSessionExists(false);
-        }
-      } else {
-        setSessionExists(false);
-      }
     } catch (_e) {
       // Endpoint always returns 200 in normal operation; a thrown error
       // means the backend is down — silently keep last-known state.
@@ -198,7 +182,7 @@ export function TorcsControlPanel() {
           >
             Stop race
           </button>
-          {status.active && status.session_id && sessionExists && (
+          {status.active && status.session_id && (
             <button
               type="button"
               onClick={() =>
@@ -209,14 +193,6 @@ export function TorcsControlPanel() {
             >
               View live → {status.session_id}
             </button>
-          )}
-          {status.active && status.session_id && !sessionExists && (
-            <span
-              className="ml-auto text-xs text-muted"
-              title="The daemon spawned gym_torcs but no telemetry has been ingested yet. Drive in noVNC, then click 'Ingest →' on the Live TORCS banner below."
-            >
-              awaiting ingest…
-            </span>
           )}
         </div>
       )}

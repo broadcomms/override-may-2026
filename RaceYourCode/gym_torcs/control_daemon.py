@@ -112,6 +112,16 @@ class StartRaceRequest(BaseModel):
     session_id: str = Field(pattern=r"^s_[A-Za-z0-9_]+$", min_length=3, max_length=80)
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
     laps: int = Field(default=10, ge=1, le=200)
+    # When set, the JSONL capture lands at <TELEMETRY_DIR>/<filename>.
+    # Phase 2 enhancement: OVERRIDE passes `<session_id>.jsonl` so the
+    # eventual /api/sessions/torcs-live POST uses the same id end-to-end —
+    # the stub Session written at start-race time is updated by ingest
+    # rather than a fresh row being inserted.
+    telemetry_filename: Optional[str] = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9_-]+\.jsonl$",
+        max_length=120,
+    )
 
 
 class StartRaceResponse(BaseModel):
@@ -200,10 +210,16 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
         env["OVERRIDE_SESSION_ID"] = req.session_id
         env["OVERRIDE_TRACK"] = req.track
         env["OVERRIDE_LAPS"] = str(req.laps)
-        # Directory-mode telemetry path — Phase 1 logger auto-generates
-        # `run_{YYYYMMDDTHHMMSS}.jsonl` inside this dir, so each race
-        # produces a distinct capture file.
-        env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
+        if req.telemetry_filename:
+            # Literal-path mode — the logger writes to this exact filename.
+            # OVERRIDE's torcs-live ingest reads `<run_id>.jsonl` so naming
+            # the file after the session_id keeps the ids aligned end-to-end.
+            env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR.rstrip("/") + "/" + req.telemetry_filename
+        else:
+            # Backward-compat: directory mode → Phase 1 logger auto-generates
+            # `run_{YYYYMMDDTHHMMSS}.jsonl`. Used when /control/start is
+            # called directly with curl (no override-side filename hint).
+            env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
 
         try:
             proc = subprocess.Popen(

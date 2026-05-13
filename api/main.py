@@ -832,16 +832,20 @@ def create_app() -> FastAPI:
     async def torcs_start_race(req: TorcsStartRaceRequest):
         """Generate a session_id, ask the daemon to spawn gym_torcs.
 
-        Returns the daemon's response shape augmented with the OVERRIDE
-        session_id so the UI can immediately deep-link to /session/{id}
-        (the session itself won't exist until the user POSTs torcs-live
-        with the resulting run_id; see below).
+        Phase 2 v1.0 enhancement: also persists a *stub* Session with
+        ``status=ACTIVE`` and ``telemetry_file=<session_id>.jsonl`` so
+        ``/session/{id}`` immediately renders the LiveTelemetry panel.
+        The eventual ``POST /api/sessions/torcs-live`` with the same
+        ``run_id`` will UPDATE this row (the pipeline accepts
+        ``session_id=`` to override the auto-generated slug) rather
+        than inserting a new one — keeps the end-to-end id chain coherent.
         """
         # OVERRIDE owns session_id generation so the daemon's input
         # validation is the only validator that sees this value — keeps
         # the trust boundary small.
         import secrets as _secrets
         session_id = f"s_torcs_live_{int(time.time())}_{_secrets.token_hex(4)}"
+        telemetry_filename = f"{session_id}.jsonl"
 
         status_code, body = await _call_torcs_daemon(
             "POST",
@@ -850,6 +854,10 @@ def create_app() -> FastAPI:
                 "session_id": session_id,
                 "track": req.track,
                 "laps": req.laps,
+                # Make the JSONL filename deterministic so the eventual
+                # torcs-live ingest's run_id matches the daemon-issued
+                # session_id 1:1.
+                "telemetry_filename": telemetry_filename,
             },
             timeout=15.0,
         )
@@ -869,6 +877,42 @@ def create_app() -> FastAPI:
                 detail=str(body)[:300],
                 request_id=new_request_id(),
             )
+        # Write a stub Session with status=ACTIVE so /session/<id> renders
+        # the LiveTelemetry panel from the moment the user clicks Start.
+        # Empty laps/recommendations — the eventual torcs-live POST
+        # replaces them with real pipeline output via run_pipeline(session_id=...).
+        try:
+            stub_summary = SessionSummary(
+                session_id=session_id,
+                uploaded_at=datetime.now(timezone.utc),
+                source="torcs",
+                lap_count=0,
+                forecast_available=False,
+                zone_count=0,
+                track_id=f"torcs-live/{session_id}",
+                session_source=SessionSource.TORCS_LIVE,
+                status=SessionStatus.ACTIVE,
+                track_name=req.track_name,
+                target_laps=req.laps,
+                started_at=datetime.now(timezone.utc),
+                completed_at=None,
+                telemetry_file=telemetry_filename,
+                note=req.notes,
+            )
+            stub_session = Session(
+                summary=stub_summary,
+                laps=[],
+                forecast=None,
+                recommendations=[],
+                regulation_source=None,
+            )
+            save_session(stub_session)
+        except Exception:
+            # Stub-write failures shouldn't fail the race-start — the
+            # daemon's gym_torcs is already running. Log and continue;
+            # the ingest path will create the session row as before.
+            logger.exception("torcs_start_race: stub session write failed (non-fatal)")
+
         return {
             "session_id": session_id,
             "pid": body.get("pid"),
@@ -991,6 +1035,17 @@ def create_app() -> FastAPI:
                 request_id=rid,
             )
 
+        # Phase 2 v1.0 — if a stub Session row was pre-created by
+        # /api/torcs/start-race (run_id is the daemon-issued session_id),
+        # adopt that session_id so the eventual write UPDATES the stub
+        # instead of inserting a fresh row under a new pipeline-generated
+        # slug. Recognized by the s_torcs_live_ prefix; falls back to
+        # auto-generation for legacy curl-driven ingest (run_id="baseline"
+        # etc.) — backward-compatible.
+        adopt_session_id: Optional[str] = (
+            body.run_id if body.run_id.startswith("s_torcs_live_") else None
+        )
+
         try:
             session = await run_pipeline(
                 laps=laps,
@@ -1001,6 +1056,7 @@ def create_app() -> FastAPI:
                 source="torcs",
                 track_id=f"torcs-live/{body.run_id}",
                 chunks_path=_chunks_path(),
+                session_id=adopt_session_id,
             )
         except HTTPException:
             raise

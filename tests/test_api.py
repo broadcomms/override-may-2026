@@ -1065,6 +1065,118 @@ def test_stop_race_idempotent_when_no_active_race(tmp_path, monkeypatch):
     assert r.json()["status"] == "no_active_race"
 
 
+def test_start_race_writes_stub_active_session(tmp_path, monkeypatch):
+    """Phase 2 v1.0 enhancement — Start race persists a stub Session
+    with status=ACTIVE and telemetry_file=<session_id>.jsonl so
+    /session/<id> renders the LiveTelemetry panel immediately. The
+    eventual torcs-live POST updates this row rather than inserting."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(201, json={
+            "session_id": captured["body"]["session_id"],
+            "pid": 1234,
+            "telemetry_dir": "/home/student/workspace/gym_torcs/telemetry/",
+        })
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/torcs/start-race",
+        json={"track": "aalborg", "laps": 5, "track_name": "Aalborg", "notes": "stub test"},
+    )
+    assert r.status_code == 201, r.text
+    sid = r.json()["session_id"]
+    assert sid.startswith("s_torcs_live_")
+    # Daemon got the deterministic filename
+    assert captured["body"]["telemetry_filename"] == f"{sid}.jsonl"
+
+    # The stub Session must be reachable via GET /api/sessions/{id}
+    r2 = client.get(f"/api/sessions/{sid}")
+    assert r2.status_code == 200, r2.text
+    summary = r2.json()["summary"]
+    assert summary["session_id"] == sid
+    assert summary["status"] == "active"
+    assert summary["session_source"] == "torcs_live"
+    assert summary["telemetry_file"] == f"{sid}.jsonl"
+    assert summary["track_name"] == "Aalborg"
+    assert summary["target_laps"] == 5
+    assert summary["lap_count"] == 0       # stub — laps land via torcs-live ingest
+    assert summary["zone_count"] == 0
+
+    # And the stub must appear in the GET /api/sessions index
+    r3 = client.get("/api/sessions")
+    ids = {s["session_id"] for s in r3.json()["sessions"]}
+    assert sid in ids
+
+
+def test_torcs_live_updates_stub_session_when_run_id_matches(tmp_path, monkeypatch):
+    """Phase 2 v1.0 enhancement — when torcs-live is called with a
+    run_id matching the daemon's session_id prefix (s_torcs_live_...),
+    the pipeline adopts that session_id so the write UPDATES the stub
+    Session row instead of inserting a fresh slug."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def daemon_handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        return httpx.Response(201, json={
+            "session_id": body["session_id"],
+            "pid": 5555,
+            "telemetry_dir": "/home/student/workspace/gym_torcs/telemetry/",
+        })
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(daemon_handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    # 1) Start race → stub session written, JSONL filename pinned
+    start = client.post(
+        "/api/torcs/start-race",
+        json={"track": "aalborg", "laps": 3, "track_name": "Aalborg"},
+    ).json()
+    sid = start["session_id"]
+
+    # 2) Simulate gym_torcs writing the JSONL with that exact filename
+    (telem / f"{sid}.jsonl").write_bytes(_torcs_jsonl_payload(n_laps=2))
+
+    # 3) Ingest via torcs-live with run_id=session_id — should UPDATE stub
+    r = client.post("/api/sessions/torcs-live", json={"run_id": sid})
+    assert r.status_code == 201, r.text
+    ingested = r.json()
+    assert ingested["summary"]["session_id"] == sid     # adopted from run_id, not pipeline-generated
+    assert ingested["summary"]["status"] == "completed"  # stub flipped from active
+    assert ingested["summary"]["lap_count"] >= 1        # real lap data wrote in
+
+    # 4) Only ONE row exists in the index — not a stub + a fresh one
+    listing = client.get("/api/sessions").json()
+    matching = [s for s in listing["sessions"] if s["session_id"] == sid]
+    assert len(matching) == 1
+    assert matching[0]["status"] == "completed"
+
+
 def test_start_race_validates_track_pattern(tmp_path, monkeypatch):
     """Pydantic rejects malformed track BEFORE we proxy. Defense in
     depth — the daemon also validates, but failing fast here means the
