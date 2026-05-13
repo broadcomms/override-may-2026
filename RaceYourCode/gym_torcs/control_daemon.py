@@ -246,6 +246,29 @@ def _write_quickrace_config(track: str, laps: int) -> str:
         count=1,
     )
 
+    # Phase 2.6 fix — force GUI rendering. Without this attribute, torcs -r
+    # defaults to TEXT-MODE / batch results (no 3D window in noVNC, race
+    # still runs and SCR serves normally). Probed 2026-05-13: stock
+    # quickrace.xml doesn't carry `display mode`, so torcs uses its `-r`
+    # default of headless. Append <attstr name="display mode" val="normal"/>
+    # to the Quick Race section just after the `laps` attribute.
+    # Idempotent: if "display mode" already exists, replace its value;
+    # otherwise inject the new attribute.
+    if 'name="display mode"' in patched:
+        patched = re.sub(
+            r'(<attstr\s+name="display mode"\s+val=")[^"]+("/>)',
+            r'\g<1>normal\g<2>',
+            patched,
+            count=1,
+        )
+    else:
+        patched = re.sub(
+            r'(<attnum\s+name="laps"\s+val="[^"]+"/>)',
+            r'\g<1>\n    <attstr name="display mode" val="normal"/>',
+            patched,
+            count=1,
+        )
+
     # Defensive: verify scr_server driver module survived the patch.
     if 'name="module" val="scr_server"' not in patched:
         raise RuntimeError(
