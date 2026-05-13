@@ -1,27 +1,24 @@
 """HTTP control daemon for the TORCS container.
 
-Phase 2 of `docs/roadmap-v1.1/interactive-torcs-integration.md` — eliminates
-the noVNC-terminal workflow by exposing a small FastAPI app inside the
-torcs container that OVERRIDE's API proxies to. The daemon owns the
-gym_torcs subprocess lifecycle (start, signal, reap).
+Phases 2 + 2.5 of `docs/roadmap-v1.1/interactive-torcs-integration.md` —
+the daemon owns gym_torcs's subprocess lifecycle AND (when ``auto_launch_torcs``
+is true, default) owns TORCS itself. One click in OVERRIDE → quickrace.xml
+write → TORCS spawned → SCR port poll → gym_torcs spawned → race active.
 
 **Security posture** (see ADR-004):
-- Bound to 0.0.0.0:7000 inside the container; compose does NOT expose
-  port 7000 to the host, so this is only reachable over the compose
-  ``override-net`` network (override → torcs).
-- Shared-secret bearer auth via `TORCS_CONTROL_SECRET`. Constant-time
+- Bound to 0.0.0.0:7000 inside the container; compose does NOT expose port
+  7000 to the host. Only reachable from override over the override-net bridge.
+- Shared-secret bearer auth via ``TORCS_CONTROL_SECRET``; constant-time
   comparison with ``secrets.compare_digest``.
-- Single-active-race invariant: one ``asyncio.Lock`` wraps the entire
-  TOCTOU window in /control/start so two simultaneous requests cannot
-  spawn two competing gym_torcs processes.
-- SIGTERM with 5 s grace, SIGKILL fallback; ensures gym_torcs doesn't
-  leak the SCR UDP port when the daemon itself is signaled.
+- Single-active-race invariant: one ``asyncio.Lock`` wraps the entire TOCTOU
+  window in /control/start so concurrent requests cannot start two races.
+- Two-subprocess lifecycle: stop order is SCR client first (graceful flush),
+  THEN torcs. Reversed order drops trailing telemetry.
+- Daemon SIGTERM/SIGINT handler reaps both subprocesses before exit.
 
-This module deliberately stays self-contained — it imports nothing from
-OVERRIDE's `core/` or `ingest/` packages. The torcs container's Python
-environment is the IBM SkillsBuild lab image plus `pip install fastapi
-uvicorn` at compose-startup time; pulling OVERRIDE deps in would bloat
-that install.
+This module deliberately stays self-contained — no imports from OVERRIDE's
+``core/`` or ``ingest/``. The torcs container's Python environment is the
+SkillsBuild lab image plus pip-installed fastapi + uvicorn at compose-startup.
 """
 
 from __future__ import annotations
@@ -29,10 +26,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import secrets
 import signal
 import subprocess
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -46,9 +47,6 @@ logger = logging.getLogger("torcs.control_daemon")
 
 CONTROL_SECRET = os.environ.get("TORCS_CONTROL_SECRET", "")
 if not CONTROL_SECRET:
-    # Fail-loud on missing secret. The compose stack sets this from .env;
-    # if it's empty, every request would otherwise compare empty-vs-empty
-    # → effectively auth-disabled.
     raise RuntimeError(
         "TORCS_CONTROL_SECRET is empty. Refusing to start the control "
         "daemon with disabled auth. Set it in .env and re-run compose."
@@ -56,11 +54,6 @@ if not CONTROL_SECRET:
 
 
 def _verify_auth(authorization: Optional[str] = Header(default=None)) -> None:
-    """Bearer-token auth.
-
-    Returns 401 when no token / wrong scheme; 403 when token mismatches.
-    Uses ``secrets.compare_digest`` so timing-attack-resistant.
-    """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     token = authorization[len("Bearer ") :]
@@ -69,32 +62,309 @@ def _verify_auth(authorization: Optional[str] = Header(default=None)) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Subprocess state (guarded by a single lock)
+# Paths + constants (probed against the running lab image 2026-05-13)
 # ──────────────────────────────────────────────────────────────────────────────
 
-# All mutations + checks go through this lock. Wrapping the ENTIRE TOCTOU
-# window in /control/start is load-bearing — two simultaneous requests must
-# not both pass the "is anything running" check and both spawn gym_torcs.
-_control_lock = asyncio.Lock()
-_active_process: Optional[subprocess.Popen] = None
-_active_session_id: Optional[str] = None
-_active_started_at: Optional[float] = None
-
 GYM_TORCS_DIR = "/home/student/workspace/gym_torcs"
-TELEMETRY_DIR = f"{GYM_TORCS_DIR}/telemetry/"  # trailing slash → directory-mode
+TELEMETRY_DIR = f"{GYM_TORCS_DIR}/telemetry/"
 TORCS_SCRIPT = f"{GYM_TORCS_DIR}/torcs_jm_par.py"
 
+# Probed: torcs binary at /usr/local/torcs/bin/torcs (NOT /usr/local/bin).
+TORCS_BIN = os.environ.get("OVERRIDE_TORCS_BIN", "/usr/local/torcs/bin/torcs")
+TORCS_USER_HOME = "/home/student"
+TORCS_RACEMAN_DIR = f"{TORCS_USER_HOME}/.torcs/config/raceman"
+TORCS_DATA_DIR = "/usr/local/torcs/share/games/torcs"
+TORCS_STOCK_QUICKRACE = f"{TORCS_DATA_DIR}/config/raceman/quickrace.xml"
+TORCS_TRACKS_DIR = f"{TORCS_DATA_DIR}/tracks"
+# Probed: noVNC desktop Xvfb on :1.
+TORCS_DISPLAY = os.environ.get("OVERRIDE_TORCS_DISPLAY", ":1")
+SCR_PORT = 3001  # UDP — gym_torcs scr_server protocol
 
-def _process_alive() -> bool:
-    """True if the active process exists and hasn't exited yet."""
-    return _active_process is not None and _active_process.poll() is None
+# Timeouts (configurable via env for tests + dev iteration)
+LAUNCH_TIMEOUT_S = float(os.environ.get("OVERRIDE_TORCS_LAUNCH_TIMEOUT_S", "20"))
+SCR_PORT_POLL_INTERVAL_S = float(os.environ.get("OVERRIDE_TORCS_POLL_INTERVAL_S", "0.5"))
+TERMINATE_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_TERMINATE_GRACE_S", "5"))
+KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 
 
-def _process_exit_code() -> Optional[int]:
-    """None if process is still running OR no process; else the exit code."""
-    if _active_process is None:
+# ──────────────────────────────────────────────────────────────────────────────
+# State machine
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class RaceState(str, Enum):
+    """Daemon-side race-lifecycle state. Surfaced via /control/status.
+
+    Transition table (from ADR-004 amendment + plan §State machine):
+      idle        → launching     (control/start accepted)
+      launching   → waiting_scr   (torcs Popen returned, PID alive)
+      waiting_scr → connecting    (netstat shows :3001 bound within timeout)
+      connecting  → active        (scr-client Popen returned, alive)
+      active      → stopping      (/control/stop, or either subprocess exited)
+      stopping    → cleanup       (both subprocs reaped)
+      cleanup     → idle          (state cleared)
+
+    Any other transition is illegal → forced to `cleanup` with error context.
+    """
+    IDLE = "idle"
+    LAUNCHING = "launching"
+    WAITING_SCR = "waiting_scr"
+    CONNECTING = "connecting"
+    ACTIVE = "active"
+    STOPPING = "stopping"
+    CLEANUP = "cleanup"
+
+
+# Allowed transitions. Anything not in this set raises on _transition_to.
+_ALLOWED_TRANSITIONS = {
+    RaceState.IDLE: {RaceState.LAUNCHING},
+    RaceState.LAUNCHING: {RaceState.WAITING_SCR, RaceState.CLEANUP},
+    RaceState.WAITING_SCR: {RaceState.CONNECTING, RaceState.CLEANUP},
+    RaceState.CONNECTING: {RaceState.ACTIVE, RaceState.STOPPING},
+    RaceState.ACTIVE: {RaceState.STOPPING},
+    RaceState.STOPPING: {RaceState.CLEANUP},
+    RaceState.CLEANUP: {RaceState.IDLE},
+}
+
+
+@dataclass
+class ActiveRace:
+    """All state for one in-flight race. Singleton at the module level."""
+    session_id: str
+    state: RaceState
+    torcs_proc: Optional[subprocess.Popen] = None
+    scr_proc: Optional[subprocess.Popen] = None
+    started_at: float = field(default_factory=time.monotonic)
+    state_since: float = field(default_factory=time.monotonic)
+    last_error: Optional[str] = None
+    last_exit_code: Optional[int] = None
+    telemetry_filename: Optional[str] = None
+    track: Optional[str] = None
+    laps: Optional[int] = None
+
+    def transition_to(self, new_state: RaceState, *, error: Optional[str] = None) -> None:
+        """Validated state transition. Raises ValueError on illegal moves."""
+        if new_state not in _ALLOWED_TRANSITIONS.get(self.state, set()):
+            raise ValueError(
+                f"Illegal transition {self.state.value} → {new_state.value}"
+            )
+        logger.info(
+            "race state: %s → %s%s",
+            self.state.value, new_state.value,
+            f" ({error})" if error else "",
+        )
+        self.state = new_state
+        self.state_since = time.monotonic()
+        if error:
+            self.last_error = error
+
+
+# Module-level singleton + lock
+_control_lock = asyncio.Lock()
+_race: ActiveRace = ActiveRace(session_id="", state=RaceState.IDLE)
+
+
+def _is_busy() -> bool:
+    """True when /control/start should 409. Anything except IDLE is busy."""
+    return _race.state != RaceState.IDLE
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# quickrace.xml generation: surgical patch of the stock template
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Map track stem → category. Populated lazily from the filesystem; fallback
+# "road" covers the common case.
+_TRACK_CATEGORY_CACHE: dict[str, str] = {}
+
+
+def _scan_tracks() -> dict[str, str]:
+    """Walk the TORCS tracks dir once, return {track_name: category}.
+
+    Lazy + cached. The lab image's tracks dir is read-only at runtime so
+    re-scanning every request would be wasteful; new tracks would require
+    a daemon restart anyway.
+    """
+    if _TRACK_CATEGORY_CACHE:
+        return _TRACK_CATEGORY_CACHE
+    base = Path(TORCS_TRACKS_DIR)
+    if not base.is_dir():
+        return {}
+    for category_dir in base.iterdir():
+        if not category_dir.is_dir():
+            continue
+        category = category_dir.name
+        for track_dir in category_dir.iterdir():
+            if track_dir.is_dir():
+                _TRACK_CATEGORY_CACHE[track_dir.name] = category
+    return _TRACK_CATEGORY_CACHE
+
+
+def _category_for_track(track: str) -> str:
+    return _scan_tracks().get(track, "road")
+
+
+def _write_quickrace_config(track: str, laps: int) -> str:
+    """Stock-template-patch approach.
+
+    Read the lab image's stock quickrace.xml, surgically replace the track
+    name + category + lap count, write to ~student/.torcs/config/raceman/.
+    No XML parser needed — TORCS XML uses ``<attstr name="X" val="Y"/>``
+    so regex on the val-pair is unambiguous.
+
+    The scr_server driver section is left UNTOUCHED — it's load-bearing
+    for the SCR client to connect. Stock template already has it as idx=0.
+    """
+    stock = Path(TORCS_STOCK_QUICKRACE)
+    if not stock.is_file():
+        raise FileNotFoundError(
+            f"TORCS stock quickrace.xml missing at {TORCS_STOCK_QUICKRACE}; "
+            "is the lab image intact?"
+        )
+    template = stock.read_text()
+    category = _category_for_track(track)
+
+    # Track name (in Tracks section)
+    patched = re.sub(
+        r'(<attstr\s+name="name"\s+val=")[^"]+("/>\s*\n\s*<attstr\s+name="category")',
+        rf'\g<1>{track}\g<2>',
+        template,
+        count=1,
+    )
+    # Category (immediately follows track name)
+    patched = re.sub(
+        r'(<attstr\s+name="category"\s+val=")[^"]+("/>)',
+        rf'\g<1>{category}\g<2>',
+        patched,
+        count=1,
+    )
+    # Lap count (in Quick Race section)
+    patched = re.sub(
+        r'(<attnum\s+name="laps"\s+val=")[^"]+("/>)',
+        rf'\g<1>{laps}\g<2>',
+        patched,
+        count=1,
+    )
+
+    # Defensive: verify scr_server driver module survived the patch.
+    if 'name="module" val="scr_server"' not in patched:
+        raise RuntimeError(
+            "quickrace.xml patch corrupted the scr_server driver entry — "
+            "patched output would not bind UDP :3001. Refusing to write."
+        )
+
+    os.makedirs(TORCS_RACEMAN_DIR, exist_ok=True)
+    target = f"{TORCS_RACEMAN_DIR}/quickrace.xml"
+    Path(target).write_text(patched)
+    subprocess.run(
+        ["chown", "-R", "student:student", f"{TORCS_USER_HOME}/.torcs"],
+        check=False, capture_output=True,
+    )
+    return target
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Process management
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _kill_stale_torcs() -> None:
+    """SIGKILL any existing torcs-bin. Verified with pgrep — raises on failure.
+
+    Per the 2026-05-13 probe: scr_server is a .so loaded into torcs-bin, not
+    a separate process. Only torcs-bin needs killing.
+    """
+    subprocess.run(["pkill", "-9", "-f", "torcs-bin"], check=False, capture_output=True)
+    time.sleep(0.5)
+    r = subprocess.run(["pgrep", "-f", "torcs-bin"], capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        raise RuntimeError(
+            f"Failed to kill stale torcs-bin; live PIDs: {r.stdout.strip()}"
+        )
+
+
+def _scr_port_bound() -> bool:
+    """Check whether UDP :3001 has a listener via netstat (ss/lsof not on image)."""
+    try:
+        r = subprocess.run(
+            ["netstat", "-uln"], capture_output=True, text=True, timeout=2.0,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+    # Match a line like:  udp  0  0  0.0.0.0:3001  0.0.0.0:*
+    return bool(re.search(rf":{SCR_PORT}\s", r.stdout))
+
+
+async def _wait_for_scr_port(timeout_s: float = LAUNCH_TIMEOUT_S) -> bool:
+    """Poll netstat for UDP :3001 binding. Async-friendly (await sleep)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if _scr_port_bound():
+            return True
+        await asyncio.sleep(SCR_PORT_POLL_INTERVAL_S)
+    return False
+
+
+def _launch_torcs(raceman_path: str) -> subprocess.Popen:
+    """Spawn `torcs -r <xml>` with DISPLAY set to the lab Xvfb."""
+    env = os.environ.copy()
+    env["DISPLAY"] = TORCS_DISPLAY
+    return subprocess.Popen(
+        [TORCS_BIN, "-r", raceman_path],
+        env=env,
+        cwd=TORCS_USER_HOME,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+
+def _launch_scr_client(req_session_id: str, req_track: str, req_laps: int,
+                      req_telemetry_filename: Optional[str]) -> subprocess.Popen:
+    """Spawn torcs_jm_par.py (the SCR client) with the right env."""
+    env = os.environ.copy()
+    env["OVERRIDE_SESSION_ID"] = req_session_id
+    env["OVERRIDE_TRACK"] = req_track
+    env["OVERRIDE_LAPS"] = str(req_laps)
+    if req_telemetry_filename:
+        env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR.rstrip("/") + "/" + req_telemetry_filename
+    else:
+        env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
+    return subprocess.Popen(
+        ["python3", TORCS_SCRIPT],
+        env=env,
+        cwd=GYM_TORCS_DIR,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+
+async def _terminate_proc(proc: Optional[subprocess.Popen], label: str) -> Optional[int]:
+    """SIGTERM → wait → SIGKILL → wait. Returns exit code or None if no proc."""
+    if proc is None:
         return None
-    return _active_process.poll()
+    if proc.poll() is not None:
+        return proc.returncode
+    logger.info("terminating %s pid=%s (SIGTERM, %ss grace)", label, proc.pid, TERMINATE_GRACE_S)
+    try:
+        proc.terminate()
+    except OSError:
+        pass
+    try:
+        await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=TERMINATE_GRACE_S)
+        return proc.returncode
+    except asyncio.TimeoutError:
+        logger.warning("terminate %s pid=%s timed out; SIGKILL", label, proc.pid)
+        try:
+            proc.kill()
+            await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=KILL_GRACE_S)
+            return proc.returncode
+        except (asyncio.TimeoutError, OSError):
+            logger.error("SIGKILL %s pid=%s did not reap", label, proc.pid)
+            return -9
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -103,45 +373,59 @@ def _process_exit_code() -> Optional[int]:
 
 
 class StartRaceRequest(BaseModel):
-    """Body for POST /control/start.
-
-    All fields are operator-supplied and have light validation. Track names
-    and session_ids use restricted character sets to keep the eventual
-    filesystem paths predictable.
-    """
+    """Body for POST /control/start."""
     session_id: str = Field(pattern=r"^s_[A-Za-z0-9_]+$", min_length=3, max_length=80)
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
     laps: int = Field(default=10, ge=1, le=200)
-    # When set, the JSONL capture lands at <TELEMETRY_DIR>/<filename>.
-    # Phase 2 enhancement: OVERRIDE passes `<session_id>.jsonl` so the
-    # eventual /api/sessions/torcs-live POST uses the same id end-to-end —
-    # the stub Session written at start-race time is updated by ingest
-    # rather than a fresh row being inserted.
     telemetry_filename: Optional[str] = Field(
-        default=None,
-        pattern=r"^[A-Za-z0-9_-]+\.jsonl$",
-        max_length=120,
+        default=None, pattern=r"^[A-Za-z0-9_-]+\.jsonl$", max_length=120,
     )
+    # Phase 2.5: when True (default), the daemon also launches TORCS via
+    # `torcs -r <quickrace.xml>` before spawning the SCR client.
+    # When False, the legacy behavior (Phase 2) applies: spawn SCR client
+    # only, assuming the operator launched TORCS manually in noVNC.
+    auto_launch_torcs: bool = True
 
 
 class StartRaceResponse(BaseModel):
     session_id: str
-    pid: int
+    pid: int                                      # SCR-client PID
     telemetry_dir: str
+    track: str
+    laps: int
+    torcs_pid: Optional[int] = None               # populated when auto_launch=True
+    state: RaceState = RaceState.ACTIVE
 
 
 class StatusResponse(BaseModel):
-    active: bool
+    """Current daemon-side race state. `active` kept for backward compat."""
+    state: RaceState
+    active: bool                                  # True iff state == ACTIVE (compat)
     session_id: Optional[str] = None
-    pid: Optional[int] = None
+    pid: Optional[int] = None                     # SCR-client PID (when present)
+    torcs_pid: Optional[int] = None
     uptime_s: Optional[float] = None
-    exit_code: Optional[int] = None  # populated when last race exited; reset on next start
+    state_since_s: Optional[float] = None
+    last_exit_code: Optional[int] = None
+    last_error: Optional[str] = None
+    track: Optional[str] = None
+    laps: Optional[int] = None
 
 
 class StopResponse(BaseModel):
-    status: str  # "stopped" | "no_active_race"
+    status: str                                   # "stopped" | "no_active_race"
     session_id: Optional[str] = None
-    exit_code: Optional[int] = None
+    scr_exit_code: Optional[int] = None
+    torcs_exit_code: Optional[int] = None
+
+
+class TrackInfo(BaseModel):
+    name: str
+    category: str                                 # road | oval | dirt
+
+
+class TracksResponse(BaseModel):
+    tracks: list[TrackInfo]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -153,14 +437,14 @@ app = FastAPI(
     description=(
         "Internal control plane for the IBM SkillsBuild TORCS lab container. "
         "Reached only over the compose override-net (no host port exposed). "
-        "See ADR-004 for the security model."
+        "Phase 2.5 (2026-05-13): daemon owns TORCS + SCR-client lifecycle. "
+        "See ADR-004."
     ),
 )
 
 
 @app.get("/health")
 async def health() -> dict:
-    """Unauthenticated liveness probe used by the compose healthcheck."""
     return {"status": "ok"}
 
 
@@ -170,17 +454,38 @@ async def health() -> dict:
     dependencies=[Depends(_verify_auth)],
 )
 async def control_status() -> StatusResponse:
-    """Polled by OVERRIDE to render live-race state on /upload."""
-    async with _control_lock:
-        if _process_alive():
-            uptime = time.monotonic() - (_active_started_at or time.monotonic())
-            return StatusResponse(
-                active=True,
-                session_id=_active_session_id,
-                pid=_active_process.pid if _active_process else None,
-                uptime_s=round(uptime, 1),
-            )
-        return StatusResponse(active=False, exit_code=_process_exit_code())
+    # No lock held here — status reads are read-only on the dataclass and
+    # FastAPI runs them concurrently with stop/start. Eventual consistency
+    # is acceptable; the worst case is a stale state value briefly visible
+    # to a poller.
+    r = _race
+    now = time.monotonic()
+    return StatusResponse(
+        state=r.state,
+        active=(r.state == RaceState.ACTIVE),
+        session_id=r.session_id or None,
+        pid=r.scr_proc.pid if r.scr_proc is not None else None,
+        torcs_pid=r.torcs_proc.pid if r.torcs_proc is not None else None,
+        uptime_s=round(now - r.started_at, 1) if r.state != RaceState.IDLE else None,
+        state_since_s=round(now - r.state_since, 1),
+        last_exit_code=r.last_exit_code,
+        last_error=r.last_error,
+        track=r.track,
+        laps=r.laps,
+    )
+
+
+@app.get(
+    "/control/tracks",
+    response_model=TracksResponse,
+    dependencies=[Depends(_verify_auth)],
+)
+async def control_tracks() -> TracksResponse:
+    """List every track installed under TORCS_TRACKS_DIR. Cached after
+    first scan; daemon restart picks up new tracks."""
+    cat = _scan_tracks()
+    tracks = [TrackInfo(name=n, category=c) for n, c in sorted(cat.items())]
+    return TracksResponse(tracks=tracks)
 
 
 @app.post(
@@ -190,68 +495,121 @@ async def control_status() -> StatusResponse:
     status_code=status.HTTP_201_CREATED,
 )
 async def control_start(req: StartRaceRequest) -> StartRaceResponse:
-    """Spawn a new gym_torcs subprocess for the given race configuration.
-
-    Holds ``_control_lock`` across BOTH the check and the Popen so a
-    second concurrent request cannot pass the check after the first
-    request started Popen — the second request will see _process_alive()
-    True and 409.
-    """
-    global _active_process, _active_session_id, _active_started_at
-
+    global _race
     async with _control_lock:
-        if _process_alive():
+        if _is_busy():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Race already active for session {_active_session_id}.",
+                detail=(
+                    f"Race already in state '{_race.state.value}' for "
+                    f"session {_race.session_id!r}. Stop it first."
+                ),
             )
 
-        env = os.environ.copy()
-        env["OVERRIDE_SESSION_ID"] = req.session_id
-        env["OVERRIDE_TRACK"] = req.track
-        env["OVERRIDE_LAPS"] = str(req.laps)
-        if req.telemetry_filename:
-            # Literal-path mode — the logger writes to this exact filename.
-            # OVERRIDE's torcs-live ingest reads `<run_id>.jsonl` so naming
-            # the file after the session_id keeps the ids aligned end-to-end.
-            env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR.rstrip("/") + "/" + req.telemetry_filename
-        else:
-            # Backward-compat: directory mode → Phase 1 logger auto-generates
-            # `run_{YYYYMMDDTHHMMSS}.jsonl`. Used when /control/start is
-            # called directly with curl (no override-side filename hint).
-            env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
+        # Initialize new race; lock held across the full launch sequence.
+        _race = ActiveRace(
+            session_id=req.session_id,
+            state=RaceState.IDLE,
+            track=req.track,
+            laps=req.laps,
+            telemetry_filename=req.telemetry_filename,
+        )
+        _race.transition_to(RaceState.LAUNCHING)
 
         try:
-            proc = subprocess.Popen(
-                ["python3", TORCS_SCRIPT],
-                env=env,
-                cwd=GYM_TORCS_DIR,
-                # Detach from the daemon's stdin; keep stdout/stderr piped
-                # so a crashed gym_torcs surfaces useful tail in logs.
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,  # new process group for clean signal targeting
+            torcs_proc: Optional[subprocess.Popen] = None
+            if req.auto_launch_torcs:
+                # Write quickrace.xml, kill stale, launch torcs, poll for :3001.
+                try:
+                    raceman_path = _write_quickrace_config(req.track, req.laps)
+                except (FileNotFoundError, RuntimeError, OSError) as e:
+                    _race.transition_to(RaceState.CLEANUP, error=f"config write failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Could not write quickrace.xml: {e}",
+                    )
+                try:
+                    _kill_stale_torcs()
+                except RuntimeError as e:
+                    _race.transition_to(RaceState.CLEANUP, error=str(e))
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e),
+                    )
+                try:
+                    torcs_proc = _launch_torcs(raceman_path)
+                except (OSError, FileNotFoundError) as e:
+                    _race.transition_to(RaceState.CLEANUP, error=f"torcs spawn failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Could not spawn torcs: {e}",
+                    )
+                # Surface the new PID + transition before we await the port poll.
+                _race.torcs_proc = torcs_proc
+                _race.transition_to(RaceState.WAITING_SCR)
+                if not await _wait_for_scr_port(LAUNCH_TIMEOUT_S):
+                    # Reap the dead torcs before bailing
+                    await _terminate_proc(torcs_proc, "torcs")
+                    _race.transition_to(
+                        RaceState.CLEANUP,
+                        error=f"scr_server :{SCR_PORT} not bound within {LAUNCH_TIMEOUT_S}s",
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail=(
+                            f"TORCS launched but SCR server did not bind UDP :{SCR_PORT} "
+                            f"within {LAUNCH_TIMEOUT_S}s. Check torcs stderr for race-config errors."
+                        ),
+                    )
+                _race.transition_to(RaceState.CONNECTING)
+            else:
+                # Legacy Phase-2 path: operator launched TORCS manually.
+                # State machine just hops through with no torcs_proc.
+                _race.transition_to(RaceState.WAITING_SCR)
+                _race.transition_to(RaceState.CONNECTING)
+
+            # Spawn the SCR client either way.
+            try:
+                scr_proc = _launch_scr_client(
+                    req.session_id, req.track, req.laps, req.telemetry_filename,
+                )
+            except (OSError, FileNotFoundError) as e:
+                # Tear down torcs if we launched it
+                await _terminate_proc(torcs_proc, "torcs")
+                _race.transition_to(RaceState.CLEANUP, error=f"scr-client spawn failed: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Could not spawn SCR client: {e}",
+                )
+
+            _race.scr_proc = scr_proc
+            _race.transition_to(RaceState.ACTIVE)
+            logger.info(
+                "control_start: race active session_id=%s track=%s laps=%s "
+                "torcs_pid=%s scr_pid=%s",
+                req.session_id, req.track, req.laps,
+                torcs_proc.pid if torcs_proc else None, scr_proc.pid,
             )
-        except (OSError, FileNotFoundError) as e:
+
+            return StartRaceResponse(
+                session_id=req.session_id,
+                pid=scr_proc.pid,
+                telemetry_dir=TELEMETRY_DIR,
+                track=req.track,
+                laps=req.laps,
+                torcs_pid=torcs_proc.pid if torcs_proc else None,
+                state=RaceState.ACTIVE,
+            )
+        except HTTPException:
+            # Already transitioned to CLEANUP above
+            raise
+        except Exception as e:
+            logger.exception("control_start: unexpected failure")
+            _race.transition_to(RaceState.CLEANUP, error=str(e))
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to spawn gym_torcs: {e}",
+                detail=f"Unexpected control_start failure: {e}",
             )
-
-        _active_process = proc
-        _active_session_id = req.session_id
-        _active_started_at = time.monotonic()
-        logger.info(
-            "control_start: spawned pid=%s session_id=%s track=%s laps=%s",
-            proc.pid, req.session_id, req.track, req.laps,
-        )
-
-    return StartRaceResponse(
-        session_id=req.session_id,
-        pid=proc.pid,
-        telemetry_dir=TELEMETRY_DIR,
-    )
 
 
 @app.post(
@@ -260,80 +618,83 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
     dependencies=[Depends(_verify_auth)],
 )
 async def control_stop() -> StopResponse:
-    """Cleanly stop the active race.
+    """Stop SCR client first (graceful telemetry flush), then TORCS.
 
-    Two-stage termination per ADR-004:
-    1. SIGTERM, wait 5 s for graceful shutdown.
-    2. If still alive: SIGKILL, wait 2 s, give up.
-
-    Idempotent: stopping with no active race returns 200 + ``no_active_race``,
-    not an error. Lets the UI fire-and-forget on "Stop Race" clicks
-    without first checking status.
+    Idempotent: no active race → 200 with status='no_active_race'.
     """
-    global _active_process, _active_session_id, _active_started_at
-
+    global _race
     async with _control_lock:
-        if not _process_alive():
-            return StopResponse(status="no_active_race", exit_code=_process_exit_code())
-
-        proc = _active_process
-        sid = _active_session_id
-        assert proc is not None  # _process_alive() guarantees this
-
-        logger.info("control_stop: SIGTERM pid=%s session_id=%s", proc.pid, sid)
-        proc.terminate()
+        if _race.state == RaceState.IDLE:
+            return StopResponse(
+                status="no_active_race",
+                scr_exit_code=_race.last_exit_code,
+            )
+        # The state could be ACTIVE, but also transitional. Move to STOPPING
+        # if allowed; otherwise force-cleanup.
         try:
-            # subprocess.wait blocks the event loop — run in thread to keep
-            # FastAPI responsive to other requests during the 5 s grace.
-            await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=5.0)
-            exit_code = proc.returncode
-        except asyncio.TimeoutError:
-            logger.warning("control_stop: SIGTERM grace expired, SIGKILL pid=%s", proc.pid)
-            proc.kill()
-            try:
-                await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=2.0)
-                exit_code = proc.returncode
-            except asyncio.TimeoutError:
-                # Should be physically impossible after SIGKILL on Linux.
-                logger.error("control_stop: SIGKILL didn't reap pid=%s", proc.pid)
-                exit_code = -9
+            _race.transition_to(RaceState.STOPPING)
+        except ValueError:
+            # If we're already past ACTIVE in some weird state, treat as
+            # already-stopping and proceed with reaping.
+            pass
 
-        _active_started_at = None
-        return StopResponse(status="stopped", session_id=sid, exit_code=exit_code)
+        sid = _race.session_id
+        scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
+        torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
+
+        _race.last_exit_code = scr_exit
+        # CLEANUP → IDLE
+        if _race.state == RaceState.STOPPING:
+            _race.transition_to(RaceState.CLEANUP)
+        if _race.state == RaceState.CLEANUP:
+            _race.transition_to(RaceState.IDLE)
+        # Reset transient handles so /control/status reads cleanly
+        _race.scr_proc = None
+        _race.torcs_proc = None
+
+        return StopResponse(
+            status="stopped",
+            session_id=sid,
+            scr_exit_code=scr_exit,
+            torcs_exit_code=torcs_exit,
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Lifecycle: ensure gym_torcs doesn't outlive the daemon
+# Lifecycle: ensure subprocesses don't outlive the daemon
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 def _reap_on_signal(signum: int, _frame) -> None:
-    """SIGTERM/SIGINT handler — kills the active gym_torcs before exit.
+    """SIGTERM/SIGINT handler — kills BOTH subprocesses before exit.
 
-    Without this, a `podman stop torcs` would shut down uvicorn but leave
-    gym_torcs holding the SCR UDP port; the next container start would
-    fail to bind.
+    Order: SCR first (lets gym_torcs flush JSONL), then torcs. Without this,
+    `podman stop torcs` shuts down uvicorn but leaves the subprocesses alive
+    holding UDP :3001; the next container start fails to bind.
     """
-    logger.info("daemon received signal=%s; reaping subprocess if any", signum)
-    proc = _active_process
-    if proc is not None and proc.poll() is None:
+    logger.info("daemon received signal=%s; reaping subprocesses if any", signum)
+
+    def _sync_terminate(proc: Optional[subprocess.Popen], label: str) -> None:
+        if proc is None or proc.poll() is not None:
+            return
         try:
             proc.terminate()
             try:
-                proc.wait(timeout=5.0)
+                proc.wait(timeout=TERMINATE_GRACE_S)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 try:
-                    proc.wait(timeout=2.0)
+                    proc.wait(timeout=KILL_GRACE_S)
                 except subprocess.TimeoutExpired:
-                    pass
+                    logger.error("signal reap: %s pid=%s won't die", label, proc.pid)
         except OSError:
             pass
-    # Re-raise the default behavior so uvicorn exits cleanly.
+
+    # SCR first, then torcs — same order as graceful /control/stop.
+    _sync_terminate(_race.scr_proc, "scr-client")
+    _sync_terminate(_race.torcs_proc, "torcs")
     raise SystemExit(0)
 
 
-# Register at module import so uvicorn (which runs this file as
-# `control_daemon:app`) honors the handler from the first request onward.
 signal.signal(signal.SIGTERM, _reap_on_signal)
 signal.signal(signal.SIGINT, _reap_on_signal)
