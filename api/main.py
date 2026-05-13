@@ -1,16 +1,20 @@
-"""FastAPI runtime — Tier 1 endpoints per `docs/04-api.md`.
+"""FastAPI runtime — endpoints per `docs/04-api.md`.
 
-Implemented (Tier 1):
-  GET  /api/health                                    liveness
-  GET  /api/version                                   build + model IDs
-  POST /api/sessions                                  upload + run pipeline
-  GET  /api/sessions/{id}                             full debrief
-  GET  /api/sessions/{id}/zones/{zid}?mode=...        per-zone (lazy fan)
-  GET  /api/regulation-source                         G-4 metadata
-  DELETE /api/sessions/{id}                           local cleanup
+Implemented:
+  GET    /api/health                                    liveness
+  GET    /api/version                                   build + model IDs
+  POST   /api/sessions                                  upload + run pipeline
+  GET    /api/sessions                                  list summaries (paginated; Phase 1)
+  GET    /api/sessions/{id}                             full debrief
+  GET    /api/sessions/{id}/zones/{zid}?mode=...        per-zone (lazy fan)
+  POST   /api/sessions/{id}/what-if                     FR-8 perturbation
+  POST   /api/sessions/torcs-live                       volume-ingest (metadata-enriched)
+  GET    /api/torcs-status                              live-ingest discovery (timestamps + duration)
+  GET    /api/regulation-source                         G-4 metadata
+  DELETE /api/sessions/{id}                             local cleanup
 
-Tier 2 endpoints (`/api/sessions` list, `/laps`, `/zones` list) are
-deferred to a follow-up PR per the P2.7 review.
+Still deferred to v1.1: `/laps` and `/zones` list endpoints (low rubric
+value, not on the path for Sessions History UI).
 
 Auth: none (single-user, replay-first per §1 + §10). CORS allows
 `OVERRIDE_UI_ORIGIN` only.
@@ -19,6 +23,7 @@ Auth: none (single-user, replay-first per §1 + §10). CORS allows
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -72,6 +77,9 @@ from ingest.schema import (
     Recommendation,
     RegulationSource,
     Session,
+    SessionSource,
+    SessionStatus,
+    SessionSummary,
     WhatIfRequest,
     WhatIfResult,
 )
@@ -80,6 +88,7 @@ from .errors import api_error, map_watsonx_exception, new_request_id
 from .observability import setup_tracing
 from .storage import (
     delete_session,
+    list_sessions as storage_list_sessions,
     load_session,
     save_recommendations_only,
     save_session,
@@ -183,8 +192,28 @@ class TorcsLiveRequest(BaseModel):
     Defined at module scope so FastAPI's body-vs-query inference picks
     it up as a JSON body (in-function Pydantic models can confuse the
     OpenAPI introspector).
+
+    Phase 1 additions: optional metadata captured at ingest time and
+    embedded in the resulting SessionSummary (track_name, target_laps,
+    notes). All three are operator-supplied and have no effect on the
+    pipeline beyond surface presentation in history + comparison views.
     """
     run_id: str = Field(pattern=r"^[A-Za-z0-9_-]+$", min_length=1, max_length=64)
+    track_name: Optional[str] = Field(default=None, max_length=80)
+    target_laps: Optional[int] = Field(default=None, ge=0, le=999)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class SessionListResponse(BaseModel):
+    """Paginated session-history page.
+
+    Returned by GET /api/sessions. Newest sessions first; pagination via
+    query params `limit` and `offset`.
+    """
+    sessions: list[SessionSummary]
+    total: int = Field(ge=0, description="Total session count across all pages.")
+    limit: int = Field(ge=1, le=200)
+    offset: int = Field(ge=0)
 
 
 class VersionResponse(BaseModel):
@@ -359,6 +388,31 @@ def create_app() -> FastAPI:
         # Persist + return
         save_session(session)
         return session.model_dump(mode="json")
+
+    @app.get("/api/sessions", response_model=SessionListResponse)
+    async def list_sessions_endpoint(
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+    ):
+        """List session summaries, newest first.
+
+        Phase 1 ship — replaces the SessionsPage v1.1 stub. Backs the
+        Session History view at /sessions in the UI. Pagination via
+        ``limit`` (default 50, max 200) and ``offset``. Returns a
+        ``SessionListResponse`` (``{sessions, total, limit, offset}``)
+        so the client can render a page indicator without re-reading
+        the whole index.
+
+        Storage helper (``api.storage.list_sessions``) was already in
+        place for this; this commit just wires the endpoint.
+        """
+        page, total = storage_list_sessions(limit=limit, offset=offset)
+        return SessionListResponse(
+            sessions=page,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(
@@ -580,17 +634,27 @@ def create_app() -> FastAPI:
         runs = []
         for p in sorted(tdir.glob("*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True):
             try:
-                size = p.stat().st_size
+                stat = p.stat()
             except OSError:
                 continue
+            size = stat.st_size
             # Cheap lap-count estimate: gym_torcs ticks at ~50 Hz, lap is
             # ~100 s typical → ~5000 ticks/lap. Surfaced as a guide for the
             # UI banner, not authoritative.
             tick_estimate = max(1, size // 1000)  # ~1 KB/tick observed
+            # Phase 1: surface capture window from first-observation `t`
+            # (logger injection) with mtime fallback. duration_seconds
+            # gives the UI a glance at how long the run actually ran.
+            last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+            started = _extract_start_time(p) or last_written
+            duration = (last_written - started).total_seconds()
             runs.append({
                 "run_id": p.stem,
                 "size_bytes": size,
                 "lap_count_estimate": tick_estimate // 5000,
+                "started_at": started.isoformat(),
+                "last_written_at": last_written.isoformat(),
+                "duration_seconds": max(0.0, duration),
             })
         return {"available": bool(runs), "runs": runs}
 
@@ -664,8 +728,28 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise map_watsonx_exception(e, request_id=rid)
 
-        save_session(session)
-        return session.model_dump(mode="json")
+        # Phase 1 enrichment: stamp the summary with session_source +
+        # lifecycle metadata. SessionSummary is frozen — build a new
+        # one via model_copy, then a new Session to wrap it. The
+        # pipeline doesn't know about these fields by design (keeps
+        # core.pipeline domain-pure).
+        stat = jsonl_path.stat()
+        last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+        started = _extract_start_time(jsonl_path) or last_written
+        enriched_summary = session.summary.model_copy(update={
+            "session_source": SessionSource.TORCS_LIVE,
+            "status": SessionStatus.COMPLETED,
+            "track_name": body.track_name,
+            "target_laps": body.target_laps,
+            "started_at": started,
+            "completed_at": last_written,
+            "telemetry_file": jsonl_path.name,
+            "note": body.notes or session.summary.note,
+        })
+        enriched_session = session.model_copy(update={"summary": enriched_summary})
+
+        save_session(enriched_session)
+        return enriched_session.model_dump(mode="json")
 
     # ── Static UI mount (v6 plan task 3.1) ───────────────────────────────────
     # The container image builds ui/dist via Stage 1 of the Dockerfile and
@@ -730,6 +814,37 @@ def _sessions_root_for_request() -> Path:
     if raw:
         return Path(raw)
     return Path(__file__).resolve().parent.parent / "data" / "sessions"
+
+
+def _extract_start_time(jsonl_path: Path) -> Optional[datetime]:
+    """Pull the wall-clock start of a TORCS capture from its first observation.
+
+    The Phase 1 logger injects ``t = time.time()`` into every observation
+    (see RaceYourCode/gym_torcs/torcs_jm_par.py). The first observation's
+    ``t`` is the most accurate start time we have. Falls back to None on
+    any failure — caller is expected to substitute file mtime.
+
+    Honors gotcha #12's JSONL safe-read: tolerates leading-line malformed
+    JSON without raising. Reads at most ~4 KB to find a valid first
+    observation.
+    """
+    try:
+        with jsonl_path.open("rb") as fh:
+            head = fh.read(4096)
+    except OSError:
+        return None
+    for line in head.splitlines():
+        try:
+            obs = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        t = obs.get("t") if isinstance(obs, dict) else None
+        if isinstance(t, (int, float)) and t > 0:
+            try:
+                return datetime.fromtimestamp(t, tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+    return None
 
 
 def _telemetry_dir() -> Path:
