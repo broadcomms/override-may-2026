@@ -436,11 +436,20 @@ class StartRaceRequest(BaseModel):
     telemetry_filename: Optional[str] = Field(
         default=None, pattern=r"^[A-Za-z0-9_-]+\.jsonl$", max_length=120,
     )
-    # Phase 2.5: when True (default), the daemon also launches TORCS via
-    # `torcs -r <quickrace.xml>` before spawning the SCR client.
-    # When False, the legacy behavior (Phase 2) applies: spawn SCR client
-    # only, assuming the operator launched TORCS manually in noVNC.
-    auto_launch_torcs: bool = True
+    # Phase 2.6 correction (2026-05-13): default flipped to False.
+    #
+    # TORCS's `-r` flag is documented as "run race in command line mode" —
+    # i.e. headless. There's no XML attribute that overrides this; the
+    # `display mode = normal` attempt in commit 0e45fce was patching the
+    # wrong layer. To get 3D rendering in noVNC, the OPERATOR must launch
+    # TORCS in GUI mode manually (no -r) and set up scr_server as the
+    # driver, then click Start race which spawns ONLY the SCR client.
+    #
+    # When True: daemon writes quickrace.xml + spawns `torcs -r <xml>`
+    #            (headless; telemetry is captured, no 3D in noVNC).
+    # When False (default): daemon spawns SCR client only; assumes
+    #            operator launched TORCS manually first.
+    auto_launch_torcs: bool = False
 
 
 class StartRaceResponse(BaseModel):
@@ -623,7 +632,12 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
         try:
             torcs_proc: Optional[subprocess.Popen] = None
             if req.auto_launch_torcs:
-                # Write quickrace.xml, kill stale, launch torcs, poll for :3001.
+                # Headless-race path. _kill_stale_torcs is ONLY safe here
+                # because we're about to launch our own torcs as a fresh
+                # process — anything currently running would conflict on
+                # UDP :3001 and on the Xvfb display. In manual-launch mode
+                # (auto_launch_torcs=False) we explicitly do NOT kill —
+                # the operator's running TORCS GUI is the whole point.
                 try:
                     raceman_path = _write_quickrace_config(req.track, req.laps)
                 except (FileNotFoundError, RuntimeError, OSError) as e:

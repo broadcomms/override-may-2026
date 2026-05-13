@@ -95,6 +95,9 @@ export function TorcsControlPanel() {
   const [laps, setLaps] = useState<number>(5);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase 2.6 correction: default is manual-launch (3D visible in noVNC).
+  // Headless is opt-in for operators who want batch/CI-shape races.
+  const [autoLaunch, setAutoLaunch] = useState<boolean>(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -133,13 +136,20 @@ export function TorcsControlPanel() {
       // Humanize the operator-supplied track slug into a display label
       // (capitalize first letter, hyphens preserved). aalborg → "Aalborg".
       const track_name = track.charAt(0).toUpperCase() + track.slice(1);
-      const resp = await api.startTorcsRace({ track, laps, track_name });
+      const resp = await api.startTorcsRace({
+        track, laps, track_name, auto_launch_torcs: autoLaunch,
+      });
       await refresh();
       setError(
-        `Race launching on ${track_name} (${laps} laps). ` +
-          `Daemon spawned torcs pid=${resp.torcs_pid ?? "?"} + scr-client pid=${resp.pid}. ` +
-          `Watch the race in noVNC at http://localhost:6080/vnc.html; ` +
-          `click "View live →" above to follow the per-lap telemetry stream.`,
+        autoLaunch
+          ? `Headless race launching on ${track_name} (${laps} laps). ` +
+            `torcs pid=${resp.torcs_pid ?? "?"} + scr-client pid=${resp.pid}. ` +
+            `NOTE: torcs -r is text-mode by design — no 3D in noVNC. ` +
+            `Live telemetry will stream in the panel above; click "View live →".`
+          : `SCR client connected (pid=${resp.pid}) to your manually-launched TORCS. ` +
+            `If you see "Server has stopped the race" in TORCS GUI, the race ` +
+            `wasn't running yet — set up scr_server driver in Quick Race and ` +
+            `click New Race in TORCS GUI before pressing Start race again.`,
       );
     } catch (e) {
       const msg =
@@ -284,6 +294,38 @@ export function TorcsControlPanel() {
               />
             </label>
           </div>
+
+          {/* Phase 2.6 correction: TORCS's `-r` flag is documented as
+              "command line mode" — headless by design. Operator must
+              manually launch TORCS in noVNC for 3D rendering. UI defaults
+              to the manual flow with this checkbox opt-in for headless. */}
+          <label className="flex items-center gap-2 mb-3 text-xs text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoLaunch}
+              onChange={(e) => setAutoLaunch(e.target.checked)}
+              disabled={startDisabled}
+              className="cursor-pointer"
+            />
+            <span>
+              Headless mode <span className="text-text/60">— skip 3D rendering; faster, ideal for batch capture or CI</span>
+            </span>
+          </label>
+
+          {!autoLaunch && (
+            <details className="mb-3 text-xs text-muted">
+              <summary className="cursor-pointer hover:text-text">
+                Manual TORCS setup — first time only (~30 s)
+              </summary>
+              <ol className="ml-5 mt-2 space-y-1 list-decimal">
+                <li>Open TORCS in the noVNC pane below (or in a terminal: <code className="font-mono">torcs &amp;</code>)</li>
+                <li>Race → Quick Race → Configure Race</li>
+                <li>Drivers: add <code className="font-mono">scr_server 1</code> and remove the default robot</li>
+                <li>Accept → Accept → <strong>New Race</strong>. The 3D race opens, cars wait at the grid for the SCR client.</li>
+                <li>Click <strong>Start race</strong> here — the SCR client connects, the AI starts driving, telemetry streams.</li>
+              </ol>
+            </details>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button

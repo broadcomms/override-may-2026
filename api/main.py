@@ -230,12 +230,15 @@ class TorcsStartRaceRequest(BaseModel):
     track_name: Optional[str] = Field(default=None, max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
     auto_launch_torcs: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "When True (default), the daemon writes quickrace.xml and launches "
-            "TORCS as part of /control/start. When False, the daemon spawns only "
-            "the SCR client and expects the operator to have launched TORCS "
-            "manually in noVNC first."
+            "When False (default, Phase 2.6 correction): the daemon spawns only "
+            "the SCR client and expects the operator to have launched TORCS GUI "
+            "manually in noVNC first (with scr_server as the configured driver). "
+            "This is the 3D-rendering path — torcs -r is documented as headless "
+            "and cannot show a 3D window regardless of XML config. "
+            "When True: auto-launch via `torcs -r quickrace.xml` (headless, no 3D, "
+            "but useful for batch testing and CI)."
         ),
     )
 
