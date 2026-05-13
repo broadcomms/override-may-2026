@@ -4,9 +4,11 @@ This file provides guidance to agents when working with code in this repository.
 
 ## Critical Non-Obvious Rules
 
-**Early-stage scaffold warning**: Most files are empty stubs (`requirements.txt`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, all `tests/test_*.py`, `models.json`, `ingest/*.py`, `ui/package.json`). Do NOT infer build/test commands from filenames—verify file has content first. README Quickstart describes target setup, not current state.
+**Repo state (substantially shipped)**: `api/`, `core/`, `ingest/`, `analysis/`, `tests/`, `ui/`, `scripts/`, and `langflow/override_components/` all contain working code. `requirements.txt`, `Dockerfile`, `Dockerfile.langflow`, `docker-compose.yml`, `models.json`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, `prompts/*.system.md` are populated. 305 tests green (301 unit + 4 network-marked).
 
-**Files with actual content**: `README.md`, `.bob/AGENTS.md`, `.bob/rules.md`, `docs/*.md`, `prompts/*.system.md`, `guardian/byoc_criteria.yaml`, `core/validator.yaml`, FIA PDFs in `data/regs/`.
+**Intentional stubs (do NOT treat as work-in-progress)**: `core/forecasting.py` is a docstring-only stub — TTM-R2 is deferred to v1.1 per the graceful-degradation guardrail; the pipeline runs end-to-end without it.
+
+**Removed (do NOT recreate)**: `.github/workflows/ci.yml` was deleted (CI deferred to v1.1; never spec'd for v1). The empty placeholder was misleading.
 
 **Regulation citation rule**: NEVER hardcode FIA article numbers in code, prompts, schemas, tests, or UI strings. Before gate G-4, use generic phrasing. After G-4, citations render dynamically from Docling extraction at runtime via `RegulationSource` struct only.
 

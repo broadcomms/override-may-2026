@@ -5,8 +5,10 @@
 #   podman compose up                                # Mode 1: OVERRIDE alone
 #     → only the override service. Fast (~10 s boot). Fixture-driven demo.
 #       The demo video uses this mode against fixture-mode UI; the live
-#       hosted demo URL on the Hetzner CX32 also runs this mode externally
-#       (per v6 §3.7 firewall rules: only 80/443 open externally).
+#       hosted demo URL is fronted by a Cloudflare Tunnel from the local
+#       WSL host (override.patrickndille.com → localhost:8000). See
+#       docs/07-deployment.md for the deployment posture. (The original
+#       v6 §3.7 Hetzner CX32 VM plan was replaced post-pre-flight.)
 #
 #   podman compose --profile torcs up                # Mode 2: + live TORCS
 #     → override + torcs. The torcs service is the IBM SkillsBuild lab
