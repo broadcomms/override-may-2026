@@ -555,12 +555,30 @@ if __name__ == "__main__":
     # time per sector. R is keyed at the top level (no nesting) so the
     # parser's existing dict.get("brake", ...) / dict.get("accel", ...)
     # lookups work without any change.
+    # Phase 1 session-boundary fix: if OVERRIDE_LOG_TELEMETRY is set to a
+    # directory (trailing slash OR existing dir), auto-generate a per-run
+    # filename `run_{YYYYMMDDTHHMMSS}.jsonl` so each TORCS race produces a
+    # distinct capture file. Literal paths still work (backward compat).
     _override_log = os.environ.get("OVERRIDE_LOG_TELEMETRY")
     _override_fh = None
     if _override_log:
         try:
-            os.makedirs(os.path.dirname(_override_log) or ".", exist_ok=True)
-            _override_fh = open(_override_log, "a")
+            _log_is_dir = (
+                _override_log.endswith("/")
+                or _override_log.endswith(os.sep)
+                or os.path.isdir(_override_log)
+            )
+            if _log_is_dir:
+                _ts = _time.strftime("%Y%m%dT%H%M%S", _time.gmtime())
+                os.makedirs(_override_log, exist_ok=True)
+                _override_log = os.path.join(_override_log, f"run_{_ts}.jsonl")
+            else:
+                os.makedirs(os.path.dirname(_override_log) or ".", exist_ok=True)
+            # Line-buffered (buffering=1) so the live-ingest endpoint sees
+            # complete observations as they're written — eliminates the
+            # "incomplete tail" symptom the parser's safe-read mitigates.
+            _override_fh = open(_override_log, "a", buffering=1)
+            sys.stderr.write(f"[override] telemetry → {_override_log}\n")
         except OSError as _e:
             sys.stderr.write(
                 f"[override] WARNING: OVERRIDE_LOG_TELEMETRY={_override_log!r} "
