@@ -492,30 +492,53 @@ async def control_status() -> StatusResponse:
     # is acceptable; the worst case is a stale state value briefly visible
     # to a poller.
     #
-    # Detect-dead-subprocesses fix (2026-05-13): poll both Popen objects.
+    # Detect-dead-subprocesses (2026-05-13): poll both Popen objects.
     # If either has exited while state is ACTIVE/CONNECTING/WAITING_SCR, the
-    # race is dead — surface it via `last_error` and demote the state. This
-    # turns "torcs died and the daemon kept lying" into "torcs died and the
-    # UI sees `state=cleanup` next poll."
+    # race is over — but distinguish graceful completion (exit=0) from
+    # actual failure (non-zero or signal). UI uses last_error to decide
+    # whether to show a success or failure framing.
     r = _race
     if r.state in (RaceState.WAITING_SCR, RaceState.CONNECTING, RaceState.ACTIVE):
         torcs_dead = r.torcs_proc is not None and r.torcs_proc.poll() is not None
         scr_dead = r.scr_proc is not None and r.scr_proc.poll() is not None
         if torcs_dead or scr_dead:
-            died = []
-            if torcs_dead:
-                died.append(f"torcs (exit={r.torcs_proc.returncode})")  # type: ignore[union-attr]
-            if scr_dead:
-                died.append(f"scr-client (exit={r.scr_proc.returncode})")  # type: ignore[union-attr]
-            r.last_error = "Subprocess(es) died unexpectedly: " + ", ".join(died)
-            if r.scr_proc is not None and scr_dead:
-                r.last_exit_code = r.scr_proc.returncode
-            # Force-cleanup; cannot use transition_to since some moves
-            # would be illegal from the current state. Direct assignment
-            # is acceptable here — we're recovering from external death.
-            logger.warning("control_status: %s", r.last_error)
+            torcs_code = r.torcs_proc.returncode if torcs_dead else None  # type: ignore[union-attr]
+            scr_code = r.scr_proc.returncode if scr_dead else None        # type: ignore[union-attr]
+            # Graceful = all observed exits are 0. The race ended normally
+            # (lap count exhausted, /control/stop received, or operator
+            # closed the TORCS window).
+            graceful = all(c == 0 for c in (torcs_code, scr_code) if c is not None)
+            if graceful:
+                r.last_error = None
+                logger.info(
+                    "control_status: race ended gracefully (torcs=%s, scr=%s)",
+                    torcs_code, scr_code,
+                )
+            else:
+                died = []
+                if torcs_dead:
+                    died.append(f"torcs (exit={torcs_code})")
+                if scr_dead:
+                    died.append(f"scr-client (exit={scr_code})")
+                r.last_error = "Subprocess(es) failed: " + ", ".join(died)
+                logger.warning("control_status: %s", r.last_error)
+            if scr_code is not None:
+                r.last_exit_code = scr_code
+            # Force-cleanup; direct assignment because some transition_to
+            # moves would be illegal from the current state.
             r.state = RaceState.CLEANUP
             r.state_since = time.monotonic()
+            # Reset proc handles so the next poll doesn't re-trigger this
+            # block (and so /control/start can transition idle→launching).
+            r.torcs_proc = None
+            r.scr_proc = None
+
+    # Bonus: cleanup → idle auto-advance once a status call observes the
+    # cleanup state. Without this, the daemon stays "cleanup" until the
+    # next /control/stop or /control/start; the UI badge gets stuck.
+    if r.state == RaceState.CLEANUP and (time.monotonic() - r.state_since) > 0.5:
+        r.state = RaceState.IDLE
+        r.state_since = time.monotonic()
 
     now = time.monotonic()
     return StatusResponse(

@@ -882,6 +882,8 @@ def test_control_status_reports_disabled_when_secret_unset(tmp_path, monkeypatch
         "enabled": False, "reachable": False, "active": False,
         "state": None,                                 # Phase 2.5 — daemon state surfaced
         "session_id": None,
+        "last_error": None,                            # Phase 2.5 — graceful vs failure distinguisher
+        "last_exit_code": None,
         "detail": "TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
     }
 

@@ -248,13 +248,17 @@ class TorcsControlPlaneStatus(BaseModel):
 
     Phase 2.5: the daemon's race state machine (idle / launching /
     waiting_scr / connecting / active / stopping / cleanup) is surfaced
-    via ``state`` for state-aware UI badges.
+    via ``state`` for state-aware UI badges. `last_error` lets the UI
+    distinguish graceful race-completion (last_error=null) from actual
+    subprocess failures (last_error="...exit=N").
     """
     enabled: bool = Field(description="True when TORCS_CONTROL_URL + SECRET are both set on the override service.")
     reachable: bool = Field(description="True when the daemon's /health responded 200.")
     active: bool = Field(default=False, description="True when state == 'active' (compat field for old clients).")
     state: Optional[str] = Field(default=None, description="Daemon-side race state: idle | launching | waiting_scr | connecting | active | stopping | cleanup.")
     session_id: Optional[str] = None
+    last_error: Optional[str] = None
+    last_exit_code: Optional[int] = None
     detail: Optional[str] = Field(default=None, description="When not reachable, the reason for the UI to show.")
 
 
@@ -872,6 +876,8 @@ def create_app() -> FastAPI:
             active=bool(body.get("active", False)),
             state=body.get("state"),
             session_id=body.get("session_id"),
+            last_error=body.get("last_error"),
+            last_exit_code=body.get("last_exit_code"),
         )
 
     @app.get("/api/torcs/tracks", response_model=TorcsTracksResponse)
@@ -994,6 +1000,12 @@ def create_app() -> FastAPI:
             "telemetry_dir": body.get("telemetry_dir"),
             "track": req.track,
             "laps": req.laps,
+            # Phase 2.5: forward the TORCS wrapper PID + state from the
+            # daemon's StartRaceResponse so the UI can render a useful
+            # success message ("Daemon spawned torcs pid=N + scr-client
+            # pid=M") instead of a "?" for the torcs side.
+            "torcs_pid": body.get("torcs_pid"),
+            "state": body.get("state"),
             # The UI uses these to compose a deep-link or to remember the
             # operator-supplied metadata for the eventual torcs-live POST.
             "track_name_hint": req.track_name,

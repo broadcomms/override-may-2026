@@ -238,6 +238,10 @@ export interface TorcsControlStatus {
   active: boolean;         // (compat) state === "active"
   state: TorcsRaceState | null;
   session_id: string | null;
+  // Phase 2.5: distinguishes graceful race-completion (last_error=null,
+  // last_exit_code=0) from actual subprocess failures (last_error="...").
+  last_error: string | null;
+  last_exit_code: number | null;
   detail: string | null;
 }
 
@@ -267,6 +271,7 @@ export interface TorcsStartRaceResponse {
   track_name_hint?: string | null;   // OVERRIDE-side echo (optional)
   notes_hint?: string | null;
   torcs_pid?: number | null;         // Phase 2.5 — populated when auto_launch=true
+  state?: TorcsRaceState | null;     // Phase 2.5 — daemon state after launch (usually "active")
 }
 
 export interface TorcsStopRaceResponse {

@@ -321,6 +321,27 @@ export function TorcsControlPanel() {
       {error && (
         <p className="mt-3 text-xs text-muted whitespace-pre-line">{error}</p>
       )}
+
+      {/* Phase 2.6: embed noVNC iframe so the operator sees TORCS rendering
+          live, in the same pane as Race Control. The lab's noVNC web client
+          at :6080/vnc.html accepts ?autoconnect=1 to skip the splash Connect
+          button and ?resize=scale to fit the iframe.
+          Local-only by design — the outer panel is already gated on
+          isLocalHost() (won't render on the hosted demo, which doesn't
+          expose noVNC publicly per ADR-004 §security). */}
+      {status.enabled && status.reachable && (
+        <div className="mt-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted mb-1">TORCS view</div>
+          <iframe
+            title="TORCS in noVNC"
+            src="http://localhost:6080/vnc.html?autoconnect=1&resize=scale&reconnect=1"
+            className="w-full h-[420px] rounded-card border border-border bg-black"
+          />
+          <p className="text-[11px] text-muted mt-1">
+            Live TORCS render. If the panel is blank, the lab container may still be booting; refresh once Race Control reaches "Idle."
+          </p>
+        </div>
+      )}
     </section>
   );
 }

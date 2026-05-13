@@ -568,7 +568,10 @@ export const api = {
     // carry the state). Fixture mode short-circuits to "disabled" so the
     // hosted demo and fixture flows behave identically.
     if (resolveFixture(opts)) {
-      return { enabled: false, reachable: false, active: false, state: null, session_id: null, detail: null };
+      return {
+        enabled: false, reachable: false, active: false, state: null,
+        session_id: null, last_error: null, last_exit_code: null, detail: null,
+      };
     }
     return jsonFetch<TorcsControlStatus>("/api/torcs/control-status", { signal: opts?.signal });
   },
