@@ -185,7 +185,7 @@ function fixtureNameForSessionId(sessionId: string): FixtureName {
 
 /**
  * Crudely synthesize a WhatIfResult from a fixture session. Goal isn't
- * realism — it's letting WhatIfPanel + WhatIfDiff render against
+ * realism — it's letting WhatIfRail + WhatIfDiff render against
  * deterministic data without a live backend. The diff component's job is
  * to highlight changed fields, so the synthesis nudges the perturbed
  * recommendations in the direction the real perturbation would

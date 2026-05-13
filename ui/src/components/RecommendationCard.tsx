@@ -151,7 +151,8 @@ function EngineerCard({
       <WhatIfRail
         zoneId={zone.zone_id}
         onRun={onWhatIf}
-        // Tier-2 endpoint pending — radios show, Run is disabled until backend ships
+        // Engineer-mode only per FR-8.3 — caller passes `undefined` for `onWhatIf`
+        // in Fan mode, which disables the rail and surfaces the mode hint.
         disabled={!onWhatIf}
       />
     </article>
@@ -338,7 +339,7 @@ function ValidatorFailedPanel({ rec }: { rec: Recommendation }) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// What-if rail (disabled state — Tier-2 API endpoint pending)
+// What-if rail (FR-8.3: Engineer-mode only; disabled in Fan mode)
 // ──────────────────────────────────────────────────────────────────────────────
 
 function WhatIfRail({
@@ -353,7 +354,7 @@ function WhatIfRail({
   const [open, setOpen] = useState(false);
   const [param, setParam] = useState<WhatIfParameter>("delay_first_deploy");
   const titleAttr = disabled
-    ? "Coming soon — what-if endpoint ships in API Tier 2"
+    ? "What-if is available in Engineer mode"
     : "Run a what-if perturbation against this zone";
 
   return (
@@ -367,8 +368,8 @@ function WhatIfRail({
         <span className={`transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
         What if…
         {disabled && (
-          <span className="ml-2 text-[10px] uppercase tracking-wider text-warning">
-            Coming soon
+          <span className="ml-2 text-[10px] uppercase tracking-wider text-muted">
+            Engineer mode only
           </span>
         )}
       </button>

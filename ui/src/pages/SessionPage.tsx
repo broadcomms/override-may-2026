@@ -304,8 +304,8 @@ export function SessionPage() {
                   mode={mode}
                   // FR-8.3: what-if rail Engineer-only. Pass the callback
                   // through; the rail enables itself when `onWhatIf` is
-                  // defined (currently shows the "Coming soon" badge when
-                  // it's undefined).
+                  // defined and surfaces an "Engineer mode only" hint
+                  // when it's undefined (Fan mode).
                   onWhatIf={
                     mode === "engineer"
                       ? (kind) => onWhatIf(zid, kind)
