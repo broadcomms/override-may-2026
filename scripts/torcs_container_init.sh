@@ -126,6 +126,26 @@ if ! curl -sf http://localhost:6080 >/dev/null 2>&1; then
     exit 1
 fi
 
+# Phase 2.6 — grant the daemon's torcs subprocess access to Xvfb :1
+# without needing XAUTHORITY plumbing. start.sh launches Xvfb under
+# whatever uid xstartup runs as; my daemon spawns torcs as root with
+# no .Xauthority on disk, so torcs falls back to TEXT-MODE rendering
+# (the SCR server still works, but no 3D window in noVNC). xhost
+# +SI:localuser:root tells the X server "let any local process running
+# as root connect" — closes the auth gap so torcs renders to :1 and
+# the noVNC iframe shows the live race instead of a blank desktop.
+#
+# Trade-off: this widens X11 access from "Xauth-only" to "any local
+# root process." Acceptable here because the container is single-user
+# (user: "0:0" in docker-compose.yml — everything in this container
+# IS root) and the X server is bound only to the in-container Xvfb
+# unix socket. No host-side or cross-container X exposure.
+echo "[init] granting root xhost access to :1 for the daemon's torcs spawns"
+DISPLAY=:1 xhost +SI:localuser:root 2>/dev/null \
+  || DISPLAY=:1 xhost +local:root 2>/dev/null \
+  || DISPLAY=:1 xhost + 2>/dev/null \
+  || echo "[init] WARN: xhost grant failed — torcs may run text-mode only"
+
 # Install daemon dependencies into the image's Python. The lab image
 # ships Python 3 but not fastapi/uvicorn; install once per container start.
 # --quiet keeps the compose logs from being flooded; failures fall through
