@@ -373,14 +373,32 @@ export function TorcsControlPanel() {
           expose noVNC publicly per ADR-004 §security). */}
       {status.enabled && status.reachable && (
         <div className="mt-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted mb-1">TORCS view</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-muted">TORCS view</div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("torcs-iframe");
+                if (el && el.requestFullscreen) el.requestFullscreen();
+              }}
+              className="text-[11px] text-muted hover:text-accent transition-colors"
+              title="Open the noVNC iframe in browser fullscreen for readable HUD text"
+            >
+              Fullscreen ⤢
+            </button>
+          </div>
+          {/* Phase 2.7: resize=remote tells noVNC to negotiate display size
+              with the X server (sharper than client-side pixel scaling).
+              Iframe height bumped 420 → 720 so the 1920x1080 Xvfb scales
+              down ~33% instead of ~60%; HUD text legible at desktop sizes. */}
           <iframe
+            id="torcs-iframe"
             title="TORCS in noVNC"
-            src="http://localhost:6080/vnc.html?autoconnect=1&resize=scale&reconnect=1"
-            className="w-full h-[420px] rounded-card border border-border bg-black"
+            src="http://localhost:6080/vnc.html?autoconnect=1&resize=remote&reconnect=1&password="
+            className="w-full h-[720px] rounded-card border border-border bg-black"
           />
           <p className="text-[11px] text-muted mt-1">
-            Live TORCS render. If the panel is blank, the lab container may still be booting; refresh once Race Control reaches "Idle."
+            Live TORCS render. Click <span className="text-text">Fullscreen ⤢</span> for readable HUD text. If the panel is blank, the lab container may still be booting; refresh once Race Control reaches "Idle."
           </p>
         </div>
       )}
