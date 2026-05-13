@@ -25,7 +25,7 @@ override-may-2026/
 ├── .gitignore
 ├── requirements.txt               # Pinned versions
 ├── models.json                    # Granite/Guardian/TTM model versions + hashes
-├── docker-compose.yml             # Three services, two profiles (torcs, observability)
+├── docker-compose.yml             # Four services, three profiles (torcs, observability, langflow)
 ├── Dockerfile                     # Multi-stage Node-20 → Python-3.12 → single image
 │
 ├── assets/

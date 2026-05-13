@@ -30,6 +30,8 @@
 | `GET`  | `/api/sessions/{session_id}/zones/{zone_id}` | One recommendation, full detail |
 | `GET`  | `/api/sessions/{session_id}/zones/{zone_id}/stream` | Optional SSE stream of reasoning generation |
 | `POST` | `/api/sessions/{session_id}/whatif` | Run a what-if perturbation |
+| `POST` | `/api/sessions/torcs-live` | Ingest a JSONL capture from the shared TORCS-telemetry volume |
+| `GET`  | `/api/torcs-status` | Discover what TORCS runs are available on the shared volume |
 | `GET`  | `/api/regulation-source` | The canonical source metadata for the deployed regulation extraction |
 | `DELETE` | `/api/sessions/{session_id}` | Remove a session (local cleanup) |
 
@@ -257,7 +259,52 @@ Run a perturbation against one zone.
 
 **Response 200** — `WhatIfResult`. The full pipeline runs on the perturbed zone, so the response includes both passes' outcomes. A what-if that fails Pass 1 or Pass 2 is **returned**, not hidden — the UI shows the failure inline.
 
-### 4.12 `GET /api/regulation-source`
+### 4.12 `POST /api/sessions/torcs-live`
+
+Ingest a JSONL telemetry capture from the shared `torcs-telemetry` named volume (mounted at `/app/data/telemetry/` inside the override container, written by `gym_torcs/torcs_jm_par.py` from inside the torcs container when `OVERRIDE_LOG_TELEMETRY` is set). Avoids the multipart-upload path for the live-driving workflow — judges drive in noVNC at `:6080`, the JSONL lands in the volume, and one POST creates a Session from the freshest run.
+
+**Request body** (`application/json`)
+
+```json
+{ "run_id": "baseline" }
+```
+
+`run_id` is constrained to `^[A-Za-z0-9_-]+$` (Pydantic-validated; the path resolves as `/app/data/telemetry/{run_id}.jsonl`).
+
+**Response 201** — full `Session` per [`04-schema.md` §11](./04-schema.md#11-api-surface-types), identical shape to `POST /api/sessions`. The pipeline runs end-to-end (`ingest/torcs_parser.parse_torcs_session` → analysis → reasoning → Pass-1 + Pass-2 → optional fan-mode hydration) using the same `Depends()` wired watsonx clients as the multipart upload path.
+
+**Response 400** — `error_code: "EMPTY_RUN"` when the file exists but yields zero observations after the JSONL safe-read skips incomplete tails.
+
+**Response 404** — `error_code: "RUN_NOT_FOUND"` when no file exists at the resolved path. The discovery helper at §4.13 is the right way to enumerate before POSTing.
+
+The parser tolerates incomplete tail lines and malformed observations silently per the safe-read pattern (a `torcs_jm_par.py` process may still be appending while this endpoint reads). See `ingest/torcs_parser.py` for the guarantee.
+
+> **Streaming is v1.1.** This endpoint is lap-paced batch ingest only — judges call it once after a drive session ends. SSE pushing per-lap zone detections as `torcs_jm_par.py` writes them is documented as v1.1 alongside TTM-R2.
+
+### 4.13 `GET /api/torcs-status`
+
+Discovery helper for the live-ingest path. Lists every `*.jsonl` file in `/app/data/telemetry/` (the override side of the shared `torcs-telemetry` volume), sorted by mtime descending. Used by the UploadPage banner to enable/disable per-run "Ingest" buttons without polling. Returns `200` always (no `404` for "empty volume" — just `available: false`), so the UI can call it on every page load without error-state branching.
+
+**Response 200**
+
+```json
+{
+  "available": true,
+  "runs": [
+    {
+      "run_id": "baseline",
+      "size_bytes": 64753245,
+      "lap_count_estimate": 12
+    }
+  ]
+}
+```
+
+`lap_count_estimate` is a cheap heuristic from the parser (uses the `distFromStart` start-line crossings without parsing the full file). Cheap to compute; exact lap count comes back in the `Session.summary.lap_count` after a real ingest.
+
+When the `torcs` compose profile isn't running, the named volume still exists but is empty → `{ "available": false, "runs": [] }`. The UI uses this to hide the banner entirely, making the live-TORCS affordance pure progressive enhancement.
+
+### 4.14 `GET /api/regulation-source`
 
 The canonical regulation source metadata for the deployed extraction. The UI shows this in a footer/tooltip so users can see exactly which document version grounds the recommendations.
 
@@ -277,7 +324,7 @@ The canonical regulation source metadata for the deployed extraction. The UI sho
 
 The `section` value is read from the Docling extraction at startup; it is **never** hardcoded in the API layer.
 
-### 4.13 `DELETE /api/sessions/{session_id}`
+### 4.15 `DELETE /api/sessions/{session_id}`
 
 Remove the session and its derived artifacts from local storage. Used in the demo to keep the list clean. Returns `204 No Content`. Idempotent — `204` even if the session was already gone.
 
