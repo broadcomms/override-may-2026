@@ -301,6 +301,35 @@ class Recommendation(BaseModel):
     guardian: Any   # GuardianResult  (forward-ref; see ingest/__init__.py)
 
 
+class SessionSource(str, Enum):
+    """How the session entered the system.
+
+    `source` (existing) describes the *parser* used (torcs vs fastf1
+    telemetry shape). `session_source` describes the *ingest path* — a
+    torcs-source session can come from either an uploaded JSONL file or
+    a live capture in the shared-volume directory. The two are orthogonal.
+
+    Default `UPLOAD` keeps existing on-disk sessions backward-compatible
+    when read from `_index.json` without this field set.
+    """
+
+    UPLOAD = "upload"            # POST /api/sessions (multipart) or fixture mode
+    TORCS_LIVE = "torcs_live"    # POST /api/sessions/torcs-live (volume-ingest)
+
+
+class SessionStatus(str, Enum):
+    """Race lifecycle state. v1.0 only emits `COMPLETED`; the other
+    values are reserved for the v1.1 control-daemon work documented in
+    `docs/roadmap-v1.1/interactive-torcs-integration-v3-final.md`.
+
+    Default `COMPLETED` keeps existing on-disk sessions backward-compatible.
+    """
+
+    COMPLETED = "completed"  # pipeline finished, recommendations available
+    ACTIVE = "active"        # race in progress (v1.1)
+    CANCELLED = "cancelled"  # race stopped before completion (v1.1)
+
+
 class SessionSummary(BaseModel):
     """Lightweight session-level metadata."""
 
@@ -316,6 +345,32 @@ class SessionSummary(BaseModel):
     note: Optional[str] = Field(
         default=None,
         description="surface-level message about the session (e.g. truncation note)",
+    )
+
+    # Phase 1 lifecycle metadata — all optional, backward-compatible defaults.
+    # Populated on ingest via /api/sessions/torcs-live; uploads inherit defaults.
+    session_source: SessionSource = SessionSource.UPLOAD
+    status: SessionStatus = SessionStatus.COMPLETED
+    track_name: Optional[str] = Field(
+        default=None,
+        description="Human-readable track label, e.g. 'Aalborg' or 'Monza' — captured at ingest time.",
+    )
+    target_laps: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Operator-supplied lap count goal for this race (compare against `lap_count`).",
+    )
+    started_at: Optional[datetime] = Field(
+        default=None,
+        description="Wall-clock start of the underlying telemetry capture. Sourced from the first observation's `t` field (Phase 1 logger injection); falls back to file `st_mtime` if absent.",
+    )
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        description="Wall-clock end of the underlying telemetry capture. Sourced from the JSONL file `st_mtime` at ingest time.",
+    )
+    telemetry_file: Optional[str] = Field(
+        default=None,
+        description="Filename of the originating JSONL capture (basename only — no path). Set only for `session_source=torcs_live`.",
     )
 
 
