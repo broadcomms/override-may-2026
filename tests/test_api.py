@@ -672,6 +672,198 @@ def test_torcs_live_invalid_run_id_pattern_returns_422(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Phase 1 — Session boundaries, history, comparison
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_extract_start_time_reads_first_observation_t(tmp_path):
+    """The logger injects `t = time.time()` into every observation.
+    _extract_start_time should pull the first `t` and return it as a
+    timezone-aware UTC datetime."""
+    from datetime import datetime, timezone
+
+    from api.main import _extract_start_time
+
+    p = tmp_path / "x.jsonl"
+    p.write_bytes(_torcs_jsonl_payload(n_laps=1, ticks_per_lap=10))
+    got = _extract_start_time(p)
+    assert got is not None
+    # _torcs_jsonl_payload starts at 1_700_000_000.0
+    assert got == datetime.fromtimestamp(1_700_000_000.0, tz=timezone.utc)
+
+
+def test_extract_start_time_returns_none_on_missing_t(tmp_path):
+    """Older captures (or hand-rolled fixtures) without `t` should not
+    crash; the caller substitutes file mtime."""
+    from api.main import _extract_start_time
+
+    p = tmp_path / "no_t.jsonl"
+    p.write_text('{"distFromStart": [0], "speedX": [30]}\n')
+    assert _extract_start_time(p) is None
+
+
+def test_extract_start_time_tolerates_malformed_leading_line(tmp_path):
+    """Gotcha #12 safe-read shape: a malformed first line is skipped,
+    not raised. Helper finds the next valid observation."""
+    from datetime import datetime, timezone
+
+    from api.main import _extract_start_time
+
+    p = tmp_path / "broken.jsonl"
+    p.write_text('not-json-at-all\n{"t": 1700000000.0, "x": 1}\n')
+    got = _extract_start_time(p)
+    assert got == datetime.fromtimestamp(1_700_000_000.0, tz=timezone.utc)
+
+
+def test_torcs_status_surfaces_started_last_written_duration(tmp_path, monkeypatch):
+    """Phase 1 enrichment — each run reports started_at (from JSONL
+    first-observation `t`), last_written_at (file mtime), duration_seconds."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "race.jsonl").write_bytes(_torcs_jsonl_payload(n_laps=1, ticks_per_lap=10))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs-status")
+    body = r.json()
+    assert body["available"] is True
+    run = body["runs"][0]
+    assert run["run_id"] == "race"
+    assert "started_at" in run and run["started_at"].endswith("+00:00")
+    assert "last_written_at" in run
+    assert "duration_seconds" in run and run["duration_seconds"] >= 0.0
+
+
+def test_torcs_live_enriches_summary_with_session_source_and_metadata(
+    tmp_path, monkeypatch,
+):
+    """POST with track_name/target_laps/notes → resulting Session.summary
+    has session_source=torcs_live, status=completed, the three operator
+    fields populated, started_at + completed_at + telemetry_file set."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "race.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/torcs-live",
+        json={
+            "run_id": "race",
+            "track_name": "Monza",
+            "target_laps": 5,
+            "notes": "calibration lap",
+        },
+    )
+    assert r.status_code == 201, r.text
+    summary = r.json()["summary"]
+    assert summary["session_source"] == "torcs_live"
+    assert summary["status"] == "completed"
+    assert summary["track_name"] == "Monza"
+    assert summary["target_laps"] == 5
+    assert summary["note"] == "calibration lap"
+    assert summary["telemetry_file"] == "race.jsonl"
+    assert summary["started_at"] is not None
+    assert summary["completed_at"] is not None
+
+
+def test_torcs_live_works_without_optional_metadata(tmp_path, monkeypatch):
+    """Backward compat — old curl invocations without the new fields
+    must still succeed; track_name/target_laps/notes stay None."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "race.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/sessions/torcs-live", json={"run_id": "race"})
+    assert r.status_code == 201, r.text
+    summary = r.json()["summary"]
+    assert summary["session_source"] == "torcs_live"
+    assert summary["track_name"] is None
+    assert summary["target_laps"] is None
+
+
+def test_list_sessions_empty_returns_zero_total(tmp_path):
+    """No sessions on disk → endpoint returns {sessions: [], total: 0}
+    with limit/offset echoed. UI history page renders an empty-state."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/sessions")
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {"sessions": [], "total": 0, "limit": 50, "offset": 0}
+
+
+def test_list_sessions_returns_newest_first(tmp_path):
+    """Create two sessions; the most recent uploaded_at should come first.
+    Storage helper does the sort; this test locks the round-trip."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    # First session
+    client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    )
+    # Second session, distinct time
+    import time as _t
+    _t.sleep(0.05)
+    client.post(
+        "/api/sessions",
+        files={"file": ("b.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    )
+    r = client.get("/api/sessions")
+    body = r.json()
+    assert body["total"] == 2
+    assert len(body["sessions"]) == 2
+    # Newest first — assert via uploaded_at descending
+    t0 = body["sessions"][0]["uploaded_at"]
+    t1 = body["sessions"][1]["uploaded_at"]
+    assert t0 >= t1
+
+
+def test_list_sessions_pagination_offset_and_limit(tmp_path):
+    """Paginate via limit + offset; total stays the same across pages."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    import time as _t
+    for _ in range(3):
+        client.post(
+            "/api/sessions",
+            files={"file": ("x.json", _laps_payload(), "application/json")},
+            data={"source": "fastf1"},
+        )
+        _t.sleep(0.01)
+    r1 = client.get("/api/sessions?limit=2&offset=0").json()
+    r2 = client.get("/api/sessions?limit=2&offset=2").json()
+    assert r1["total"] == 3 and r2["total"] == 3
+    assert len(r1["sessions"]) == 2
+    assert len(r2["sessions"]) == 1
+    # No overlap
+    ids1 = {s["session_id"] for s in r1["sessions"]}
+    ids2 = {s["session_id"] for s in r2["sessions"]}
+    assert ids1.isdisjoint(ids2)
+
+
+def test_list_sessions_uploaded_sessions_default_to_upload_source(tmp_path):
+    """Backward compat — sessions created via POST /api/sessions (no
+    Phase 1 enrichment) default to session_source=UPLOAD, status=COMPLETED."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    client.post(
+        "/api/sessions",
+        files={"file": ("x.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    )
+    r = client.get("/api/sessions").json()
+    s = r["sessions"][0]
+    assert s["session_source"] == "upload"
+    assert s["status"] == "completed"
+
+
+def test_list_sessions_rejects_out_of_bounds_limit(tmp_path):
+    """Limit clamped at 200 per the Query(le=200); 999 → 422."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/sessions?limit=999")
+    assert r.status_code == 422
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # POST /api/sessions/{id}/what-if  (FR-8)
 # ──────────────────────────────────────────────────────────────────────────────
 
