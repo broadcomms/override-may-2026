@@ -172,9 +172,9 @@ Built solo over 23 days. Development accelerated using IBM Bob.
 |---|---|
 | Demo video (YouTube unlisted) | `<PASTE_YOUTUBE_URL_HERE>` — verify it plays in incognito tab before publishing |
 | GitHub repository | `<PASTE_GITHUB_URL_HERE>` |
-| Live demo (if hosted) | If 3.7 provisions the ephemeral Hetzner CX32 VM: `http://<vm-ip>:8000` (or `https://override.duckdns.org` if DuckDNS+Caddy succeeds). Note in the description: "Ephemeral hosted demo for the judging window only — tear-down after 2026-05-31. For the live TORCS drive path, clone the repo and `podman compose --profile torcs up` locally (noVNC is intentionally not exposed publicly — see docs/07-deployment.md §firewall)." If 3.7 was cut (per v6 plan cut #4), leave as "OVERRIDE runs locally; use the YouTube link instead." |
+| Live demo (hosted via Cloudflare Tunnel) | `https://override.patrickndille.com` — public, fixture-driven demo path. Description note: "Ephemeral hosted demo for the IBM SkillsBuild judging window only (May 27 – May 31, 2026); routes revoked post-May-31. Fronted by a Cloudflare Tunnel from local WSL; same compose stack as the local-clone path. For the live TORCS drive affordance, judges can request access at `torcs.patrickndille.com` (Cloudflare Access — one-time PIN to a whitelisted email). The Jaeger trace UI at `jaeger.patrickndille.com` is similarly gated. See `docs/07-deployment.md` for the full posture." If the hosted URL is unavailable mid-judging, the README's `podman compose up` path is the canonical fallback (rubric story is unchanged). |
 
-> Replace placeholders during the T-2h step in `final-lock-checklist.md`. The hosted-URL slot is conditional on 3.7's outcome — record the actual decision (with VM IP / DuckDNS hostname or "cut") in `docs/07-deployment.md`.
+> Replace placeholders during the T-2h step in `final-lock-checklist.md`. The hosted URL above is the v6-plan-amended Cloudflare Tunnel target (post-pre-flight pivot from the original Hetzner CX32 VM plan — see `docs/07-deployment.md` §1 for the history). If the Tunnel route is dropped before T-2h, swap the row to "OVERRIDE runs locally — see README; use the YouTube link as the primary demo asset" and the architectural promise is unaffected (cuts list item #4 fallback).
 
 ---
 

@@ -132,6 +132,18 @@ OVERRIDE is the open-source answer: a copilot that takes a session replay, ident
 
 ## Quickstart
 
+### Hosted demo (May 27 – May 31, 2026)
+
+If the judging window is live, the full Engineer + Fan + What-if flow is reachable in a browser at:
+
+> **[https://override.patrickndille.com](https://override.patrickndille.com)**
+
+Drop `data/sessions/sample_torcs.json` or click any of the three "OR TRY A SAMPLE REPLAY" pills on the upload page. End-to-end watsonx pipeline (~8 s).
+
+The hosted URL is **ephemeral** — fronted by a Cloudflare Tunnel from a local WSL host, single-purpose for the IBM SkillsBuild AI Builders Challenge judging window. Routes are revoked post-May-31. The local-clone path below is the canonical reproduction; the hosted URL is convenience for judges who don't want to install Podman just to look. See [`docs/07-deployment.md`](./docs/07-deployment.md) for the full deployment posture (TLS, Cloudflare Access gating on admin surfaces, tear-down).
+
+If the URL is offline, fall through to the local-clone path below — the demo is identical.
+
 ### Run with Podman compose (recommended)
 
 The shipping shape. One image, three modes — pick whichever fits the moment.

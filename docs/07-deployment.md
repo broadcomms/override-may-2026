@@ -3,219 +3,227 @@
 OVERRIDE ships in two shapes:
 
 1. **Local** — `podman compose up` against the repo. Default path; documented in [`README.md`](../README.md). What judges experience when they clone the repo.
-2. **Ephemeral hosted demo** — a Hetzner Cloud CX32 VM standing up the same compose stack for the IBM SkillsBuild judging window (May 27 – May 31, 2026). Single-purpose, tear-down post-May-31, **not a production deployment.**
+2. **Ephemeral hosted demo** — a **Cloudflare Tunnel** from a local WSL2 host, exposing the compose stack on a subdomain of `patrickndille.com` for the IBM SkillsBuild judging window (May 27 – May 31, 2026). Single-purpose, route-revoke post-May-31, **not a production deployment.**
 
 The hosted demo is convenience, not the architectural promise. Per the v6 plan cuts list, item #4 is "skip cloud-VM provisioning; README-only deploy with `podman compose up` on a local machine." Strongly preferred but not in the hard floor.
 
-This document is the runbook for the ephemeral VM dry-run (v6 plan §3.7).
+This document is the runbook for the Cloudflare Tunnel deployment (v6 plan §3.7, amended).
+
+> **History.** v6 plan §3.7 originally specified a Hetzner CX32 VM (~$3 for the judging window). The post-pre-flight pivot is to **Cloudflare Tunnel from local WSL** — $0 cost, automatic TLS at the Cloudflare edge, no SSH key management, no UFW config, tear-down is revoking tunnel routes. The trade-off is **availability tracks the local laptop's uptime** (mitigated via `--restart=always`, no-sleep settings, and the local-clone fallback in README).
 
 ---
 
-## §1 — VM size and OS
+## §1 — Architecture
 
-| Property | Value | Rationale |
-|---|---|---|
-| Provider | Hetzner Cloud | Cheap, fast provisioning, ~$0.013/h prorated billing |
-| Size | **CX32** — 4 vCPU / 8 GB RAM / 80 GB NVMe | Handles the 10 GB TORCS lab image + everything else with margin. CX22 would have been default-profile-only — no `--profile torcs` headroom. |
-| OS | **Ubuntu 24.04 LTS** | Ships Podman 4.9.x, matches the WSL dev shape (gotcha #7 pasta-networking fix needs 4.4+) |
-| Cost | ~$11.40/mo prorated → **~$1.50–2 for the 4–5 day judging window** | Plus snapshot ~$1 → total ~$3–4 USD |
+```
+┌──────────────────────┐        ┌─────────────────────┐        ┌────────────────────┐
+│ Judge's browser      │  HTTPS │ Cloudflare edge     │  WSS   │ cloudflared daemon │
+│ override.patrick…    │───────▶│ (TLS termination,   │───────▶│ on local WSL2      │
+│ torcs.patrick…       │        │ Access policies)    │        │ (rootless tunnel)  │
+│ jaeger.patrick…      │        └─────────────────────┘        └─────────┬──────────┘
+└──────────────────────┘                                                  │ loopback
+                                                                          ▼
+                                       ┌──────────────────────────────────────────────┐
+                                       │ Podman compose stack (override-net)          │
+                                       │  override :8000   torcs :6080/:11434/:3001   │
+                                       │  jaeger   :16686  langflow :7860             │
+                                       └──────────────────────────────────────────────┘
+```
 
-If Hetzner pricing or availability shifts, equivalent VMs work — minimum spec: **4 vCPU / 8 GB / Ubuntu 22.04+ / Podman 4.4+**.
+Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → `torcs` → Public Hostnames):
 
----
-
-## §2 — Firewall rules
-
-⚠️ **noVNC has no authentication.** Exposing port 6080 publicly is a takeover vector. The hosted demo URL is fixture-only; the live TORCS drive path is intentionally not exposed.
-
-| Port | Protocol | External | Reason |
+| Subdomain | → Local service | Auth | Purpose |
 |---|---|---|---|
-| **22** | TCP | **OPEN** | SSH only — operator access |
-| **80** | TCP | **OPEN** | Caddy → 8000 (or direct if TLS skipped) |
-| **443** | TCP | **OPEN** (only if Caddy issues a cert) | Caddy → 8000 |
-| 8000 | TCP | CLOSED | OVERRIDE API — reached internally via 80/443 |
-| 5900 | TCP | CLOSED | VNC — operator SSH-tunnel only |
-| **6080** | TCP | **CLOSED** | noVNC — auth-less; SSH-tunnel only |
-| 3001 | UDP | CLOSED | SCR (gym_torcs ↔ TORCS server) — intra-pod |
-| 11434 | TCP | CLOSED | Ollama HTTP — intra-pod |
-| 16686 | TCP | CLOSED | Jaeger UI — operator SSH-tunnel only |
-
-Apply on the VM with `ufw`:
-
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-sudo ufw status verbose
-```
-
-Also configure Hetzner's network-edge firewall to match (defense in depth). Operator access to noVNC / Jaeger UI:
-
-```bash
-ssh -L 6080:localhost:6080 -L 16686:localhost:16686 user@vm
-```
-
-README documents this explicitly so judges aren't surprised:
-
-> The hosted demo URL exposes the fixture-driven path only. Judges who want to drive live TORCS clone the repo and `podman compose --profile torcs up` locally.
+| `override.patrickndille.com` | `http://localhost:8000` | **Public** | The demo. UI + API. |
+| `torcs.patrickndille.com` | `http://localhost:6080` | **Cloudflare Access** (email allowlist) | Optional "drive TORCS yourself" affordance for curious judges. |
+| `jaeger.patrickndille.com` | `http://localhost:16686` | **Cloudflare Access** (email allowlist) | Observability proof. Same gate as torcs. |
+| ~~`ollama.patrickndille.com`~~ | ~~`http://localhost:11434`~~ | **Route deleted** | No legitimate external consumer; OVERRIDE reaches Ollama internally via the compose network at `http://torcs:11434`. |
+| ~~`langflow.patrickndille.com`~~ | ~~`http://localhost:7860`~~ | **Route deleted** | Out of v1 scope. Langflow service runs locally only. |
 
 ---
 
-## §3 — TLS choice
+## §2 — Why two routes are gated and two are deleted
 
-The 4–5 day demo on a single-purpose ephemeral VM does not justify the cost/complexity of a production-grade TLS setup. Three branches, in preference order:
+⚠️ **noVNC, Jaeger, Ollama, and Langflow all ship with NO authentication by default.** Cloudflare Tunnel by itself just brings the surface to the public internet — it does not add auth. Without further config, any of these four subdomains hands a stranger an unauthenticated admin interface.
 
-### Branch A — Skip TLS (fastest, 0 min)
+Risk shape:
 
-Judges access `http://<vm-public-ip>:8000` directly. HTTP-not-HTTPS is acceptable for a hackathon submission; the rubric scores architecture, not certificate management. Edit `docker-compose.yml` to publish `80:8000` (one line: `ports: ["80:8000"]` on the `override` service) and skip Caddy entirely.
+| Subdomain | What an unauth visitor gets | Mitigation chosen |
+|---|---|---|
+| `override` (`:8000`) | Read-only-ish FastAPI + UI; watsonx calls (cost lever, no privilege escalation). Single-user replay-first per [`docs/05-security.md`](./05-security.md). | **Public** — the demo. Only "cost" is watsonx burn, capped by the CA$10 Essentials budget alerts. |
+| `torcs` (`:6080`) | Full remote desktop into the TORCS container. Anyone can drive the sim, change container state, and depending on container escape vectors, potentially reach the host. | **Gated** — Cloudflare Access with email allowlist. |
+| `jaeger` (`:16686`) | All trace content: prompt text, model IDs, request timing, internal pipeline shape. Information disclosure. | **Gated** — same Access policy. |
+| `ollama` (`:11434`) | Free unmetered LLM inference for anyone who finds the subdomain. Even with Cloudflare Access, an authenticated visitor has full inference. No legitimate use case for external access. | **Route deleted entirely.** |
+| `langflow` (`:7860`) | Visual flow editor with arbitrary-tool execution. Out of v1 demo scope. | **Route deleted entirely.** |
 
-### Branch B — DuckDNS + Caddy (recommended if URL aesthetics matter, ~10–30 min)
+**Subdomain enumeration is trivial** — once `override.patrickndille.com` is in the BeMyApp portal, `crt.sh`, `subfinder`, and a 5-second guess at sibling names will surface the others. There is no security-through-obscurity here.
 
-Polished URL like `override-demo.duckdns.org`. Steps:
+### Cloudflare Access policy setup (~5 min per gated subdomain)
+
+1. Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**.
+2. **Application domain**: e.g. `torcs.patrickndille.com`.
+3. **Session duration**: 24 hours (judging window is 5 days; 24h is the sweet spot — re-auth once per day, no perpetual sessions).
+4. **Identity providers**: enable **One-time PIN** (zero setup; judges enter their email, get a code, click through). Add specific email allowlist as judges are confirmed.
+5. **Policies → Add a policy → Include → Emails**: `your@email.com` (+ any allowlisted testers / judges as they're known). Allow that one rule; deny all else.
+6. Save. The subdomain now redirects unauthenticated visitors to Cloudflare's Access auth page before proxying to localhost.
+
+### Optional but recommended: Cloudflare WAF on `override`
+
+For the public route, add a basic WAF rule at the zone level: rate-limit `POST /api/sessions` to ~5 req/min/IP. Caps the watsonx burn surface in the worst case (someone scripting fixture uploads). Free-tier WAF rules cover this.
+
+---
+
+## §3 — Runbook (mechanical, ~30 min start-to-public)
+
+Pre-flight: Cloudflare account on the `patrickndille.com` zone, the local WSL2 box running with Podman 4.4+, and `WATSONX_API_KEY` + `WATSONX_PROJECT_ID` in `.env`.
 
 ```bash
-# On the VM
-sudo apt-get install -y caddy
-# Point override.duckdns.org's A record at the VM IP via duckdns.org's web UI
+# ── 1. Install cloudflared (WSL2 Ubuntu 24.04) ────────────────────────────
+curl -L --output cloudflared.deb \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
+cloudflared --version    # expect 2024.x+
 
-# Foreground / ephemeral Caddy:
-caddy reverse-proxy --from override.duckdns.org --to localhost:8000
+# ── 2. Authenticate cloudflared against the Cloudflare account ────────────
+cloudflared tunnel login
+# Opens a browser → pick the patrickndille.com zone → cert.pem written to
+# ~/.cloudflared/cert.pem
 
-# OR (more durable) a minimal Caddyfile in ~/Caddyfile:
-cat > ~/Caddyfile <<'EOF'
-override.duckdns.org {
-    reverse_proxy localhost:8000
-}
+# ── 3. Create the tunnel (one-time) ───────────────────────────────────────
+cloudflared tunnel create torcs
+# Outputs a tunnel UUID + writes ~/.cloudflared/<UUID>.json with credentials.
+# Record the UUID; the dashboard refers to it by name ("torcs") but config
+# files use the UUID.
+
+# ── 4. Configure tunnel routes ────────────────────────────────────────────
+# Easiest path: Cloudflare dashboard → Zero Trust → Networks → Tunnels
+# → torcs → Public Hostnames → Add three:
+#   override.patrickndille.com → http://localhost:8000
+#   torcs.patrickndille.com    → http://localhost:6080
+#   jaeger.patrickndille.com   → http://localhost:16686
+# Do NOT add ollama or langflow routes (per §2).
+
+# OR via CLI (~/.cloudflared/config.yml):
+cat > ~/.cloudflared/config.yml <<EOF
+tunnel: <UUID-from-step-3>
+credentials-file: /home/$USER/.cloudflared/<UUID>.json
+ingress:
+  - hostname: override.patrickndille.com
+    service: http://localhost:8000
+  - hostname: torcs.patrickndille.com
+    service: http://localhost:6080
+  - hostname: jaeger.patrickndille.com
+    service: http://localhost:16686
+  - service: http_status:404      # catch-all (required)
 EOF
-caddy run --config ~/Caddyfile
-```
 
-Caddy auto-issues Let's Encrypt certs on first request. **Typical time when DNS propagates fast and the HTTP-01 challenge succeeds first try: ~10 min.** Worst case (slow DNS, challenge retries): ~30 min. Cert re-acquires on Caddy restart (rate-limited but fine for a 4–5 day window); a proper systemd unit + persistent Caddyfile is v1.1.
+# ── 5. Add Cloudflare Access policies for torcs + jaeger ──────────────────
+# Dashboard path is the only sane way — see §2 above. Create one self-hosted
+# application per gated subdomain, one-time-PIN, email allowlist.
 
-### Branch C — Fallback (cert challenge fails)
+# ── 6. Bring up the compose stack ─────────────────────────────────────────
+cd ~/overdrive-may-2026
+cp .env.example .env       # or edit existing — watsonx creds + OVERRIDE_TRACING=otlp
+podman-compose up -d override                   # public demo path
+podman-compose up -d override torcs             # if torcs subdomain is in routes
+podman-compose up -d override jaeger            # if jaeger subdomain is in routes
+# Verify each service responds on its loopback port BEFORE starting the tunnel.
 
-Ship `http://<vm-public-ip>:8000` directly (Branch A). Covers any DNS / cert hiccup without slipping the 1.5h dry-run budget.
+# ── 7. Start cloudflared as a systemd service ─────────────────────────────
+# Persistent, auto-restart on failure, survives WSL reboot:
+sudo cloudflared service install     # installs to /etc/systemd/system/
+sudo systemctl enable --now cloudflared
+sudo systemctl status cloudflared    # expect "active (running)"
 
-**Decision recorded at dry-run time**: [ ] Branch A — skip TLS &nbsp;&nbsp; [ ] Branch B — DuckDNS+Caddy succeeded &nbsp;&nbsp; [ ] Branch C — Caddy failed, fell back
+# Alternative (ephemeral foreground, for testing):
+# cloudflared tunnel run torcs
 
----
-
-## §4 — Runbook (mechanical, ~1.5h start-to-snapshot)
-
-Pre-flight: have Hetzner Cloud credentials, an SSH public key, and `WATSONX_API_KEY` + `WATSONX_PROJECT_ID` ready.
-
-```bash
-# ── 0. Provision (in Hetzner Cloud console or via hcloud CLI) ──────────────
-# • Image: Ubuntu 24.04
-# • Type: CX32
-# • Location: nbg1 or fsn1 (EU) — closest to the operator/judges
-# • SSH key: paste public key
-# • Firewall: optionally pre-bind a Hetzner firewall matching §2
-
-# ── 1. SSH in + harden ────────────────────────────────────────────────────
-ssh root@<vm-ip>
-adduser deploy && usermod -aG sudo deploy
-# Copy operator's SSH key into /home/deploy/.ssh/authorized_keys
-# Then re-login as deploy and disable root SSH
-exit
-ssh deploy@<vm-ip>
-
-# ── 2. Linger so containers survive SSH disconnect (gotcha #11) ───────────
-sudo loginctl enable-linger $USER
-cat /etc/subuid /etc/subgid    # verify range listed; missing → run:
-# sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER && podman system migrate
-
-# ── 3. Install deps ───────────────────────────────────────────────────────
-sudo apt-get update
-sudo apt-get install -y podman git ufw curl
-# Verify Podman 4.4+:
-podman --version
-
-# If `podman compose version` is missing (V2 plugin not bundled in this Ubuntu image):
-sudo apt-get install -y python3-pip
-pip install --user podman-compose      # the v1.0.6 path used during local smoke
-
-# ── 4. Apply firewall (per §2) ────────────────────────────────────────────
-sudo ufw default deny incoming && sudo ufw default allow outgoing
-sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
-sudo ufw enable && sudo ufw status verbose
-
-# ── 5. Clone + configure ──────────────────────────────────────────────────
-git clone https://github.com/<user>/overdrive-may-2026.git
-cd overdrive-may-2026
-cp .env.example .env
-# Edit .env — paste WATSONX_API_KEY + WATSONX_PROJECT_ID + WATSONX_URL (us-south)
-
-# ── 6. Bring up the default profile (fixture-driven demo path) ────────────
-podman compose up -d
-# Wait ~30s, then:
-curl -fsS http://localhost:8000/api/health
+# ── 8. Smoke from outside the local network ───────────────────────────────
+# From a phone on cellular or a different machine:
+curl -sf https://override.patrickndille.com/api/health | jq .
 # Expected: {"status":"ok",...}
 
-# ── 7. Smoke: upload a fixture end-to-end ─────────────────────────────────
-curl -fsS -X POST http://localhost:8000/api/sessions \
-  -F "file=@data/sessions/sample_torcs.json;type=application/json" \
-  -F "source=torcs" \
-  | head -c 200      # expect a Session JSON payload
+# Gated subdomains should 302 to the Access auth page, NOT 200:
+curl -s -o /dev/null -w "torcs:  %{http_code}\n"  https://torcs.patrickndille.com/
+curl -s -o /dev/null -w "jaeger: %{http_code}\n"  https://jaeger.patrickndille.com/
+# Expected: 302 each (redirect to Cloudflare Access).
 
-# ── 8. Optional: bring up live-TORCS path (first pull ~10–15 min) ─────────
-# Skip this if cuts list item #4 is firing OR if VM disk space is tight.
-podman compose --profile torcs up -d
-podman logs torcs --tail 30      # watch for "[6/6] All services started"
-# Verify noVNC desktop via SSH tunnel from a separate terminal:
-#   ssh -L 6080:localhost:6080 deploy@<vm-ip>
-#   open http://localhost:6080 in browser
+# ── 9. Operational hardening for the judging window ───────────────────────
+# Container restart policy — survive Podman / compose failures:
+podman update --restart=always override torcs jaeger
 
-# ── 9. Apply TLS branch per §3 ─────────────────────────────────────────────
-# Branch A: edit compose to publish 80:8000 instead of 8000:8000, redeploy
-# Branch B: caddy reverse-proxy --from override.duckdns.org --to localhost:8000
-# Branch C: do nothing — judges hit http://<vm-ip>:8000
+# Windows-side: disable sleep on the host machine for May 24-31.
+# Settings → System → Power → Screen and sleep → Never (while plugged in).
 
-# ── 10. Snapshot (review #6 — disaster recovery) ──────────────────────────
-# Hetzner Cloud console → VM → Create snapshot
-# Cost: ~$0.012/GB/month → ~$1 for the window
-# Record snapshot ID below.
+# WSL config: ~/.wslconfig on the Windows side, keep memory + processors stable.
 
-# ── 11. Fresh-clone smoke (T-72h pre-flight equivalent) ───────────────────
-cd ~
-git clone /home/deploy/overdrive-may-2026 /tmp/override-fresh
-cd /tmp/override-fresh
-podman compose up -d
-curl -fsS http://localhost:8000/api/health
-# If green: tear down /tmp/override-fresh (it was just the smoke).
-podman compose down -v
-rm -rf /tmp/override-fresh
-
-# ── 12. Done — paste the URL into docs/plans/submission-portal-copy.md §9 ─
+# ── 10. Paste the URL into the BeMyApp portal copy ────────────────────────
+# Edit docs/plans/submission-portal-copy.md §9 — the row already accommodates
+# the Cloudflare URL. Final paste happens at T-2h on May 31.
 ```
 
-**Decisions recorded** (fill at dry-run time):
+**Decisions recorded** (fill at deploy time):
 
 ```
-VM IP / hostname:        ____________________
-TLS branch:              [ ] A  [ ] B (url: _______________)  [ ] C
-Snapshot ID:             ____________________
-First-pull TORCS image:  [ ] ran   [ ] cut (cuts list item #4)
-Volume-permission test:  [ ] re-verified (already green local; see §5)
-loginctl linger enabled: [ ] yes
+Tunnel UUID:             ____________________
+cloudflared service:     [ ] systemd  [ ] foreground (NOT for judging window)
+Routes published:        [ ] override  [ ] torcs (gated)  [ ] jaeger (gated)
+                         [ ] ollama (deleted)  [ ] langflow (deleted)
+Access policy emails:    ____________________
+WAF rate limit on /api/sessions:  [ ] yes (5 req/min/IP)  [ ] skipped
+External smoke pass:     [ ] override 200  [ ] torcs 302  [ ] jaeger 302
+--restart=always set:    [ ] yes
+Host no-sleep set:       [ ] yes
 ```
 
 ---
 
-## §5 — Volume-permission re-verify on the VM
+## §4 — Volume-permission re-verify
 
-The UID-remap test (v6 plan gotcha #11) was already green locally during 3.2. Rootless Podman on a fresh VM has the same shape, but verify once because cross-machine differences happen:
+Same shape as before — the named-volume + bind-mount layout the compose stack uses works identically whether the tunnel is up or not. The named volume `torcs-telemetry` shadows the bind-mount path at `/home/student/workspace/gym_torcs/telemetry/` inside the `torcs` container.
 
 ```bash
-podman compose --profile torcs up -d
-podman exec torcs sh -c "touch /home/student/workspace/gym_torcs/telemetry/vm-check.txt"
-podman exec override sh -c "cat /app/data/telemetry/vm-check.txt && echo OK"
+podman-compose up -d override torcs
+podman exec torcs sh -c "touch /home/student/workspace/gym_torcs/telemetry/__test.txt"
+podman exec override sh -c "cat /app/data/telemetry/__test.txt && echo OK"
+podman exec torcs rm /home/student/workspace/gym_torcs/telemetry/__test.txt
 ```
 
-If permission-denied: re-apply the `user: "0:0"` workaround on the `torcs` service in `docker-compose.yml` (it's already there from the local 3.1 smoke fix — re-verify it's in the cloned copy).
+If permission-denied: confirm the `user: "0:0"` workaround is still on the `torcs` service in `docker-compose.yml`. The named volume + root-writes posture is the working state from local 3.1 smoke.
+
+**Data on host** lives at `~/.local/share/containers/storage/volumes/overdrive-may-2026_torcs-telemetry/_data/` — extract for offline inspection with:
+
+```bash
+cp ~/.local/share/containers/storage/volumes/overdrive-may-2026_torcs-telemetry/_data/baseline.jsonl ./baseline.jsonl
+head -2 baseline.jsonl | jq
+```
+
+---
+
+## §5 — Local-dev redeploy loop (Phase G capture)
+
+Quick reference for iterating on the code locally while the tunnel is up. The Cloudflare side stays connected; you just bounce the override container:
+
+```bash
+# After editing api/, core/, ingest/, analysis/:
+podman-compose build override                   # rebuild image
+podman-compose up -d --force-recreate override  # recreate so env_file + new image apply
+
+# After editing ui/:
+cd ui && npm run build && cd ..                 # rebuild static bundle
+podman-compose up -d --force-recreate override  # static bundle is COPYed into the image
+
+# Clean rebuild (no layer cache — use after dependency changes):
+podman-compose build --no-cache override
+
+# Inspect image size growth between rebuilds:
+podman images override --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedSince}}\t{{.Size}}"
+
+# Prune dangling layers after multiple rebuilds:
+podman image prune -f
+```
+
+**`podman restart` vs `podman-compose up -d --force-recreate`** — `podman restart` reuses the container's existing env; new `.env` values are NOT picked up. Always use `--force-recreate` after editing `.env` or any env_file-referenced variable.
 
 ---
 
@@ -224,27 +232,52 @@ If permission-denied: re-apply the `user: "0:0"` workaround on the `torcs` servi
 Run on **2026-06-01** or earlier (post-judging, post-portal-confirmation).
 
 ```bash
-# On the VM:
-podman compose down -v        # also drops the torcs-telemetry named volume
-cd ~ && rm -rf overdrive-may-2026
-# In Hetzner Cloud console:
-# • Delete the VM (stops further billing)
-# • OPTIONAL: keep the snapshot (~$1/month) if a post-mortem replay is wanted
+# Stop the tunnel
+sudo systemctl stop cloudflared
+sudo systemctl disable cloudflared
+# Delete the tunnel (irreversible — credentials become invalid):
+cloudflared tunnel delete torcs
+
+# In Cloudflare dashboard:
+# • Zero Trust → Access → Applications → delete torcs + jaeger applications
+# • DNS → delete the override / torcs / jaeger CNAME records (auto-created by
+#   cloudflared but linger after tunnel delete)
+
+# Local containers + volumes
+cd ~/overdrive-may-2026
+podman-compose down -v        # drops torcs-telemetry named volume + langflow-data
+# Repo can stay; it's the canonical local-clone path going forward.
+
+# Disable host no-sleep + WSL --restart=always tweaks if you want laptop back to normal.
 ```
 
 Total cost projection over the 19-day build + judging window:
 
 | Line | Amount |
 |---|---|
-| Hetzner VM (~4–5 days @ ~$11.40/mo prorated) | ~$1.50–2.00 |
-| Hetzner snapshot (~$1/mo for ~1 month if kept) | ~$0.50–1.00 |
+| Cloudflare Tunnel | **$0** (free tier; one zone, three routes, two Access policies, well under all limits) |
+| Cloudflare WAF rule (optional) | **$0** (free-tier zone rules) |
 | watsonx.ai burn (CA$10 budget alerts on Runtime + Studio) | ~$1–10 |
-| **Total** | **~$3–13 USD** |
+| **Total** | **~$1–10 USD** |
+
+vs the original Hetzner CX32 plan at ~$3–13 USD. Net savings ~$3 + ~1.5h of provisioning friction.
 
 ---
 
-## §7 — When the dry-run produces a hosted URL
+## §7 — Operational resilience
 
-Paste it into [`docs/plans/submission-portal-copy.md`](plans/submission-portal-copy.md) §9 (the conditional row already accommodates either branch). The BeMyApp portal "How to try it" field gets `http://<vm-ip>:8000` (Branch A/C) or `https://override.duckdns.org` (Branch B), with the ephemeral-tear-down framing intact.
+The trade-off vs a hosted VM is **availability tracks the laptop**, not a datacenter.
 
-**If 3.7 is cut** (cuts list item #4) — the conditional row falls back to "OVERRIDE runs locally; use the YouTube link instead." No portal copy edit needed beyond that.
+**Single-laptop failure modes for the 4–5 day judging window**:
+
+| Risk | Mitigation |
+|---|---|
+| Laptop sleeps | Windows → Power → Screen and sleep → Never (plugged in). For May 24–31. |
+| Containers crash | `podman update --restart=always override torcs jaeger` in Step 9. |
+| cloudflared crashes | `systemctl enable --now cloudflared` in Step 7 — auto-restart on failure. |
+| WSL kernel hang | Rare. Recovery: `wsl --shutdown` then `wsl` from PowerShell, then re-run `podman-compose up -d`. Tunnel re-connects automatically. |
+| Power outage / network outage | No mitigation — falls back to README local-clone path. Judges still see a fully-reproducible local demo. |
+
+**Fallback that doesn't cost more**: the README's local-clone Quickstart works regardless of the hosted URL. The portal copy explicitly states this: "OVERRIDE runs locally via `podman compose up` — see README. The hosted URL is convenience, not the architectural promise." If `override.patrickndille.com` goes dark mid-judging, the rubric story is unchanged.
+
+**Paranoid fallback** (skip unless nervous): spin up a Hetzner CX22 for $0.50/window with the same compose stack and a second Cloudflare Tunnel pointing to it as `backup.override.patrickndille.com`. Swap the BeMyApp URL in 30 seconds if primary dies. Realistically: unnecessary for a 4-day window.
