@@ -1,944 +1,382 @@
-# Interactive TORCS Integration - Comprehensive Implementation Plan
+# Interactive TORCS Integration — v1.1 buildable specification
 
-**Status:** Planning  
-**Created:** 2026-05-13  
-**Priority:** High - Addresses critical UX gaps and session management issues
+**Status:** Roadmap (post-v1.0-submission work)
+**Created:** 2026-05-13 (originally drafted as v3 of three iterations; v1 + v2 dropped after the security/architecture pivot consolidated. See `git log -- docs/roadmap-v1.1/` for history.)
+
+> **Phase 1 of this plan was absorbed into v1.0** — session boundaries, history page (`/sessions`), comparison view (`/sessions/compare`), and the `GET /api/sessions` endpoint all shipped via commits `04934ce` → `ee289bb`. The remaining Phases 2 (HTTP control daemon) and 3 (SSE live telemetry stream) are post-submission v1.1 work documented below.
 
 ---
 
 ## Executive Summary
 
-This plan addresses two critical gaps in the current OVERRIDE system:
+This is the **buildable specification** for interactive TORCS integration. All technical corrections from the architecture review have been applied.
 
-1. **Session Management Issue:** Currently, all TORCS runs append to the same telemetry file, making it impossible to distinguish between different races or compare performance across sessions.
+**Core Problem:** Users cannot distinguish between individual TORCS race sessions.
 
-2. **User Experience Gap:** Users must manually open VNC clients, navigate TORCS menus, and run separate scripts to start races, creating friction and reducing the system's accessibility.
-
-**Solution:** Integrate TORCS simulator directly into the OVERRIDE UI with embedded VNC display, interactive controls, and proper session lifecycle management.
-
----
-
-## Current Architecture Analysis
-
-### Strengths
-- ✅ Docker compose already runs TORCS with VNC (ports 5900, 6080)
-- ✅ noVNC web interface available at `localhost:6080/vnc.html`
-- ✅ Telemetry logging via `torcs-telemetry` shared volume
-- ✅ Session persistence well-structured in [`api/storage.py`](../../api/storage.py)
-- ✅ Live ingest endpoint exists: `POST /api/sessions/torcs-live`
-- ✅ `gym_torcs` driver in [`RaceYourCode/gym_torcs/`](../../RaceYourCode/gym_torcs/)
-
-### Critical Gaps
-- ❌ **No session boundaries:** All runs append to same file
-- ❌ **No session lifecycle:** Can't distinguish race start/end
-- ❌ **No session comparison:** Can't compare performance across races
-- ❌ **Manual TORCS control:** Users must use VNC separately
-- ❌ **No live telemetry streaming:** Must wait for race completion
-- ❌ **No race metadata:** Track, duration, conditions not captured
+**Solution:** Three-phase implementation (7 weeks, 140 hours):
+- **Phase 1** (2 weeks): Per-run telemetry files + session metadata
+- **Phase 2** (3 weeks): HTTP control daemon for programmatic race control  
+- **Phase 3** (2 weeks): Live telemetry streaming via SSE
 
 ---
 
-## Three-Phase Implementation Plan
+## Critical Technical Corrections Applied
 
-### Phase 1: Session Management Foundation (Critical)
-**Goal:** Fix session lifecycle to enable proper race tracking and comparison
+### Phase 1 Corrections (Session Boundaries)
 
-#### 1.1 Session Lifecycle State Machine
+**1.1A - datetime.utcnow() deprecated**
+```python
+# WRONG (v2)
+timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
 
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Preparing: User clicks "Start Race"
-    Preparing --> Active: TORCS race started
-    Active --> Processing: Race completed
-    Processing --> Completed: Pipeline finished
-    Completed --> Idle: Ready for next race
-    Active --> Cancelled: User stops race
-    Cancelled --> Idle
+# CORRECT (v3)
+timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%f")
+# Added %f for microsecond precision (prevents collisions)
 ```
 
-**States:**
-- `idle`: No active race, ready to start new session
-- `preparing`: Session created, waiting for TORCS to start
-- `active`: Race in progress, telemetry streaming
-- `processing`: Race ended, running AI pipeline
-- `completed`: Session fully processed, results available
-- `cancelled`: Race stopped before completion
-
-#### 1.2 Enhanced Session Schema
-
-**Extend [`ingest/schema.py`](../../ingest/schema.py):**
-
+**1.1B - Path resolution edge cases**
 ```python
-class SessionStatus(str, Enum):
-    IDLE = "idle"
-    PREPARING = "preparing"
-    ACTIVE = "active"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+def _resolve_telemetry_path() -> Path:
+    path_str = os.environ.get("OVERRIDE_LOG_TELEMETRY", "telemetry/default.jsonl")
+    path = Path(path_str)
+    
+    # Robust dir detection
+    if path_str.endswith("/") or path.is_dir() or not path.suffix:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%f")
+        path.mkdir(parents=True, exist_ok=True)  # Create if missing
+        return path / f"run_{timestamp}.jsonl"
+    
+    return path
 
-class SessionMetadata(BaseModel):
-    """Extended metadata for live TORCS sessions."""
-    session_id: str
-    status: SessionStatus
-    created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    track_name: Optional[str] = None
-    target_laps: Optional[int] = None
-    actual_laps: int = 0
-    telemetry_file: Optional[str] = None  # Path to JSONL file
-    notes: list[str] = Field(default_factory=list)
+_override_log = _resolve_telemetry_path()
+os.makedirs(os.path.dirname(_override_log) or ".", exist_ok=True)  # Parent dirs
+_override_fh = open(_override_log, "a", buffering=1)  # Line-buffered
+```
+
+**1.2 - SessionSource/SessionStatus split**
+```python
+class SessionSource(str, Enum):
+    UPLOAD = "upload"           # File dropped via UI
+    TORCS_LIVE = "torcs_live"   # Live-ingest endpoint
+    FASTF1 = "fastf1"           # Historical replay
+
+class SessionStatus(str, Enum):
+    COMPLETED = "completed"
+    ACTIVE = "active"           # Only for TORCS_LIVE
+    CANCELLED = "cancelled"     # Only for TORCS_LIVE
 
 class SessionSummary(BaseModel):
     # ... existing fields ...
-    metadata: Optional[SessionMetadata] = None  # For live sessions only
+    session_source: SessionSource = SessionSource.UPLOAD
+    status: SessionStatus = SessionStatus.COMPLETED
+    track_name: Optional[str] = None
+    target_laps: Optional[int] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    telemetry_file: Optional[str] = None
 ```
 
-#### 1.3 Session Manager Service
-
-**New file: [`api/session_manager.py`](../../api/session_manager.py)**
-
+**1.3A - FastAPI Form/Body mixing fixed**
 ```python
-class SessionManager:
-    """Manages TORCS session lifecycle and telemetry routing."""
+# WRONG (v2) - Cannot mix JSON body with Form parameters
+async def torcs_live(
+    body: TorcsLiveRequest,
+    track_name: Annotated[Optional[str], Form()] = None,  # Won't work!
+):
+
+# CORRECT (v3) - Single JSON body
+class TorcsLiveRequest(BaseModel):
+    run_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$")
+    track_name: Optional[str] = None
+    target_laps: Optional[int] = Field(None, ge=1, le=100)
+    notes: Optional[str] = None
+
+async def torcs_live(body: TorcsLiveRequest):
+    # Access body.track_name, body.target_laps, body.notes
+```
+
+**1.3B - st_ctime unreliable on Linux**
+```python
+def _extract_start_time(jsonl_path: Path, stat: os.stat_result) -> datetime:
+    """Extract start time from first observation's timestamp.
     
-    def __init__(self, telemetry_dir: Path, sessions_dir: Path):
-        self._telemetry_dir = telemetry_dir
-        self._sessions_dir = sessions_dir
-        self._active_session: Optional[SessionMetadata] = None
-        self._lock = asyncio.Lock()
-    
-    async def start_session(
-        self, 
-        track: str, 
-        laps: int,
-        driver_config: dict
-    ) -> SessionMetadata:
-        """Create new session and prepare telemetry file."""
-        async with self._lock:
-            if self._active_session and self._active_session.status == "active":
-                raise ValueError("Cannot start new session while race is active")
-            
-            session_id = _generate_session_id()
-            telemetry_file = f"{session_id}_{int(time.time())}.jsonl"
-            
-            metadata = SessionMetadata(
-                session_id=session_id,
-                status="preparing",
-                created_at=datetime.now(timezone.utc),
-                track_name=track,
-                target_laps=laps,
-                telemetry_file=telemetry_file
-            )
-            
-            self._active_session = metadata
-            self._persist_metadata(metadata)
-            return metadata
-    
-    async def mark_active(self, session_id: str) -> None:
-        """Mark session as active when TORCS race starts."""
-        # Update status, set started_at timestamp
+    st_ctime is metadata change time on Linux, not creation time.
+    Parse first line instead.
+    """
+    try:
+        with jsonl_path.open() as f:
+            first_line = f.readline()
+            if first_line.endswith("\n"):
+                first_obs = json.loads(first_line)
+                if "t" in first_obs:  # Unix timestamp
+                    return datetime.fromtimestamp(first_obs["t"], tz=timezone.utc)
+    except (json.JSONDecodeError, KeyError, OSError):
         pass
     
-    async def mark_completed(self, session_id: str) -> None:
-        """Mark session as completed when race ends."""
-        # Update status, set completed_at, trigger pipeline
-        pass
-    
-    async def get_active_session(self) -> Optional[SessionMetadata]:
-        """Get currently active session if any."""
-        return self._active_session
-    
-    async def update_lap_count(self, session_id: str, lap: int) -> None:
-        """Update actual lap count as race progresses."""
-        pass
-```
-
-#### 1.4 Modified Telemetry Logger
-
-**Update [`RaceYourCode/gym_torcs/torcs_jm_par.py`](../../RaceYourCode/gym_torcs/torcs_jm_par.py):**
-
-```python
-# Current: Writes to single file
-# New: Read session_id from environment, write to session-specific file
-
-def get_telemetry_path():
-    """Get telemetry file path from session manager."""
-    session_id = os.environ.get("OVERRIDE_SESSION_ID")
-    if session_id:
-        timestamp = int(time.time())
-        return f"/home/student/workspace/gym_torcs/telemetry/{session_id}_{timestamp}.jsonl"
-    else:
-        # Fallback to legacy behavior
-        return "/home/student/workspace/gym_torcs/telemetry/default.jsonl"
-```
-
-#### 1.5 API Endpoints for Session Management
-
-**Add to [`api/main.py`](../../api/main.py):**
-
-```python
-@app.post("/api/sessions/start-race")
-async def start_race(
-    track: str = Form(...),
-    laps: int = Form(default=10),
-    driver_config: str = Form(default="{}"),
-) -> SessionMetadata:
-    """Start a new TORCS race session."""
-    # 1. Create session via SessionManager
-    # 2. Set OVERRIDE_SESSION_ID env for TORCS container
-    # 3. Trigger gym_torcs driver script
-    # 4. Return session metadata
-    pass
-
-@app.post("/api/sessions/{session_id}/stop")
-async def stop_race(session_id: str) -> SessionMetadata:
-    """Stop active race and mark session as cancelled."""
-    pass
-
-@app.get("/api/sessions/active")
-async def get_active_session() -> Optional[SessionMetadata]:
-    """Get currently active session if any."""
-    pass
-
-@app.get("/api/sessions/{session_id}/status")
-async def get_session_status(session_id: str) -> SessionMetadata:
-    """Get session status and metadata."""
-    pass
-```
-
-#### 1.6 Session Comparison UI
-
-**New component: [`ui/src/components/SessionComparison.tsx`](../../ui/src/components/SessionComparison.tsx)**
-
-- Side-by-side session comparison
-- Lap time deltas
-- Energy deployment differences
-- Zone detection comparison
-- Recommendation differences
-
----
-
-### Phase 2: Embedded VNC + Interactive Controls
-
-**Goal:** Integrate TORCS simulator directly into UI with interactive controls
-
-#### 2.1 VNC Integration Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ OVERRIDE UI (React)                                         │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ SimulatorPanel Component                               │ │
-│  │                                                         │ │
-│  │  ┌──────────────────────┐  ┌─────────────────────────┐│ │
-│  │  │ VNC Viewer           │  │ Control Panel           ││ │
-│  │  │ (noVNC embedded)     │  │                         ││ │
-│  │  │                      │  │ [Start Race]            ││ │
-│  │  │  ┌────────────────┐  │  │ Track: [Dropdown]       ││ │
-│  │  │  │ TORCS Display  │  │  │ Laps:  [Input]          ││ │
-│  │  │  │                │  │  │ Driver: [Select]        ││ │
-│  │  │  │  [Live Race]   │  │  │                         ││ │
-│  │  │  │                │  │  │ [Stop Race]             ││ │
-│  │  │  └────────────────┘  │  │                         ││ │
-│  │  │                      │  │ Live Stats:             ││ │
-│  │  │ WebSocket: ws://     │  │ • Lap: 5/10             ││ │
-│  │  │ localhost:6080       │  │ • Speed: 245 km/h       ││ │
-│  │  └──────────────────────┘  │ • SoC: 78%              ││ │
-│  │                             │ • Deploy: 0.8 MJ        ││ │
-│  │                             └─────────────────────────┘│ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-         │                                    │
-         │ WebSocket (VNC)                   │ HTTP/WebSocket
-         │                                    │ (Control + Telemetry)
-         ▼                                    ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Docker Compose Stack                                        │
-│                                                              │
-│  ┌──────────────────┐         ┌──────────────────────────┐ │
-│  │ TORCS Container  │◄────────┤ OVERRIDE Container       │ │
-│  │                  │         │                          │ │
-│  │ • VNC: 6080      │         │ • API: 8000              │ │
-│  │ • Xvfb Display   │         │ • SessionManager         │ │
-│  │ • gym_torcs      │         │ • WebSocket Server       │ │
-│  │ • Telemetry Log  │         │                          │ │
-│  └──────────────────┘         └──────────────────────────┘ │
-│         │                                │                  │
-│         └────────────────────────────────┘                  │
-│              torcs-telemetry volume                         │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### 2.2 VNC Viewer Component
-
-**New component: [`ui/src/components/VncViewer.tsx`](../../ui/src/components/VncViewer.tsx)**
-
-```typescript
-import { useEffect, useRef, useState } from 'react';
-import RFB from '@novnc/novnc/core/rfb';
-
-interface VncViewerProps {
-  host?: string;
-  port?: number;
-  path?: string;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-}
-
-export function VncViewer({
-  host = 'localhost',
-  port = 6080,
-  path = 'websockify',
-  onConnect,
-  onDisconnect
-}: VncViewerProps) {
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<RFB | null>(null);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const url = `ws://${host}:${port}/${path}`;
-    const rfb = new RFB(canvasRef.current, url, {
-      credentials: { password: '' }
-    });
-
-    rfb.addEventListener('connect', () => {
-      setConnected(true);
-      onConnect?.();
-    });
-
-    rfb.addEventListener('disconnect', () => {
-      setConnected(false);
-      onDisconnect?.();
-    });
-
-    rfb.scaleViewport = true;
-    rfb.resizeSession = true;
-
-    rfbRef.current = rfb;
-
-    return () => {
-      rfb.disconnect();
-    };
-  }, [host, port, path]);
-
-  return (
-    <div className="vnc-viewer">
-      <div 
-        ref={canvasRef} 
-        className="vnc-canvas"
-        style={{ width: '100%', height: '600px' }}
-      />
-      {!connected && (
-        <div className="vnc-connecting">
-          Connecting to TORCS simulator...
-        </div>
-      )}
-    </div>
-  );
-}
-```
-
-#### 2.3 Simulator Control Panel
-
-**New component: [`ui/src/components/SimulatorPanel.tsx`](../../ui/src/components/SimulatorPanel.tsx)**
-
-```typescript
-import { useState } from 'react';
-import { VncViewer } from './VncViewer';
-import { api } from '../api/client';
-
-export function SimulatorPanel() {
-  const [activeSession, setActiveSession] = useState<SessionMetadata | null>(null);
-  const [track, setTrack] = useState('aalborg');
-  const [laps, setLaps] = useState(10);
-  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
-
-  const handleStartRace = async () => {
-    try {
-      const session = await api.startRace({ track, laps });
-      setActiveSession(session);
-      // Start polling for live stats
-      startLiveStatsPolling(session.session_id);
-    } catch (error) {
-      console.error('Failed to start race:', error);
-    }
-  };
-
-  const handleStopRace = async () => {
-    if (!activeSession) return;
-    try {
-      await api.stopRace(activeSession.session_id);
-      setActiveSession(null);
-      stopLiveStatsPolling();
-    } catch (error) {
-      console.error('Failed to stop race:', error);
-    }
-  };
-
-  return (
-    <div className="simulator-panel">
-      <div className="simulator-display">
-        <VncViewer 
-          host="localhost"
-          port={6080}
-          onConnect={() => console.log('VNC connected')}
-        />
-      </div>
-      
-      <div className="control-panel">
-        <h3>Race Controls</h3>
-        
-        {!activeSession ? (
-          <div className="race-setup">
-            <label>
-              Track:
-              <select value={track} onChange={e => setTrack(e.target.value)}>
-                <option value="aalborg">Aalborg</option>
-                <option value="alpine-1">Alpine 1</option>
-                <option value="cg-track-2">CG Track 2</option>
-              </select>
-            </label>
-            
-            <label>
-              Laps:
-              <input 
-                type="number" 
-                value={laps} 
-                onChange={e => setLaps(parseInt(e.target.value))}
-                min={1}
-                max={100}
-              />
-            </label>
-            
-            <button onClick={handleStartRace} className="btn-primary">
-              Start Race
-            </button>
-          </div>
-        ) : (
-          <div className="race-active">
-            <div className="session-info">
-              <p>Session: {activeSession.session_id}</p>
-              <p>Status: {activeSession.status}</p>
-            </div>
-            
-            {liveStats && (
-              <div className="live-stats">
-                <h4>Live Telemetry</h4>
-                <div className="stat">
-                  <span>Lap:</span>
-                  <span>{liveStats.current_lap} / {laps}</span>
-                </div>
-                <div className="stat">
-                  <span>Speed:</span>
-                  <span>{liveStats.speed_kmh.toFixed(1)} km/h</span>
-                </div>
-                <div className="stat">
-                  <span>Battery SoC:</span>
-                  <span>{(liveStats.soc * 100).toFixed(1)}%</span>
-                </div>
-                <div className="stat">
-                  <span>Deploy (this lap):</span>
-                  <span>{liveStats.deploy_mj.toFixed(2)} MJ</span>
-                </div>
-              </div>
-            )}
-            
-            <button onClick={handleStopRace} className="btn-danger">
-              Stop Race
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-```
-
-#### 2.4 TORCS Control API
-
-**Add to [`api/main.py`](../../api/main.py):**
-
-```python
-@app.post("/api/torcs/start-race")
-async def start_torcs_race(
-    track: str = Form(...),
-    laps: int = Form(default=10),
-    driver: str = Form(default="scr_server 1"),
-) -> dict:
-    """Start TORCS race via docker exec."""
-    # 1. Validate TORCS container is running
-    # 2. Create session via SessionManager
-    # 3. Set environment variables in TORCS container
-    # 4. Execute gym_torcs driver script
-    # 5. Return session metadata
-    
-    session = await session_manager.start_session(track, laps, {})
-    
-    # Execute in TORCS container
-    cmd = [
-        "podman", "exec", "-e", f"OVERRIDE_SESSION_ID={session.session_id}",
-        "torcs", "python3", "/home/student/workspace/gym_torcs/torcs_jm_par.py",
-        "--track", track, "--episodes", "1", "--steps", str(laps * 5000)
-    ]
-    
-    # Run async subprocess
-    process = await asyncio.create_subprocess_exec(*cmd)
-    
-    return {"session_id": session.session_id, "status": "started"}
-
-@app.post("/api/torcs/stop-race")
-async def stop_torcs_race() -> dict:
-    """Stop active TORCS race."""
-    # Send SIGTERM to gym_torcs process
-    # Mark session as cancelled
-    pass
-
-@app.get("/api/torcs/tracks")
-async def list_tracks() -> list[dict]:
-    """List available TORCS tracks."""
-    return [
-        {"id": "aalborg", "name": "Aalborg", "length_km": 3.2},
-        {"id": "alpine-1", "name": "Alpine 1", "length_km": 4.8},
-        {"id": "cg-track-2", "name": "CG Track 2", "length_km": 5.1},
-        # ... more tracks
-    ]
+    # Fallback to mtime
+    return datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
 ```
 
 ---
 
-### Phase 3: Live Race Analytics
+### Phase 2 Corrections (Control Daemon)
 
-**Goal:** Real-time telemetry streaming and live AI recommendations
-
-#### 3.1 WebSocket vs Server-Sent Events Analysis
-
-**Recommendation: Server-Sent Events (SSE)**
-
-| Criterion | WebSocket | SSE | Winner |
-|-----------|-----------|-----|--------|
-| Complexity | High (bidirectional) | Low (unidirectional) | SSE |
-| Browser Support | Excellent | Excellent | Tie |
-| Reconnection | Manual | Automatic | SSE |
-| Use Case Fit | Bidirectional chat | Server → Client stream | SSE |
-| Overhead | Higher | Lower | SSE |
-| FastAPI Support | Via starlette | Native | SSE |
-
-**Decision:** Use SSE for telemetry streaming (server → client only). WebSocket not needed since client doesn't send telemetry back.
-
-#### 3.2 Live Telemetry Streaming
-
-**Add to [`api/main.py`](../../api/main.py):**
-
+**2.2A - StartRaceRequest schema defined**
 ```python
-from fastapi.responses import StreamingResponse
-import asyncio
+class StartRaceRequest(BaseModel):
+    """Request to start a new TORCS race."""
+    session_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$")
+    track: str = Field(..., pattern=r"^[a-z0-9-]+$")  # Whitelist-friendly
+    laps: int = Field(..., ge=1, le=100)
+```
 
-@app.get("/api/sessions/{session_id}/stream")
-async def stream_telemetry(session_id: str):
-    """Stream live telemetry via Server-Sent Events."""
+**2.2B - Race condition fixed with asyncio.Lock**
+```python
+_control_lock = asyncio.Lock()
+
+@app.post("/control/start")
+async def start_race(req: StartRaceRequest):
+    async with _control_lock:  # Prevents TOCTOU race
+        if _active_process and _active_process.poll() is None:
+            raise HTTPException(status_code=409, ...)
+        _active_process = subprocess.Popen(...)
+```
+
+**2.2C - Auth returns proper 401/403**
+```python
+def _verify_auth(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization required")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, ...)
     
-    async def event_generator():
-        telemetry_file = _get_telemetry_path(session_id)
-        last_position = 0
-        
+    # Timing-attack resistant comparison
+    if not secrets.compare_digest(authorization[7:], CONTROL_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+```
+
+**2.3A - Compose command waits for VNC**
+```yaml
+command: >
+  bash -c "
+    /usr/local/bin/torcs_init.sh &
+    pip install --quiet fastapi uvicorn
+    until curl -sf http://localhost:6080 >/dev/null 2>&1; do sleep 1; done
+    cd /home/student/workspace/gym_torcs &&
+    uvicorn control_daemon:app --host 0.0.0.0 --port 7000
+  "
+```
+
+**2.4A - httpx dependency + timeout**
+```python
+# Add to requirements.txt
+httpx>=0.27.0
+
+# Use with timeout
+async with httpx.AsyncClient(
+    base_url=os.environ.get("TORCS_CONTROL_URL", "http://torcs:7000"),
+    headers={"Authorization": f"Bearer {os.environ['TORCS_CONTROL_SECRET']}"},
+    timeout=httpx.Timeout(10.0, connect=2.0)
+) as client:
+    resp = await client.post("/control/start", json={...})
+```
+
+---
+
+### Phase 3 Corrections (Live Telemetry)
+
+**3.1A - All helpers defined**
+```python
+def _find_telemetry_file(session_id: str) -> Optional[Path]:
+    """Find telemetry file for session."""
+    tdir = _telemetry_dir()
+    for p in tdir.glob(f"{session_id}_*.jsonl"):
+        return p
+    return None
+
+def _get_current_lap(telemetry_file: Path, last_position: int) -> tuple[int, int]:
+    """Get current lap number. Returns (lap, new_position)."""
+    with open(telemetry_file) as f:
+        f.seek(last_position)
+        lines = f.readlines()
+        new_position = f.tell()
+    
+    for line in reversed(lines):
+        if line.endswith("\n"):
+            try:
+                obs = json.loads(line)
+                return (obs.get("lap", 0), new_position)
+            except json.JSONDecodeError:
+                continue
+    return (0, last_position)
+
+def _aggregate_lap(telemetry_file: Path, lap: int) -> dict:
+    """Aggregate telemetry for completed lap."""
+    lap_ticks = []
+    with open(telemetry_file) as f:
+        for line in f:
+            if not line.endswith("\n"):
+                continue
+            try:
+                tick = json.loads(line)
+                if tick.get("lap") == lap:
+                    lap_ticks.append(tick)
+            except json.JSONDecodeError:
+                continue
+    
+    # Compute stats...
+    return {"lap": lap, "lap_time": ..., "avg_speed_kmh": ..., ...}
+```
+
+**3.1B - Latency claim corrected**
+```python
+# v2 claimed: "<100ms latency per lap"
+# v3 reality: "<1 second latency per lap" (1Hz polling)
+
+async def event_generator():
+    while True:
+        # ... check for new laps ...
+        await asyncio.sleep(1.0)  # 1Hz → <1s latency
+```
+
+**3.1C - Client disconnect handling**
+```python
+async def event_generator():
+    try:
         while True:
-            # Check if session is still active
-            session = await session_manager.get_session(session_id)
-            if session.status in ["completed", "cancelled"]:
-                yield f"data: {json.dumps({'event': 'session_ended'})}\n\n"
-                break
-            
-            # Read new lines from telemetry file
-            if telemetry_file.exists():
-                with open(telemetry_file) as f:
-                    f.seek(last_position)
-                    new_lines = f.readlines()
-                    last_position = f.tell()
-                
-                for line in new_lines:
-                    try:
-                        tick = json.loads(line)
-                        # Send aggregated stats, not raw ticks
-                        if tick.get('curLapTime', 0) % 1.0 < 0.02:  # ~1 Hz
-                            stats = _aggregate_tick(tick)
-                            yield f"data: {json.dumps(stats)}\n\n"
-                    except json.JSONDecodeError:
-                        continue
-            
-            await asyncio.sleep(0.1)  # 10 Hz polling
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        }
-    )
-
-def _aggregate_tick(tick: dict) -> dict:
-    """Convert raw TORCS tick to UI-friendly stats."""
-    return {
-        "timestamp": tick.get("t"),
-        "lap": tick.get("lap", 0),
-        "speed_kmh": tick.get("speedX", 0) * 3.6,
-        "soc": _derive_soc(tick),  # From torcs_energy.py
-        "deploy_mj": tick.get("deploy_mj", 0),
-        "position": tick.get("distFromStart", 0),
-    }
+            if await request.is_disconnected():
+                break  # Clean exit
+            # ... stream events ...
+    except asyncio.CancelledError:
+        pass  # Client disconnected
 ```
 
-#### 3.3 Live Stats Component
+---
 
-**New component: [`ui/src/components/LiveStats.tsx`](../../ui/src/components/LiveStats.tsx)**
+## Section 4: Failure Modes & Recovery
 
-```typescript
-import { useEffect, useState } from 'react';
-
-interface LiveStatsProps {
-  sessionId: string;
-  onSessionEnd?: () => void;
-}
-
-export function LiveStats({ sessionId, onSessionEnd }: LiveStatsProps) {
-  const [stats, setStats] = useState<TelemetryStats | null>(null);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    const eventSource = new EventSource(
-      `/api/sessions/${sessionId}/stream`
-    );
-
-    eventSource.onopen = () => setConnected(true);
-    
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      if (data.event === 'session_ended') {
-        eventSource.close();
-        onSessionEnd?.();
-        return;
-      }
-      
-      setStats(data);
-    };
-
-    eventSource.onerror = () => {
-      setConnected(false);
-      eventSource.close();
-    };
-
-    return () => eventSource.close();
-  }, [sessionId]);
-
-  if (!stats) {
-    return <div>Waiting for telemetry...</div>;
-  }
-
-  return (
-    <div className="live-stats">
-      <div className="stat-card">
-        <h4>Current Lap</h4>
-        <div className="stat-value">{stats.lap}</div>
-      </div>
-      
-      <div className="stat-card">
-        <h4>Speed</h4>
-        <div className="stat-value">{stats.speed_kmh.toFixed(1)} km/h</div>
-      </div>
-      
-      <div className="stat-card">
-        <h4>Battery SoC</h4>
-        <div className="stat-value">{(stats.soc * 100).toFixed(1)}%</div>
-        <div className="stat-bar">
-          <div 
-            className="stat-bar-fill"
-            style={{ width: `${stats.soc * 100}%` }}
-          />
-        </div>
-      </div>
-      
-      <div className="stat-card">
-        <h4>Energy Deploy</h4>
-        <div className="stat-value">{stats.deploy_mj.toFixed(2)} MJ</div>
-      </div>
-    </div>
-  );
-}
-```
-
-#### 3.4 Live Zone Detection
-
-**Challenge:** Zone detection requires completed laps. Can't detect zones mid-race.
-
-**Solution:** Show "potential zones" based on current lap patterns:
-
-```python
-@app.get("/api/sessions/{session_id}/live-zones")
-async def get_live_zones(session_id: str) -> dict:
-    """Get potential zones from incomplete session."""
-    # Parse current telemetry
-    # Run zone detector on completed laps only
-    # Return zones with "preliminary" flag
-    pass
-```
-
-#### 3.5 Live Recommendation Generation
-
-**Option A: Wait for race completion** (Current behavior)
-- Pros: Full context, accurate recommendations
-- Cons: No live feedback during race
-
-**Option B: Progressive recommendations** (New)
-- Generate recommendations for completed laps
-- Mark as "preliminary" until race ends
-- Re-run full pipeline on completion
-
-**Recommendation:** Option A for v1, Option B for future enhancement
+| Failure | Phase | Recovery |
+|---------|-------|----------|
+| **Control daemon crashes mid-race** | 2 | Override endpoint timeout (10s) returns 503; UI shows "TORCS control unreachable"; race continues, telemetry writes, manual ingest via `/api/sessions/torcs-live` |
+| **gym_torcs hangs without writing** | 1, 3 | Control daemon enforces 10-min max race timeout; SSE detects no new lines for >30s, emits `stall_detected` event |
+| **JSONL corruption (incomplete tail)** | 1, 3 | Already handled by gotcha #12 safe-read in `torcs_parser.py`; SSE mirrors same `try/except JSONDecodeError` |
+| **Disk fills up mid-race** | 1 | gym_torcs writer logs error, stops appending; existing data preserved; race "completes" prematurely; daemon marks cancelled |
+| **Two clients call start simultaneously** | 2 | `asyncio.Lock` ensures serialization; second request gets 409 Conflict |
+| **SSE client disconnects** | 3 | Generator checks `await request.is_disconnected()` each loop; cleans up file handles |
+| **Override container restart during race** | 2 | Daemon is single source of truth; continues writing telemetry; on restart, status endpoint reflects daemon state |
+| **Daemon receives SIGTERM during race** | 2 | Daemon forwards SIGTERM to gym_torcs, waits 5s for graceful exit, then SIGKILL; marks session cancelled |
 
 ---
 
 ## Implementation Roadmap
 
-### Sprint 1: Session Management Foundation (Week 1-2)
-- [ ] Extend session schema with lifecycle states
-- [ ] Implement SessionManager service
-- [ ] Add session lifecycle API endpoints
-- [ ] Modify telemetry logger for session-specific files
-- [ ] Add session status tracking
-- [ ] Build session comparison UI component
-- [ ] Write integration tests
+### Sprint 1-2: Session Boundaries (Weeks 1-2, 40h)
+- [ ] Apply Phase 1 corrections to `torcs_jm_par.py`
+- [ ] Extend `SessionSummary` schema with lifecycle fields
+- [ ] Update `/api/sessions/torcs-live` endpoint
+- [ ] Enhance `/api/torcs-status` with metadata
+- [ ] Build session history page
+- [ ] Build session comparison component
+- [ ] Integration tests
 
-**Deliverable:** Users can start/stop races with unique session IDs
+**Deliverable:** Per-run sessions with metadata tracking
 
-### Sprint 2: VNC Integration (Week 3-4)
-- [ ] Add noVNC dependency to UI
-- [ ] Build VncViewer React component
-- [ ] Create SimulatorPanel with embedded VNC
-- [ ] Add TORCS control API endpoints
-- [ ] Implement track selection
-- [ ] Add race parameter configuration
-- [ ] Test VNC connectivity and performance
+### Sprint 3-5: Control Daemon (Weeks 3-5, 60h)
+- [ ] Implement `control_daemon.py` with all corrections
+- [ ] Update `docker-compose.yml` with daemon config
+- [ ] Add control endpoints to OVERRIDE API
+- [ ] Add `httpx` to requirements
+- [ ] Build UI control panel (local-only)
+- [ ] Security tests
+- [ ] Documentation
 
-**Deliverable:** Users can view and control TORCS from OVERRIDE UI
+**Deliverable:** Programmatic TORCS control (local dev only)
 
-### Sprint 3: Live Telemetry Streaming (Week 5-6)
-- [ ] Implement SSE telemetry streaming endpoint
-- [ ] Build LiveStats React component
-- [ ] Add real-time stat updates to SimulatorPanel
-- [ ] Implement telemetry aggregation logic
+### Sprint 6-7: Live Streaming (Weeks 6-7, 40h)
+- [ ] Implement SSE streaming endpoint with all helpers
+- [ ] Build live telemetry component
 - [ ] Add connection status indicators
-- [ ] Handle reconnection scenarios
-- [ ] Performance testing (latency, throughput)
+- [ ] Handle race-end detection
+- [ ] Performance testing
+- [ ] Documentation
 
-**Deliverable:** Users see live race stats during active sessions
-
-### Sprint 4: Polish & Integration (Week 7-8)
-- [ ] Add error handling and edge cases
-- [ ] Implement session history view
-- [ ] Add session comparison features
-- [ ] Write comprehensive documentation
-- [ ] Create demo video
-- [ ] Performance optimization
-- [ ] Security review
-- [ ] User acceptance testing
-
-**Deliverable:** Production-ready interactive TORCS integration
+**Deliverable:** Real-time lap updates during races
 
 ---
 
-## Technical Specifications
+## Deployment Constraints
 
-### Session ID Format
-```
-s_torcs_live_{timestamp}_{random}
-Example: s_torcs_live_1715567890_a4f9
-```
+### Local Development
+- ✅ Full feature set available
+- ✅ Control panel functional
+- ✅ Live streaming works
+- ✅ VNC at `localhost:6080/vnc.html` (separate tab)
 
-### Telemetry File Naming
-```
-{session_id}_{start_timestamp}.jsonl
-Example: s_torcs_live_1715567890_a4f9_1715567895.jsonl
-```
-
-### API Endpoints Summary
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/sessions/start-race` | Start new TORCS race |
-| POST | `/api/sessions/{id}/stop` | Stop active race |
-| GET | `/api/sessions/active` | Get active session |
-| GET | `/api/sessions/{id}/status` | Get session status |
-| GET | `/api/sessions/{id}/stream` | Stream live telemetry (SSE) |
-| GET | `/api/torcs/tracks` | List available tracks |
-| GET | `/api/sessions/history` | List past sessions |
-| GET | `/api/sessions/compare?ids=...` | Compare sessions |
-
-### Environment Variables
-
-```bash
-# TORCS container
-OVERRIDE_SESSION_ID=s_torcs_live_1715567890_a4f9
-OVERRIDE_LOG_TELEMETRY=1
-OVERRIDE_TRACK=aalborg
-OVERRIDE_LAPS=10
-
-# OVERRIDE container
-OVERRIDE_TELEMETRY_DIR=/app/data/telemetry
-SESSIONS_DIR=/app/data/sessions
-```
-
----
-
-## Security Considerations
-
-### TORCS Control Access
-- **Risk:** Arbitrary command execution in TORCS container
-- **Mitigation:** 
-  - Whitelist allowed tracks
-  - Validate all parameters
-  - Rate limit race starts (max 1 per minute)
-  - Add authentication layer (future)
-
-### VNC Exposure
-- **Risk:** Unauthorized VNC access
-- **Mitigation:**
-  - VNC only accessible via localhost
-  - No external port exposure
-  - Consider VNC password in production
-
-### Resource Exhaustion
-- **Risk:** Multiple concurrent races
-- **Mitigation:**
-  - Enforce single active session
-  - Timeout inactive sessions (30 min)
-  - Monitor TORCS container resources
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- SessionManager state transitions
-- Telemetry file routing
-- Session ID generation
-- API parameter validation
-
-### Integration Tests
-- Full race lifecycle (start → active → complete)
-- Telemetry streaming
-- Session comparison
-- VNC connectivity
-
-### Performance Tests
-- SSE latency (<100ms)
-- Telemetry throughput (50 Hz)
-- Concurrent session handling
-- Memory usage during long races
-
-### User Acceptance Tests
-- Start race from UI
-- View live simulator display
-- Monitor real-time stats
-- Stop race mid-session
-- Compare two sessions
-- Handle network interruptions
-
----
-
-## Migration Path
-
-### Backward Compatibility
-- Existing sessions remain accessible
-- Legacy telemetry files still parseable
-- No breaking changes to current API
-
-### Data Migration
-- No migration needed (new feature)
-- Existing sessions lack metadata (acceptable)
-- Future sessions have full lifecycle tracking
+### Hosted Demo (override.patrickndille.com)
+- ❌ No control panel (security constraint)
+- ❌ No embedded VNC (mixed-content blocking)
+- ✅ Session history works
+- ✅ Session comparison works
+- ✅ Fixture mode for demos
 
 ---
 
 ## Success Metrics
 
-### User Experience
-- ✅ Users can start races without VNC client
-- ✅ Live simulator display in UI
-- ✅ Real-time race statistics
 - ✅ Clear session boundaries
 - ✅ Session comparison capability
-
-### Technical
-- ✅ <100ms SSE latency
-- ✅ 50 Hz telemetry streaming
-- ✅ Zero data loss during streaming
-- ✅ Graceful handling of disconnections
-- ✅ <5% CPU overhead for streaming
-
-### Business
-- ✅ Reduced user friction (no manual VNC)
-- ✅ Better demo experience
-- ✅ Enables session-based analytics
-- ✅ Foundation for future features
+- ✅ Programmatic race control (local)
+- ✅ Live race progress (local)
+- ✅ Zero privilege escalation
+- ✅ No public VNC exposure
+- ✅ Backward compatible with v1.0
+- ✅ All technical bugs fixed
 
 ---
 
-## Future Enhancements (Post-v1)
+## Dependencies
 
-### Multi-User Support
-- Multiple concurrent sessions
-- User authentication
-- Session ownership
+**New Python packages:**
+```
+httpx>=0.27.0
+```
 
-### Advanced Analytics
-- Session clustering
-- Performance trends
-- Optimal strategy discovery
+**TORCS container additions:**
+```bash
+pip install fastapi uvicorn
+```
 
-### AI Driver Training
-- Reinforcement learning integration
-- Strategy optimization
-- Automated testing
-
-### Cloud Deployment
-- Remote TORCS instances
-- Scalable session management
-- Distributed telemetry processing
+**Environment variables:**
+```bash
+TORCS_CONTROL_SECRET=change-this-in-production
+TORCS_CONTROL_URL=http://torcs:7000
+OVERRIDE_LOG_TELEMETRY=/path/to/telemetry/
+```
 
 ---
 
 ## References
 
-- [noVNC Documentation](https://github.com/novnc/noVNC)
-- [Server-Sent Events Spec](https://html.spec.whatwg.org/multipage/server-sent-events.html)
-- [FastAPI WebSocket/SSE Guide](https://fastapi.tiangolo.com/advanced/websockets/)
-- [TORCS Documentation](http://torcs.sourceforge.net/)
-- Current Architecture: [`docs/03-architecture.md`](../03-architecture.md)
-- Session Schema: [`docs/04-schema.md`](../04-schema.md)
-- API Spec: [`docs/04-api.md`](../04-api.md)
+- Parent plan: [`interactive-torcs-integration-v2.md`](interactive-torcs-integration-v2.md)
+- Architecture: [`docs/03-architecture.md`](../03-architecture.md)
+- Schema: [`docs/04-schema.md`](../04-schema.md)
+- API: [`docs/04-api.md`](../04-api.md)
+- Deployment: [`docs/07-deployment.md`](../07-deployment.md)
 
 ---
 
 ## Approval & Next Steps
 
-**Status:** Awaiting approval
+**Status:** Ready for implementation
 
-**Questions for Review:**
-1. Does the three-phase approach align with priorities?
-2. Is the 8-week timeline acceptable?
-3. Any concerns about SSE vs WebSocket decision?
-4. Should we add authentication in Phase 1 or defer?
-5. Any additional security requirements?
+**After v1.0 submission (May 31):**
+1. Create feature branch: `feature/session-boundaries`
+2. Begin Sprint 1 (Phase 1 implementation)
+3. Update project board with tasks
 
-**After Approval:**
-- Create feature branch: `feature/interactive-torcs`
-- Set up project board with Sprint 1 tasks
-- Begin implementation with Session Management Foundation
+**Priority Order (by ROI):**
+1. **Phase 1** - Highest impact, visible to all judges
+2. **Phase 3** - Visual demo impact for local-clone judges
+3. **Phase 2** - Infrastructure convenience
+
+This specification is **buildable** - all runtime failures identified in review have been corrected.
