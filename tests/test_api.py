@@ -1216,6 +1216,144 @@ def _sse_jsonl_payload(n_laps: int, ticks_per_lap: int = 50) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def _sse_jsonl_payload_partial_start(
+    n_complete_laps: int = 2,
+    join_distance: float = 2500.0,
+    ticks_per_lap: int = 50,
+) -> bytes:
+    """JSONL where the SCR client joined mid-lap (first observation's
+    distFromStart starts at `join_distance` instead of 0). Used to test
+    the partial-first-segment skip logic added during the live-test pass."""
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / ticks_per_lap
+    lines: list[str] = []
+    # Partial first segment — start mid-track, run to the start-line.
+    n_partial_ticks = int(ticks_per_lap * (1 - join_distance / track_length))
+    cur_lap_t_seed = lap_duration_s * (join_distance / track_length)
+    for tick_i in range(n_partial_ticks):
+        frac_through = (join_distance + tick_i * (track_length - join_distance) / n_partial_ticks) / track_length
+        cur_t = cur_lap_t_seed + tick_i * dt
+        dist = join_distance + tick_i * (track_length - join_distance) / n_partial_ticks
+        lines.append(json.dumps({
+            "curLapTime": [cur_t], "distFromStart": [dist],
+            "speedX": [60.0], "accel": [1.0], "brake": [0.0], "fuel": [90.0],
+        }))
+    # Then n_complete_laps full laps, each starting at dist=0
+    for lap_i in range(n_complete_laps):
+        for tick_i in range(ticks_per_lap):
+            cur_t = tick_i * dt
+            dist = (tick_i / ticks_per_lap) * track_length
+            lines.append(json.dumps({
+                "curLapTime": [cur_t], "distFromStart": [dist],
+                "speedX": [60.0 if tick_i > ticks_per_lap // 2 else 30.0],
+                "accel": [1.0 if tick_i > ticks_per_lap // 2 else 0.5],
+                "brake": [0.6 if tick_i < ticks_per_lap // 4 else 0.0],
+                "fuel": [90.0 - lap_i * 0.5],
+            }))
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def test_first_segment_is_partial_detects_mid_lap_join():
+    """SCR client joining at distFromStart=2500m → partial=True; starting
+    at 0 → partial=False. Threshold is 100m."""
+    from api.main import _first_segment_is_partial
+    assert _first_segment_is_partial([{"distFromStart": [2500.0]}]) is True
+    assert _first_segment_is_partial([{"distFromStart": [50.0]}]) is False
+    # No valid observations → not partial (conservative default)
+    assert _first_segment_is_partial([]) is False
+    assert _first_segment_is_partial([{"distFromStart": "invalid"}]) is False
+
+
+def test_get_current_lap_skips_partial_first_segment():
+    """JSONL starts mid-lap at dist=2500m. Then 2 segments follow:
+    one wraparound completes the partial (skipped), the second wraparound
+    completes the first FULL lap. The second full lap is in progress at
+    end-of-stream, so only 1 complete lap is fully captured.
+
+    Without partial skip we'd return 2 (raw wraparound count); with skip
+    we return 1 (only the first full lap is fully bounded by wraparounds)."""
+    import tempfile, os as _os
+    from api.main import _get_current_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload_partial_start(n_complete_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        # 1 full lap completed (partial-end wraparound skipped from the count)
+        assert _get_current_lap(obs) == 1
+    finally:
+        _os.unlink(p)
+
+
+def test_aggregate_lap_skips_partial_when_client_joined_mid_lap():
+    """_aggregate_lap(lap_index=1) on partial-start data should return
+    the first COMPLETE lap (post-wraparound), NOT the partial pre-wrap
+    segment. This is the live-test fix: prevents the "L1 = 8.66s"
+    misleading row in the SSE table."""
+    import tempfile, os as _os
+    from api.main import _aggregate_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload_partial_start(n_complete_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        lap1 = _aggregate_lap(obs, 1)
+    finally:
+        _os.unlink(p)
+    assert lap1 is not None
+    assert lap1.lap == 1
+    # First COMPLETE lap should have ~36s lap time (the synthetic
+    # constant), NOT the much shorter partial duration.
+    assert lap1.lap_time_s > 20.0, f"lap_time={lap1.lap_time_s}: partial wasn't skipped"
+
+
+def test_list_sessions_enriches_active_session_with_live_lap_count(tmp_path, monkeypatch):
+    """ACTIVE sessions' lap_count is patched in from the JSONL on the
+    shared volume — Phase 2 v1.0 fix for "/sessions shows 0 laps while
+    Live Race Telemetry shows 3"."""
+    from datetime import datetime, timezone
+    from ingest.schema import Session, SessionSource, SessionStatus, SessionSummary
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    sid = "s_torcs_live_1234567_abcd"
+    (telem / f"{sid}.jsonl").write_bytes(_sse_jsonl_payload(n_laps=3))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    # Manually write an ACTIVE stub session pointing at the JSONL
+    from api.storage import save_session
+    stub = Session(
+        summary=SessionSummary(
+            session_id=sid,
+            uploaded_at=datetime.now(timezone.utc),
+            source="torcs",
+            lap_count=0,                     # stub value
+            forecast_available=False,
+            zone_count=0,
+            track_id=f"torcs-live/{sid}",
+            session_source=SessionSource.TORCS_LIVE,
+            status=SessionStatus.ACTIVE,
+            telemetry_file=f"{sid}.jsonl",
+            track_name="Aalborg",
+        ),
+        laps=[], forecast=None, recommendations=[], regulation_source=None,
+    )
+    save_session(stub, root=Path(client.app.state.sessions_root)) if hasattr(client.app.state, "sessions_root") else save_session(stub)
+
+    r = client.get("/api/sessions").json()
+    row = next((s for s in r["sessions"] if s["session_id"] == sid), None)
+    assert row is not None
+    # 3-lap synthetic payload → 2 completed wraparounds → lap_count=2
+    # (the stub's 0 has been live-patched)
+    assert row["lap_count"] == 2, f"got {row['lap_count']}, expected 2"
+    assert row["status"] == "active"
+
+
 def test_get_current_lap_counts_completed_via_wraparound():
     """_get_current_lap detects start-line crossings (distFromStart drops
     sharply). 3 laps in the JSONL → 2 completed laps (still mid-lap on #3)."""

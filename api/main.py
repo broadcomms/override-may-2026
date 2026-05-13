@@ -444,17 +444,36 @@ def create_app() -> FastAPI:
 
         Phase 1 ship — replaces the SessionsPage v1.1 stub. Backs the
         Session History view at /sessions in the UI. Pagination via
-        ``limit`` (default 50, max 200) and ``offset``. Returns a
-        ``SessionListResponse`` (``{sessions, total, limit, offset}``)
-        so the client can render a page indicator without re-reading
-        the whole index.
+        ``limit`` (default 50, max 200) and ``offset``.
 
-        Storage helper (``api.storage.list_sessions``) was already in
-        place for this; this commit just wires the endpoint.
+        Phase 2 v1.0 enrichment: for sessions with ``status=ACTIVE``
+        (stub rows written by /api/torcs/start-race), the persisted
+        ``lap_count`` is 0 until the ingest path runs the full pipeline.
+        We patch in a LIVE lap_count by reading the JSONL on the shared
+        torcs-telemetry volume — so the /sessions row reflects the same
+        progress the operator sees in the live SSE table at /session/{id}.
+        Reads are bounded by one IO per active session; there's at most
+        one active session at a time in v1.0, so the cost is negligible.
         """
         page, total = storage_list_sessions(limit=limit, offset=offset)
+
+        # Live-enrich ACTIVE sessions
+        tdir = _telemetry_dir()
+        enriched: list[SessionSummary] = []
+        for s in page:
+            if s.status == SessionStatus.ACTIVE and s.telemetry_file:
+                jsonl_path = tdir / s.telemetry_file
+                if jsonl_path.is_file():
+                    try:
+                        live = _get_current_lap(_read_jsonl_safe(jsonl_path))
+                    except Exception:
+                        live = s.lap_count  # fall back gracefully
+                    if live != s.lap_count:
+                        s = s.model_copy(update={"lap_count": live})
+            enriched.append(s)
+
         return SessionListResponse(
-            sessions=page,
+            sessions=enriched,
             total=total,
             limit=limit,
             offset=offset,
@@ -1274,16 +1293,41 @@ def _read_jsonl_safe(path: Path, *, max_lines: Optional[int] = None) -> list[dic
     return out
 
 
+def _first_segment_is_partial(observations: list[dict]) -> bool:
+    """True if the JSONL starts mid-lap.
+
+    Phase 2 reality: when the operator clicks "Start race" AFTER having
+    launched TORCS manually in noVNC and started the race there, the SCR
+    client (torcs_jm_par.py) connects 30-60+ s into lap 1. Its first
+    observation has ``distFromStart`` already deep into the lap (e.g.
+    2700m on a 3km track). Without compensation, the segment from connect
+    to first wraparound shows up as a "partial L1" with only ~8s of data
+    — confusing in the live-telemetry table. This helper lets the lap
+    counter and the aggregator skip that partial.
+
+    Threshold: 100m past the start-line. Picks up "joined mid-lap" while
+    tolerating ~3s of pre-race jitter where the car is still on the grid.
+    """
+    for obs in observations:
+        d = obs.get("distFromStart")
+        if isinstance(d, list) and d:
+            d = d[0]
+        if isinstance(d, (int, float)):
+            return float(d) > 100.0
+    return False
+
+
 def _get_current_lap(observations: list[dict]) -> int:
-    """Count completed laps by detecting start-line crossings.
+    """Count COMPLETE laps captured in the stream.
 
     A start-line crossing is when ``distFromStart`` jumps backward by
-    a large margin (end of lap N → start of lap N+1). Returns the
-    number of *completed* laps; if no crossing detected → 0 (still in
-    first lap). Mirrors the segmentation in ``ingest/torcs_parser.py``
-    so the live count agrees with the final lap_count.
+    a large margin (end of lap N → start of lap N+1). Returns the number
+    of laps we have FULL data for: if the JSONL started mid-lap (partial
+    first segment), we subtract 1 from the wraparound count so the first
+    wraparound — which only completed the partial — doesn't inflate the
+    displayed lap number.
     """
-    completed = 0
+    wraparounds = 0
     prev_dist: Optional[float] = None
     for obs in observations:
         raw = obs.get("distFromStart")
@@ -1293,9 +1337,11 @@ def _get_current_lap(observations: list[dict]) -> int:
             continue
         if prev_dist is not None and raw < prev_dist * 0.5 and prev_dist > 100.0:
             # Wraparound = lap completed
-            completed += 1
+            wraparounds += 1
         prev_dist = float(raw)
-    return completed
+    if _first_segment_is_partial(observations):
+        return max(0, wraparounds - 1)
+    return wraparounds
 
 
 def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLapStats]:
@@ -1328,6 +1374,14 @@ def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLap
             laps.append([])
         laps[-1].append(obs)
         prev_dist = dist
+
+    # Skip the partial first segment if we joined mid-lap (Phase 2 fix).
+    # Without this, "L1" in the live table would show ~8s of an incomplete
+    # lap when the operator clicked Start race after the race was already
+    # underway in TORCS GUI.
+    partial = _first_segment_is_partial(observations)
+    if partial and laps:
+        laps = laps[1:]
 
     if lap_index < 1 or lap_index > len(laps):
         return None
