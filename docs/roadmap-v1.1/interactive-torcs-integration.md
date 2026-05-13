@@ -3,11 +3,12 @@
 **Status:** Roadmap (post-v1.0-submission work)
 **Created:** 2026-05-13 (originally drafted as v3 of three iterations; v1 + v2 dropped after the security/architecture pivot consolidated. See `git log -- docs/roadmap-v1.1/` for history.)
 
-> **Phases 1 and 3 of this plan were absorbed into v1.0:**
+> **All three phases of this plan were absorbed into v1.0:**
 > - **Phase 1** (session boundaries, history page at `/sessions`, comparison view at `/sessions/compare`, `GET /api/sessions` endpoint) shipped via commits `04934ce` → `ee289bb`.
+> - **Phase 2** (HTTP control daemon `RaceYourCode/gym_torcs/control_daemon.py` + Start/Stop race buttons + ADR-004 + override proxy endpoints) shipped via commits `5d5eec6` → `df97c1f` (+ docs). Replaces the noVNC-terminal workflow with one-click race control.
 > - **Phase 3** (SSE live-telemetry stream at `GET /api/sessions/{id}/stream` + `LiveTelemetry` component on `SessionPage` conditional on `status="active"`) shipped via commits `ed6c1ea` → `4cb08bb` (+ docs).
 >
-> The only remaining v1.1 work is **Phase 2** — the HTTP control daemon inside the torcs container with shared-secret auth, giving the UI start/stop-race buttons and replacing the noVNC-terminal workflow. Documented below in §2.
+> This document is kept as historical reference for the v1.1 architecture pivot (security review on Podman-socket mount, the three-iteration plan drafts). Implementation details below remain accurate to the shipped code; treat them as a design retrospective rather than forward-plan.
 
 ---
 

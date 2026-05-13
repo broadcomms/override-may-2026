@@ -35,7 +35,7 @@
 ```bash
 cd /Users/patrickndille/overdrive-may-2026
 .venv/bin/pytest tests/ -q -m "not network"
-# expect: 323 passed, 4 deselected
+# expect: 332 passed, 4 deselected
 ```
 - [ ] Unit suite green
 - [ ] UI typecheck green: `cd ui && npm run typecheck`
@@ -141,7 +141,7 @@ git diff main..HEAD --stat       # if branched, verify diff is the submission di
 
 ### Final test sweep
 ```bash
-.venv/bin/pytest tests/ -q -m "not network"     # 323 expected
+.venv/bin/pytest tests/ -q -m "not network"     # 332 expected
 .venv/bin/pytest tests/ -q -m "network" --co     # show network-marked tests; do NOT run unless watsonx budget allows
 cd ui && npm run typecheck && npm run build
 ```
