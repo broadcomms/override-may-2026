@@ -80,10 +80,61 @@ mkdir -p /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
 chown -R student:student /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
 chmod 0775 /home/student/workspace/gym_torcs/telemetry 2>/dev/null || true
 
-# ── Chain to the lab image's real Cmd ───────────────────────────────────────
+# ── Boot sequence ───────────────────────────────────────────────────────────
+# Two modes:
+#   - default (no TORCS_CONTROL_SECRET): exec into the lab's start.sh as
+#     before. Backward-compatible for operators running the image manually
+#     or without the control-daemon profile.
+#   - control-daemon (TORCS_CONTROL_SECRET set): background start.sh, wait
+#     for noVNC at :6080 (proves Xvfb/VNC are up so gym_torcs will have
+#     a display when /control/start is called), pip-install daemon deps,
+#     exec uvicorn against control_daemon:app on :7000.
+#
 # Confirmed via `podman inspect docker.io/johnsloe/torcs-competition:amd64`:
 #   Entrypoint: None
 #   Cmd:        ["/usr/local/bin/start.sh"]
 # (See docs/plans/torcs-entrypoint.md — deleted in the same PR as this
 # script ships, per plan-file-lifecycle.)
-exec /usr/local/bin/start.sh "$@"
+
+if [ -z "$TORCS_CONTROL_SECRET" ]; then
+    exec /usr/local/bin/start.sh "$@"
+fi
+
+# Phase 2 control-daemon mode.
+echo "[init] TORCS_CONTROL_SECRET present → control-daemon mode"
+
+# Background the lab boot sequence.
+/usr/local/bin/start.sh "$@" &
+LAB_PID=$!
+
+# Wait for noVNC to come up. Load-bearing per v3 plan §2.3A and the
+# architect's correctness item #1 — uvicorn must NOT start until Xvfb is
+# ready, otherwise the first /control/start call will spawn gym_torcs
+# against a missing display and fail. Cap at 120s so a broken lab boot
+# fails the container instead of hanging compose forever.
+echo "[init] waiting for noVNC on :6080 (cap 120s)..."
+for _ in $(seq 1 120); do
+    if curl -sf http://localhost:6080 >/dev/null 2>&1; then
+        echo "[init] noVNC ready; reaping any leftover daemon deps install..."
+        break
+    fi
+    sleep 1
+done
+if ! curl -sf http://localhost:6080 >/dev/null 2>&1; then
+    echo "[init] FAIL: noVNC did not come up within 120s — control daemon will not start."
+    wait $LAB_PID
+    exit 1
+fi
+
+# Install daemon dependencies into the image's Python. The lab image
+# ships Python 3 but not fastapi/uvicorn; install once per container start.
+# --quiet keeps the compose logs from being flooded; failures fall through
+# to the exec which will surface the actual import error.
+pip install --quiet fastapi 'uvicorn[standard]' 2>/dev/null || \
+    pip install --quiet fastapi uvicorn
+
+# Launch the daemon in the foreground (replaces this shell so PID 1 is
+# uvicorn — clean signal propagation when compose stops the container).
+echo "[init] launching control daemon on :7000 (internal-only)"
+cd /home/student/workspace/gym_torcs
+exec python3 -m uvicorn control_daemon:app --host 0.0.0.0 --port 7000

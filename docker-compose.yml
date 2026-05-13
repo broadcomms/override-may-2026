@@ -58,6 +58,12 @@ services:
       # OTLP target when OVERRIDE_TRACING=otlp; resolves to the jaeger
       # service only when the observability profile is up.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      # Phase 2 control plane — only resolves when --profile torcs is up.
+      # The override proxy endpoints fail gracefully (503) with a "control
+      # daemon unreachable" message when the torcs service isn't running,
+      # so the default profile remains unaffected.
+      TORCS_CONTROL_URL: http://torcs:7000
+      TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
     volumes:
       # Session persistence — survives container restarts.
       - ./data/sessions:/app/data/sessions:Z
@@ -92,25 +98,55 @@ services:
     # + echo succeed; start.sh inherits root and runs ollama/Xvfb/VNC as
     # root, which works fine (the lab's documented workaround model).
     user: "0:0"
+    environment:
+      # Phase 2 control daemon — when present, init script switches into
+      # control-daemon mode (backgrounds start.sh, waits for noVNC, then
+      # launches uvicorn on :7000 INSIDE the container). The override
+      # service uses this same secret to authenticate proxied calls.
+      # ADR-004 documents why this is shared-secret over the override-net
+      # rather than mTLS or Podman-socket-based control.
+      TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
     ports:
       - "5900:5900"        # VNC (drive via dedicated VNC client)
       - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
       - "3001:3001/udp"    # SCR — gym_torcs ↔ TORCS server channel
       - "11434:11434"      # Ollama HTTP API (granite4:350m bundled)
+      # NOTE: port 7000 (control daemon) is INTENTIONALLY NOT mapped to
+      # the host. The daemon is reachable from the override service via
+      # http://torcs:7000 over override-net, but never from the host
+      # operator's localhost. Per ADR-004 §security — exposing it would
+      # mean a host port serving an authenticated control plane with
+      # no transport security, defeating the compose-network isolation.
     volumes:
       # gym_torcs source — committed under RaceYourCode/ in the repo root.
+      # control_daemon.py also lives here; mounted into the image so the
+      # init script can `python3 -m uvicorn control_daemon:app ...`.
       # ":Z" relabels for SELinux (no-op on Ubuntu/WSL); see gotcha #7.
       - ./RaceYourCode:/home/student/workspace:Z
       # Telemetry shared bus — see override service for the other end.
       - torcs-telemetry:/home/student/workspace/gym_torcs/telemetry:Z
       # The lab image ships with two known bugs (Ollama directory ownership
       # + VS Code extension install hang); scripts/torcs_container_init.sh
-      # absorbs both at boot. Mounted read-only.
+      # absorbs both at boot. Mounted read-only. Phase 2: the same script
+      # also handles the daemon boot chain (start.sh background → wait for
+      # noVNC → pip install fastapi/uvicorn → exec uvicorn).
       - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
     # Entrypoint override chains to the image's real Cmd
     # (/usr/local/bin/start.sh — pinned via `podman inspect` per
-    # the prior plan-file lifecycle artifact).
+    # the prior plan-file lifecycle artifact). When TORCS_CONTROL_SECRET
+    # is set the script takes a different exit path: it backgrounds
+    # start.sh and execs uvicorn instead (see scripts/torcs_container_init.sh).
     entrypoint: ["/bin/bash", "/usr/local/bin/torcs_init.sh"]
+    healthcheck:
+      # /health is unauthenticated by design — used by compose to confirm
+      # the control daemon is reachable. Failed healthcheck doesn't kill
+      # the container (start.sh is still running in the background and
+      # serves noVNC at :6080); it just surfaces in `podman compose ps`.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s    # noVNC wait + pip install can be slow first run
     networks:
       - override-net
 
