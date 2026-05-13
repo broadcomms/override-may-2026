@@ -26,6 +26,7 @@ import {
   LoadingSkeleton,
 } from "@/components/EmptyStates";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
+import { LiveTelemetry } from "@/components/LiveTelemetry";
 import { RecommendationCard } from "@/components/RecommendationCard";
 import { WhatIfDiff } from "@/components/WhatIfDiff";
 import { ZoneHeatmap } from "@/components/ZoneHeatmap";
@@ -44,6 +45,9 @@ export function SessionPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("engineer");
+  // Phase 3 — bumped when the live SSE stream emits race_ended, forcing
+  // a refetch so the now-COMPLETED session swaps in the normal post-race UI.
+  const [reloadKey, setReloadKey] = useState(0);
   const [fanCache, setFanCache] = useState<Record<string, FanOutput>>({});
   /** Per-zone error message when /api/zones/.../?mode=fan fails. The zone
    *  card stays on Engineer with a small banner, per FR-7 + the §7
@@ -79,7 +83,7 @@ export function SessionPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, fixture]);
+  }, [sessionId, fixture, reloadKey]);
 
   // Lazy Fan-Mode hydration when toggling to Fan.
   // Per FR-7.4: only fetch zones we don't have cached + don't have a
@@ -260,6 +264,16 @@ export function SessionPage() {
         <div className="mb-4">
           <GroundingPendingBanner />
         </div>
+      )}
+
+      {/* Phase 3 — live SSE panel above the rest of the page when the
+          session is still mid-race. Falls away after `race_ended` →
+          reloadKey bump → refetch returns COMPLETED status. */}
+      {session.summary.status === "active" && !fixture && (
+        <LiveTelemetry
+          sessionId={sessionId}
+          onRaceEnded={() => setReloadKey((k) => k + 1)}
+        />
       )}
 
       {/* Energy curve + zone heatmap */}

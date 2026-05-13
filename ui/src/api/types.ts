@@ -185,6 +185,38 @@ export interface SessionListParams {
   offset?: number;
 }
 
+/**
+ * Phase 3 live-telemetry events emitted by GET /api/sessions/{id}/stream.
+ * The discriminator is `event`. Lap events carry the LiveLapStats payload
+ * (see api/main.py:LiveLapStats); the other three are state markers.
+ */
+export type LiveStreamEvent =
+  | { event: "connected"; session_id: string; status: string }
+  | { event: "no_telemetry"; message: string }
+  | {
+      event: "lap";
+      lap: number;
+      lap_time_s: number;
+      avg_speed_kmh: number;
+      max_speed_kmh: number;
+      harvest_mj: number;
+      deploy_mj: number;
+      soc_end: number;
+      fuel_used_kg: number | null;
+    }
+  | { event: "race_ended"; reason?: string; total_laps?: number };
+
+export interface LiveLapStats {
+  lap: number;
+  lap_time_s: number;
+  avg_speed_kmh: number;
+  max_speed_kmh: number;
+  harvest_mj: number;
+  deploy_mj: number;
+  soc_end: number;
+  fuel_used_kg: number | null;
+}
+
 export interface Session {
   summary: SessionSummary;
   laps: LapFeatures[];

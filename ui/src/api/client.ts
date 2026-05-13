@@ -36,6 +36,7 @@ import torcsEngineerFixtureRaw from "@fixtures/torcs_engineer_demo.json";
 import type {
   ApiError,
   HealthResponse,
+  LiveStreamEvent,
   Recommendation,
   RegulationSource,
   Session,
@@ -404,6 +405,51 @@ export const api = {
     return jsonFetch<SessionListResponse>(`/api/sessions${suffix}`, {
       signal: opts?.signal,
     });
+  },
+
+  /**
+   * Phase 3 — open an EventSource against the session's SSE stream.
+   *
+   * Returns a tear-down function the caller invokes on unmount. The
+   * underlying EventSource handles reconnection automatically per the
+   * HTML5 spec (browser retries after ~3 s by default; the backend's
+   * stale-connection cleanup is independent).
+   *
+   * Caller passes a single `onEvent` callback because the event types
+   * (connected / lap / no_telemetry / race_ended) are a discriminated
+   * union — the consumer switches on `event.event`. This is simpler
+   * than four separate optional callbacks and matches how the
+   * SessionPage live panel consumes the stream.
+   *
+   * Fixture mode: returns a no-op teardown immediately; fixtures are
+   * deep-link demo assets, not live sessions, so there's nothing
+   * meaningful to stream.
+   */
+  streamSession(
+    sessionId: string,
+    onEvent: (e: LiveStreamEvent) => void,
+    opts?: { fixture?: boolean; onError?: (e: Event) => void },
+  ): () => void {
+    if (opts?.fixture) {
+      return () => {};
+    }
+    const url = `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
+    const es = new EventSource(url);
+    es.onmessage = (msg) => {
+      try {
+        const parsed = JSON.parse(msg.data) as LiveStreamEvent;
+        onEvent(parsed);
+        if (parsed.event === "race_ended" || parsed.event === "no_telemetry") {
+          es.close();
+        }
+      } catch {
+        // Swallow malformed payloads — backend guarantees JSON shape.
+      }
+    };
+    if (opts?.onError) {
+      es.onerror = opts.onError;
+    }
+    return () => es.close();
   },
 
   async getZone(
