@@ -221,11 +221,23 @@ class TorcsStartRaceRequest(BaseModel):
     """Body for POST /api/torcs/start-race — proxied to the daemon's /control/start.
 
     Operator-supplied; OVERRIDE generates the session_id (not the caller).
+    Phase 2.5: ``auto_launch_torcs`` controls whether the daemon launches
+    the TORCS GUI itself or expects an operator-launched TORCS already
+    running in noVNC.
     """
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
-    laps: int = Field(default=10, ge=1, le=200)
+    laps: int = Field(default=5, ge=1, le=200)
     track_name: Optional[str] = Field(default=None, max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
+    auto_launch_torcs: bool = Field(
+        default=True,
+        description=(
+            "When True (default), the daemon writes quickrace.xml and launches "
+            "TORCS as part of /control/start. When False, the daemon spawns only "
+            "the SCR client and expects the operator to have launched TORCS "
+            "manually in noVNC first."
+        ),
+    )
 
 
 class TorcsControlPlaneStatus(BaseModel):
@@ -233,12 +245,26 @@ class TorcsControlPlaneStatus(BaseModel):
     in-container daemon is configured + reachable. UI uses this to render
     the Start/Stop buttons; when disabled or unreachable the buttons stay
     hidden.
+
+    Phase 2.5: the daemon's race state machine (idle / launching /
+    waiting_scr / connecting / active / stopping / cleanup) is surfaced
+    via ``state`` for state-aware UI badges.
     """
     enabled: bool = Field(description="True when TORCS_CONTROL_URL + SECRET are both set on the override service.")
     reachable: bool = Field(description="True when the daemon's /health responded 200.")
-    active: bool = Field(default=False, description="True when a race is running per the daemon's /control/status.")
+    active: bool = Field(default=False, description="True when state == 'active' (compat field for old clients).")
+    state: Optional[str] = Field(default=None, description="Daemon-side race state: idle | launching | waiting_scr | connecting | active | stopping | cleanup.")
     session_id: Optional[str] = None
     detail: Optional[str] = Field(default=None, description="When not reachable, the reason for the UI to show.")
+
+
+class TorcsTrack(BaseModel):
+    name: str
+    category: str  # road | oval | dirt
+
+
+class TorcsTracksResponse(BaseModel):
+    tracks: list[TorcsTrack]
 
 
 class LiveLapStats(BaseModel):
@@ -844,8 +870,34 @@ def create_app() -> FastAPI:
             enabled=True,
             reachable=True,
             active=bool(body.get("active", False)),
+            state=body.get("state"),
             session_id=body.get("session_id"),
         )
+
+    @app.get("/api/torcs/tracks", response_model=TorcsTracksResponse)
+    async def torcs_tracks():
+        """List available TORCS tracks on the lab container's filesystem.
+
+        Phase 2.5 — feeds the UI track dropdown. The daemon scans
+        /usr/local/torcs/share/games/torcs/tracks/ once on first call and
+        returns the cached list grouped by category (road | oval | dirt).
+        Empty tracks list when the control plane is disabled or unreachable
+        — the UI falls back to a curated hardcoded list in that case.
+        """
+        url, secret = _torcs_control_config()
+        if url is None or secret is None:
+            return TorcsTracksResponse(tracks=[])
+        try:
+            status_code, body = await _call_torcs_daemon("GET", "/control/tracks", timeout=5.0)
+        except HTTPException:
+            return TorcsTracksResponse(tracks=[])
+        if status_code != 200 or not isinstance(body.get("tracks"), list):
+            return TorcsTracksResponse(tracks=[])
+        out: list[TorcsTrack] = []
+        for t in body["tracks"]:
+            if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("category"), str):
+                out.append(TorcsTrack(name=t["name"], category=t["category"]))
+        return TorcsTracksResponse(tracks=out)
 
     @app.post("/api/torcs/start-race", status_code=status.HTTP_201_CREATED)
     async def torcs_start_race(req: TorcsStartRaceRequest):
@@ -877,8 +929,12 @@ def create_app() -> FastAPI:
                 # torcs-live ingest's run_id matches the daemon-issued
                 # session_id 1:1.
                 "telemetry_filename": telemetry_filename,
+                # Phase 2.5: daemon launches TORCS itself by default.
+                "auto_launch_torcs": req.auto_launch_torcs,
             },
-            timeout=15.0,
+            # Launch + SCR-port poll can take up to ~20s on first run; give
+            # the daemon time to finish before this proxy call times out.
+            timeout=30.0,
         )
         if status_code == 409:
             raise api_error(

@@ -880,6 +880,7 @@ def test_control_status_reports_disabled_when_secret_unset(tmp_path, monkeypatch
     body = r.json()
     assert body == {
         "enabled": False, "reachable": False, "active": False,
+        "state": None,                                 # Phase 2.5 — daemon state surfaced
         "session_id": None,
         "detail": "TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
     }
@@ -1063,6 +1064,53 @@ def test_stop_race_idempotent_when_no_active_race(tmp_path, monkeypatch):
     r = client.post("/api/torcs/stop-race")
     assert r.status_code == 200
     assert r.json()["status"] == "no_active_race"
+
+
+def test_torcs_tracks_returns_empty_when_control_plane_disabled(tmp_path, monkeypatch):
+    """Phase 2.5: /api/torcs/tracks gracefully returns empty list when
+    TORCS_CONTROL_URL/SECRET aren't configured (UI falls back to a
+    hardcoded curated list in this case)."""
+    monkeypatch.delenv("TORCS_CONTROL_URL", raising=False)
+    monkeypatch.delenv("TORCS_CONTROL_SECRET", raising=False)
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/tracks")
+    assert r.status_code == 200
+    assert r.json() == {"tracks": []}
+
+
+def test_torcs_tracks_proxies_daemon_list(tmp_path, monkeypatch):
+    """Daemon /control/tracks → OVERRIDE /api/torcs/tracks. Verify the
+    proxy forwards the list verbatim under TorcsTrack shape."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/control/tracks"
+        assert request.headers["authorization"] == "Bearer test-secret"
+        return httpx.Response(200, json={"tracks": [
+            {"name": "aalborg", "category": "road"},
+            {"name": "michigan", "category": "oval"},
+            {"name": "dirt-2", "category": "dirt"},
+        ]})
+
+    import api.main as main_mod
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/tracks")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["tracks"]) == 3
+    assert {t["name"] for t in body["tracks"]} == {"aalborg", "michigan", "dirt-2"}
+    cats = {t["name"]: t["category"] for t in body["tracks"]}
+    assert cats["michigan"] == "oval"
+    assert cats["dirt-2"] == "dirt"
 
 
 def test_start_race_writes_stub_active_session(tmp_path, monkeypatch):
