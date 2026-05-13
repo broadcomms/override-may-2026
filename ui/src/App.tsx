@@ -1,6 +1,7 @@
 import { Link, Navigate, NavLink as RouterNavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
+import { SessionComparePage } from "@/pages/SessionComparePage";
 import { SessionPage } from "@/pages/SessionPage";
 import { SessionsPage } from "@/pages/SessionsPage";
 import { UploadPage } from "@/pages/UploadPage";
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/upload" replace />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
+          <Route path="/sessions/compare" element={<SessionComparePage />} />
           <Route path="/session/:sessionId" element={<SessionPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -145,6 +147,7 @@ function PageTitleManager() {
     const map: Record<string, string> = {
       "/upload": "Upload — OVERRIDE",
       "/sessions": "Sessions — OVERRIDE",
+      "/sessions/compare": "Compare sessions — OVERRIDE",
     };
     if (location.pathname.startsWith("/session/")) {
       document.title = "Session debrief — OVERRIDE";
