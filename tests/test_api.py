@@ -864,6 +864,219 @@ def test_list_sessions_rejects_out_of_bounds_limit(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Phase 2 — TORCS control plane (proxy to in-container daemon)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_control_status_reports_disabled_when_secret_unset(tmp_path, monkeypatch):
+    """No TORCS_CONTROL_SECRET → enabled=False, reachable=False. Lets the
+    UI hide Start/Stop buttons cleanly when the operator isn't running
+    --profile torcs."""
+    monkeypatch.delenv("TORCS_CONTROL_URL", raising=False)
+    monkeypatch.delenv("TORCS_CONTROL_SECRET", raising=False)
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/control-status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {
+        "enabled": False, "reachable": False, "active": False,
+        "session_id": None,
+        "detail": "TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
+    }
+
+
+def test_control_status_reports_unreachable_when_daemon_down(tmp_path, monkeypatch):
+    """Secret set, daemon unreachable → enabled=True, reachable=False.
+    Same UI semantics as disabled but a different `detail` string so
+    operators can debug."""
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://nope.invalid:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/control-status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["enabled"] is True
+    assert body["reachable"] is False
+    assert body["active"] is False
+    assert "daemon" in (body["detail"] or "").lower() or "reach" in (body["detail"] or "").lower()
+
+
+def test_control_status_proxies_active_state(tmp_path, monkeypatch):
+    """Daemon up + reports active race → proxy surfaces active=True
+    and the session_id. Uses httpx MockTransport so we don't need a
+    real daemon container."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Bearer test-secret"
+        assert request.url.path == "/control/status"
+        return httpx.Response(200, json={
+            "active": True, "session_id": "s_torcs_live_42_abcd", "pid": 4242,
+            "uptime_s": 18.7, "exit_code": None,
+        })
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/control-status")
+    body = r.json()
+    assert body["enabled"] is True
+    assert body["reachable"] is True
+    assert body["active"] is True
+    assert body["session_id"] == "s_torcs_live_42_abcd"
+
+
+def test_start_race_503_when_control_disabled(tmp_path, monkeypatch):
+    """No secret → 503 with error_code CONTROL_DISABLED. UI never even
+    shows the button in this state, but defense-in-depth on the API too."""
+    monkeypatch.delenv("TORCS_CONTROL_URL", raising=False)
+    monkeypatch.delenv("TORCS_CONTROL_SECRET", raising=False)
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/start-race", json={"track": "aalborg", "laps": 5})
+    assert r.status_code == 503
+    assert r.json()["error_code"] == "CONTROL_DISABLED"
+
+
+def test_start_race_409_when_daemon_returns_conflict(tmp_path, monkeypatch):
+    """Daemon already has an active race → 409 + RACE_ACTIVE."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(409, json={"detail": "Race already active for session s_x."})
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/start-race", json={"track": "aalborg", "laps": 5})
+    assert r.status_code == 409
+    assert r.json()["error_code"] == "RACE_ACTIVE"
+
+
+def test_start_race_201_proxies_daemon_response(tmp_path, monkeypatch):
+    """Happy path: daemon 201 → override 201 with the augmented body
+    (session_id from override, pid + telemetry_dir from daemon)."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    captured_request: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_request["url"] = str(request.url)
+        captured_request["body"] = json.loads(request.content)
+        # Echo back the daemon's StartRaceResponse shape
+        return httpx.Response(201, json={
+            "session_id": captured_request["body"]["session_id"],
+            "pid": 9999,
+            "telemetry_dir": "/home/student/workspace/gym_torcs/telemetry/",
+        })
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/torcs/start-race",
+        json={"track": "alpine-1", "laps": 10, "track_name": "Alpine", "notes": "smoke test"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["session_id"].startswith("s_torcs_live_")
+    assert body["pid"] == 9999
+    assert body["telemetry_dir"].endswith("/telemetry/")
+    assert body["track"] == "alpine-1"
+    assert body["laps"] == 10
+    assert body["track_name_hint"] == "Alpine"
+    assert body["notes_hint"] == "smoke test"
+    # Verify the daemon got the operator-validated payload
+    assert captured_request["body"]["track"] == "alpine-1"
+    assert captured_request["body"]["laps"] == 10
+    assert captured_request["body"]["session_id"].startswith("s_torcs_live_")
+
+
+def test_stop_race_returns_daemon_payload(tmp_path, monkeypatch):
+    """Stop with active race → daemon returns 200 with status=stopped;
+    proxy passes through unchanged."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "status": "stopped", "session_id": "s_torcs_live_a", "exit_code": -15,
+        })
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/stop-race")
+    assert r.status_code == 200
+    assert r.json() == {"status": "stopped", "session_id": "s_torcs_live_a", "exit_code": -15}
+
+
+def test_stop_race_idempotent_when_no_active_race(tmp_path, monkeypatch):
+    """No active race → daemon returns 200 with status=no_active_race.
+    UI 'Stop Race' fires-and-forgets; this stays 200."""
+    import httpx
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "no_active_race", "exit_code": None})
+
+    import api.main as main_mod
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/stop-race")
+    assert r.status_code == 200
+    assert r.json()["status"] == "no_active_race"
+
+
+def test_start_race_validates_track_pattern(tmp_path, monkeypatch):
+    """Pydantic rejects malformed track BEFORE we proxy. Defense in
+    depth — the daemon also validates, but failing fast here means the
+    daemon never sees a bad payload at all."""
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/start-race", json={"track": "../etc/passwd", "laps": 5})
+    assert r.status_code == 422
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Phase 3 — SSE live telemetry stream
 # ──────────────────────────────────────────────────────────────────────────────
 

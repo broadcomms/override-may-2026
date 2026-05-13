@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal, Optional
 
+import httpx
 import pandas as pd
 from fastapi import (
     Depends,
@@ -214,6 +215,30 @@ class SessionListResponse(BaseModel):
     total: int = Field(ge=0, description="Total session count across all pages.")
     limit: int = Field(ge=1, le=200)
     offset: int = Field(ge=0)
+
+
+class TorcsStartRaceRequest(BaseModel):
+    """Body for POST /api/torcs/start-race — proxied to the daemon's /control/start.
+
+    Operator-supplied; OVERRIDE generates the session_id (not the caller).
+    """
+    track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
+    laps: int = Field(default=10, ge=1, le=200)
+    track_name: Optional[str] = Field(default=None, max_length=80)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class TorcsControlPlaneStatus(BaseModel):
+    """Returned by GET /api/torcs/control-status — reflects whether the
+    in-container daemon is configured + reachable. UI uses this to render
+    the Start/Stop buttons; when disabled or unreachable the buttons stay
+    hidden.
+    """
+    enabled: bool = Field(description="True when TORCS_CONTROL_URL + SECRET are both set on the override service.")
+    reachable: bool = Field(description="True when the daemon's /health responded 200.")
+    active: bool = Field(default=False, description="True when a race is running per the daemon's /control/status.")
+    session_id: Optional[str] = None
+    detail: Optional[str] = Field(default=None, description="When not reachable, the reason for the UI to show.")
 
 
 class LiveLapStats(BaseModel):
@@ -765,6 +790,112 @@ def create_app() -> FastAPI:
 
     # ── Live TORCS ingest (v6 plan task 3.2, hard floor) ─────────────────────
 
+    # ── Phase 2 control plane: proxy to the torcs-container daemon ──────────
+
+    @app.get("/api/torcs/control-status", response_model=TorcsControlPlaneStatus)
+    async def torcs_control_status():
+        """Reports whether the in-container TORCS control daemon is
+        configured and reachable. The UI calls this on /upload to decide
+        whether to render the Start/Stop race buttons. Always returns 200
+        so the UI can branch on `enabled` + `reachable` without 404 noise.
+        """
+        url, secret = _torcs_control_config()
+        if url is None or secret is None:
+            return TorcsControlPlaneStatus(
+                enabled=False,
+                reachable=False,
+                detail="TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
+            )
+        try:
+            status_code, body = await _call_torcs_daemon("GET", "/control/status", timeout=3.0)
+        except HTTPException as e:
+            # _call_torcs_daemon raises HTTPException only for unreachable;
+            # surface as reachable=False so the UI hides the buttons rather
+            # than showing an angry error banner.
+            detail = "Control daemon not reachable yet — torcs container may still be booting."
+            if hasattr(e, "detail") and isinstance(e.detail, dict):
+                detail = e.detail.get("detail", detail) or detail
+            return TorcsControlPlaneStatus(enabled=True, reachable=False, detail=detail)
+        if status_code != 200:
+            return TorcsControlPlaneStatus(
+                enabled=True, reachable=False,
+                detail=f"Daemon returned HTTP {status_code}",
+            )
+        return TorcsControlPlaneStatus(
+            enabled=True,
+            reachable=True,
+            active=bool(body.get("active", False)),
+            session_id=body.get("session_id"),
+        )
+
+    @app.post("/api/torcs/start-race", status_code=status.HTTP_201_CREATED)
+    async def torcs_start_race(req: TorcsStartRaceRequest):
+        """Generate a session_id, ask the daemon to spawn gym_torcs.
+
+        Returns the daemon's response shape augmented with the OVERRIDE
+        session_id so the UI can immediately deep-link to /session/{id}
+        (the session itself won't exist until the user POSTs torcs-live
+        with the resulting run_id; see below).
+        """
+        # OVERRIDE owns session_id generation so the daemon's input
+        # validation is the only validator that sees this value — keeps
+        # the trust boundary small.
+        import secrets as _secrets
+        session_id = f"s_torcs_live_{int(time.time())}_{_secrets.token_hex(4)}"
+
+        status_code, body = await _call_torcs_daemon(
+            "POST",
+            "/control/start",
+            json_body={
+                "session_id": session_id,
+                "track": req.track,
+                "laps": req.laps,
+            },
+            timeout=15.0,
+        )
+        if status_code == 409:
+            raise api_error(
+                status_code=status.HTTP_409_CONFLICT,
+                error_code="RACE_ACTIVE",
+                message="A TORCS race is already running.",
+                detail=body.get("detail", "Stop the active race first via POST /api/torcs/stop-race."),
+                request_id=new_request_id(),
+            )
+        if status_code >= 400:
+            raise api_error(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                error_code="CONTROL_FAILED",
+                message=f"TORCS daemon refused start (HTTP {status_code}).",
+                detail=str(body)[:300],
+                request_id=new_request_id(),
+            )
+        return {
+            "session_id": session_id,
+            "pid": body.get("pid"),
+            "telemetry_dir": body.get("telemetry_dir"),
+            "track": req.track,
+            "laps": req.laps,
+            # The UI uses these to compose a deep-link or to remember the
+            # operator-supplied metadata for the eventual torcs-live POST.
+            "track_name_hint": req.track_name,
+            "notes_hint": req.notes,
+        }
+
+    @app.post("/api/torcs/stop-race")
+    async def torcs_stop_race():
+        """Stop the active race (idempotent — no active race → 200 with
+        status="no_active_race", not an error)."""
+        status_code, body = await _call_torcs_daemon("POST", "/control/stop", timeout=15.0)
+        if status_code >= 400:
+            raise api_error(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                error_code="CONTROL_FAILED",
+                message=f"TORCS daemon refused stop (HTTP {status_code}).",
+                detail=str(body)[:300],
+                request_id=new_request_id(),
+            )
+        return body
+
     @app.get("/api/torcs-status")
     async def torcs_status():
         """List JSONL replays available on the shared ``torcs-telemetry``
@@ -962,6 +1093,71 @@ def _sessions_root_for_request() -> Path:
     if raw:
         return Path(raw)
     return Path(__file__).resolve().parent.parent / "data" / "sessions"
+
+
+def _torcs_control_config() -> tuple[Optional[str], Optional[str]]:
+    """Return (base_url, secret) for the TORCS control daemon if configured.
+
+    Returns (None, None) when either env var is unset — the proxy endpoints
+    use this to short-circuit with a clear ``CONTROL_DISABLED`` error
+    instead of trying to contact a nonexistent daemon.
+    """
+    url = os.environ.get("TORCS_CONTROL_URL") or None
+    secret = os.environ.get("TORCS_CONTROL_SECRET") or None
+    return (url, secret)
+
+
+async def _call_torcs_daemon(
+    method: str,
+    path: str,
+    *,
+    json_body: Optional[dict] = None,
+    timeout: float = 10.0,
+) -> tuple[int, dict]:
+    """Proxy a request to the TORCS control daemon with bearer auth.
+
+    Returns (status_code, response_body). Body is always a dict (decoded
+    JSON or wrapped error). Raises HTTPException only for ``CONTROL_DISABLED``
+    (config-time) and ``CONTROL_UNREACHABLE`` (network-level); other
+    responses pass through with their status codes for the caller to
+    re-raise as appropriate. Keeps the proxy layer's exception surface
+    narrow and predictable.
+    """
+    url, secret = _torcs_control_config()
+    if url is None or secret is None:
+        raise api_error(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            error_code="CONTROL_DISABLED",
+            message="TORCS control plane is not configured on this OVERRIDE instance.",
+            detail=(
+                "Set TORCS_CONTROL_URL + TORCS_CONTROL_SECRET in .env and "
+                "bring up `podman compose --profile torcs up` to enable "
+                "interactive race control. The live-ingest path "
+                "(POST /api/sessions/torcs-live) still works regardless."
+            ),
+            request_id=new_request_id(),
+        )
+    headers = {"Authorization": f"Bearer {secret}"}
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.request(method, f"{url}{path}", headers=headers, json=json_body)
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+        raise api_error(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            error_code="CONTROL_UNREACHABLE",
+            message="TORCS control daemon is not reachable.",
+            detail=(
+                f"Could not reach {url}{path}: {e}. The torcs compose "
+                "service may still be starting (boot takes ~90 s on first "
+                "run; the daemon waits for noVNC before listening)."
+            ),
+            request_id=new_request_id(),
+        )
+    try:
+        body = resp.json() if resp.content else {}
+    except (ValueError, json.JSONDecodeError):
+        body = {"raw": resp.text[:500]}
+    return resp.status_code, body
 
 
 def _find_telemetry_file(session_id: str) -> Optional[Path]:

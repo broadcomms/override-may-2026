@@ -27,6 +27,11 @@ ErrorCode = Literal[
     "RATE_LIMITED",
     "NOT_FOUND",
     "INTERNAL_ERROR",
+    # Phase 2 TORCS control plane (ADR-004)
+    "CONTROL_DISABLED",     # TORCS_CONTROL_URL/SECRET not set on this override instance
+    "CONTROL_UNREACHABLE",  # daemon HTTP/network error from the override side
+    "CONTROL_FAILED",       # daemon responded with non-2xx for an unexpected reason
+    "RACE_ACTIVE",          # /api/torcs/start-race called while a race is already running (409)
 ]
 
 
