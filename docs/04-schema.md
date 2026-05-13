@@ -350,6 +350,28 @@ class Session(BaseModel):
     regulation_source: Optional[RegulationSource]   # for the citations cited; null if none used
 ```
 
+### `LiveLapStats`
+
+One lap-complete record emitted on the Phase 3 SSE stream
+(`GET /api/sessions/{id}/stream`). Energy fields use the same
+`analysis.torcs_energy` constants as the post-hoc parser so live totals
+agree with the eventual `LapFeatures` to within a few percent (live uses
+a single-sector approximation; post-race splits into three sectors).
+
+```python
+class LiveLapStats(BaseModel):
+    lap: int                         # 1-indexed, FIA convention
+    lap_time_s: float                # seconds
+    avg_speed_kmh: float
+    max_speed_kmh: float
+    harvest_mj: float                # ≥ 0
+    deploy_mj: float                 # ≥ 0
+    soc_end: float                   # 0..1
+    fuel_used_kg: Optional[float]    # Δ fuel sensor across the lap; None if parser couldn't extract
+```
+
+The SSE event envelope wraps this with an `event: "lap"` discriminator; see [`04-api.md` §4.15](./04-api.md#415-get-apisessionssession_idstream-server-sent-events) for the full event-type union.
+
 ### `SessionListResponse`
 
 Paged listing returned by `GET /api/sessions` (Phase 1 ship).

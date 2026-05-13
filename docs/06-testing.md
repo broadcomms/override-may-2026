@@ -5,10 +5,10 @@ OVERRIDE's quality gate is `pytest` on the Python side and `tsc --noEmit && vite
 ## Counts (current state)
 
 ```
-pytest -q -m "not network"   # 316 unit tests, ~10 s, no external calls
+pytest -q -m "not network"   # 323 unit tests, ~10 s, no external calls
 pytest -q -m "network"       #   4 network-marked integration tests (live watsonx; ~30 s)
                              # ─────────────────────────
-                             # 320 total green
+                             # 327 total green
 ```
 
 Baseline at v6-plan start was 231 unit tests. The increase came from FR-8 (perturbations + endpoint), live-ingest endpoint + status helper, TORCS parser + calibration regression, hybrid LLM client (Ollama Protocol impl), concurrency fix for fan-mode saves, regulation-retrieval front-matter filtering, assorted edge-case coverage shipped during Weeks 1–3, and Phase 1 session-boundary work (11 new tests covering `_extract_start_time`, the `/torcs-status` enrichment, `/torcs-live` metadata embedding, `GET /api/sessions` pagination + backward compat).
@@ -20,7 +20,7 @@ Baseline at v6-plan start was 231 unit tests. The increase came from FR-8 (pertu
 | `tests/test_torcs_parser.py` | TORCS JSONL → `LapFeatures`, **incl. calibration regression test** | 20+ |
 | `tests/test_fastf1_parser.py` | FastF1 parquet → `LapFeatures` | 15+ |
 | `tests/test_pipeline.py` | End-to-end orchestration, regulation-source scope filtering | 25+ |
-| `tests/test_api.py` | All FastAPI endpoints, concurrency, fixture mode, Phase 1 session boundaries + history pagination | 60+ |
+| `tests/test_api.py` | All FastAPI endpoints, concurrency, fixture mode, Phase 1 session boundaries + history pagination, Phase 3 SSE helpers + stream | 60+ |
 | `tests/test_perturbations.py` | FR-8 three perturbation functions (golden tests) | 15+ |
 | `tests/test_zone_detector.py` | `analysis/zone_detector.py` zone classification heuristics | 20+ |
 | `tests/test_regs.py` | Docling chunk extraction, retrieval, front-matter filter | 25+ |

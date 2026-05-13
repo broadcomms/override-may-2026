@@ -3,7 +3,11 @@
 **Status:** Roadmap (post-v1.0-submission work)
 **Created:** 2026-05-13 (originally drafted as v3 of three iterations; v1 + v2 dropped after the security/architecture pivot consolidated. See `git log -- docs/roadmap-v1.1/` for history.)
 
-> **Phase 1 of this plan was absorbed into v1.0** — session boundaries, history page (`/sessions`), comparison view (`/sessions/compare`), and the `GET /api/sessions` endpoint all shipped via commits `04934ce` → `ee289bb`. The remaining Phases 2 (HTTP control daemon) and 3 (SSE live telemetry stream) are post-submission v1.1 work documented below.
+> **Phases 1 and 3 of this plan were absorbed into v1.0:**
+> - **Phase 1** (session boundaries, history page at `/sessions`, comparison view at `/sessions/compare`, `GET /api/sessions` endpoint) shipped via commits `04934ce` → `ee289bb`.
+> - **Phase 3** (SSE live-telemetry stream at `GET /api/sessions/{id}/stream` + `LiveTelemetry` component on `SessionPage` conditional on `status="active"`) shipped via commits `ed6c1ea` → `4cb08bb` (+ docs).
+>
+> The only remaining v1.1 work is **Phase 2** — the HTTP control daemon inside the torcs container with shared-secret auth, giving the UI start/stop-race buttons and replacing the noVNC-terminal workflow. Documented below in §2.
 
 ---
 

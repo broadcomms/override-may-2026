@@ -32,6 +32,7 @@
 | `POST` | `/api/sessions/{session_id}/whatif` | Run a what-if perturbation |
 | `POST` | `/api/sessions/torcs-live` | Ingest a JSONL capture from the shared TORCS-telemetry volume |
 | `GET`  | `/api/torcs-status` | Discover what TORCS runs are available on the shared volume |
+| `GET`  | `/api/sessions/{session_id}/stream` | Live per-lap SSE stream for an `active` session |
 | `GET`  | `/api/regulation-source` | The canonical source metadata for the deployed regulation extraction |
 | `DELETE` | `/api/sessions/{session_id}` | Remove a session (local cleanup) |
 
@@ -360,7 +361,45 @@ The canonical regulation source metadata for the deployed extraction. The UI sho
 
 The `section` value is read from the Docling extraction at startup; it is **never** hardcoded in the API layer.
 
-### 4.15 `DELETE /api/sessions/{session_id}`
+### 4.15 `GET /api/sessions/{session_id}/stream` (Server-Sent Events)
+
+Live per-lap telemetry stream for a session in `status="active"`. Phase 3 ship; v1.0 emits via the `torcs-live` ingest path when the underlying JSONL is still being appended to.
+
+**Response 200** — `Content-Type: text/event-stream`. Each event is a JSON object on a single `data: …` line. Event discriminator is `event`.
+
+**Event types:**
+
+```jsonc
+// Always emitted first — confirms the connection is live.
+{ "event": "connected", "session_id": "s_torcs_...", "status": "active" }
+
+// Per-lap stats — one emit per newly-completed lap, in order.
+// Payload shape is LiveLapStats (see 04-schema.md §11).
+{ "event": "lap", "lap": 1, "lap_time_s": 92.5, "avg_speed_kmh": 180.2,
+  "max_speed_kmh": 240.5, "harvest_mj": 4.2, "deploy_mj": 3.8,
+  "soc_end": 0.85, "fuel_used_kg": 0.3 }
+
+// Terminal — emitted once when the file-stall heuristic fires.
+// Client should treat this as end-of-stream; server closes immediately after.
+{ "event": "race_ended", "reason": "file_stall", "total_laps": 12 }
+
+// Terminal — emitted when the session has no resolvable telemetry_file.
+// Client should treat as end-of-stream.
+{ "event": "no_telemetry", "message": "..." }
+```
+
+**Race-end detection — file-stall heuristic.** The server polls the underlying JSONL's `mtime` + completed-lap count every second. If neither advances for 10 seconds, the stream emits `race_ended` with `reason: "file_stall"` and closes. No control-daemon dependency; works with the bare `torcs_jm_par.py` workflow today.
+
+**Disconnect handling.** `await request.is_disconnected()` is checked at each poll iteration; a closed browser tab releases the generator within ~1 s, well under the stall timeout.
+
+**Response 404** — `error_code: "NOT_FOUND"` when the session doesn't exist.
+
+**Caveats:**
+- This endpoint is `O(file_size)` per poll — it re-reads the JSONL each tick to count laps. Suitable for typical race durations (≤ 100 MB). v1.1 may move to a tail-cursor implementation.
+- The `LiveLapStats` energy math uses a single-sector approximation; the post-race `LapFeatures` (via `ingest/torcs_parser.py`) splits into three sectors. Live totals should agree with post-race totals to within a few percent.
+- Cloudflare Tunnel auto-disables buffering for `text/event-stream` per CF documentation; SSE works through the hosted demo URL. The `X-Accel-Buffering: no` header is set as belt-and-suspenders for nginx-shape proxies.
+
+### 4.16 `DELETE /api/sessions/{session_id}`
 
 Remove the session and its derived artifacts from local storage. Used in the demo to keep the list clean. Returns `204 No Content`. Idempotent — `204` even if the session was already gone.
 
