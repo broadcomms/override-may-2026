@@ -217,6 +217,41 @@ export interface LiveLapStats {
   fuel_used_kg: number | null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 — TORCS control plane (Start/Stop race)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TorcsControlStatus {
+  enabled: boolean;        // env configured on override?
+  reachable: boolean;      // daemon /health responded?
+  active: boolean;         // a race is currently running?
+  session_id: string | null;
+  detail: string | null;
+}
+
+export interface TorcsStartRaceParams {
+  track?: string;          // default "aalborg"
+  laps?: number;           // default 10
+  track_name?: string;     // free-form, ≤80 chars
+  notes?: string;          // free-form, ≤500 chars
+}
+
+export interface TorcsStartRaceResponse {
+  session_id: string;
+  pid: number;
+  telemetry_dir: string;
+  track: string;
+  laps: number;
+  track_name_hint: string | null;
+  notes_hint: string | null;
+}
+
+export interface TorcsStopRaceResponse {
+  status: "stopped" | "no_active_race";
+  session_id: string | null;
+  exit_code: number | null;
+}
+
 export interface Session {
   summary: SessionSummary;
   laps: LapFeatures[];

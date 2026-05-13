@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { OverrideApiError, api, type FixtureName } from "@/api/client";
 import type { TorcsRunSummary } from "@/api/types";
 import { FileUpload } from "@/components/FileUpload";
+import { TorcsControlPanel } from "@/components/TorcsControlPanel";
 
 export function UploadPage() {
   const navigate = useNavigate();
@@ -128,6 +129,12 @@ export function UploadPage() {
           { label: "Layered-defense demo (cached)", onClick: () => useSample("layered_defense") },
         ]}
       />
+
+      {/* Phase 2 — Start/Stop race controls. Hidden on the hosted demo
+          (window.location.hostname guard) AND hidden when the override
+          API reports the control plane isn't configured (server-side
+          ENABLED flag). Defense in depth — see ADR-004 §security. */}
+      <TorcsControlPanel />
 
       {/* Live TORCS banner — only renders when the torcs compose profile is
           running AND has emitted at least one JSONL capture. Progressive

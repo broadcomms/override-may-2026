@@ -43,7 +43,11 @@ import type {
   SessionListParams,
   SessionListResponse,
   SessionSummary,
+  TorcsControlStatus,
+  TorcsStartRaceParams,
+  TorcsStartRaceResponse,
   TorcsStatusResponse,
+  TorcsStopRaceResponse,
   VersionResponse,
   WhatIfRequest,
   WhatIfResult,
@@ -553,6 +557,47 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ run_id: runId }),
+      signal: opts?.signal,
+    });
+  },
+
+  // Phase 2 — TORCS control plane (Start/Stop race over override-net daemon)
+  async torcsControlStatus(opts?: ApiOpts): Promise<TorcsControlStatus> {
+    // Always returns 200 from the backend (enabled/reachable booleans
+    // carry the state). Fixture mode short-circuits to "disabled" so the
+    // hosted demo and fixture flows behave identically.
+    if (resolveFixture(opts)) {
+      return { enabled: false, reachable: false, active: false, session_id: null, detail: null };
+    }
+    return jsonFetch<TorcsControlStatus>("/api/torcs/control-status", { signal: opts?.signal });
+  },
+
+  async startTorcsRace(
+    params: TorcsStartRaceParams = {},
+    opts?: ApiOpts,
+  ): Promise<TorcsStartRaceResponse> {
+    if (resolveFixture(opts)) {
+      throw new Error("Cannot start a TORCS race in fixture mode — drop a fixture instead.");
+    }
+    return jsonFetch<TorcsStartRaceResponse>("/api/torcs/start-race", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        track: params.track ?? "aalborg",
+        laps: params.laps ?? 10,
+        track_name: params.track_name ?? null,
+        notes: params.notes ?? null,
+      }),
+      signal: opts?.signal,
+    });
+  },
+
+  async stopTorcsRace(opts?: ApiOpts): Promise<TorcsStopRaceResponse> {
+    if (resolveFixture(opts)) {
+      return { status: "no_active_race", session_id: null, exit_code: null };
+    }
+    return jsonFetch<TorcsStopRaceResponse>("/api/torcs/stop-race", {
+      method: "POST",
       signal: opts?.signal,
     });
   },
