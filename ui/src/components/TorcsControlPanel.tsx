@@ -178,6 +178,20 @@ export function TorcsControlPanel() {
     }
   }, [refresh]);
 
+  // Group tracks for <optgroup>. Computed unconditionally (React Hooks rules
+  // forbid useMemo after conditional returns — bug fix from initial 2.5 ship).
+  const grouped = useMemo(() => {
+    const recSet = new Set(RECOMMENDED_TRACKS);
+    const recommended = tracks.filter((t) => recSet.has(t.name));
+    const others: Record<string, TorcsTrack[]> = {};
+    tracks
+      .filter((t) => !recSet.has(t.name))
+      .forEach((t) => {
+        (others[t.category] ||= []).push(t);
+      });
+    return { recommended, others };
+  }, [tracks]);
+
   // Hosted demo: completely hide the panel
   if (!isLocalHost()) return null;
 
@@ -202,20 +216,6 @@ export function TorcsControlPanel() {
       status.state === "launching" ||
       status.state === "waiting_scr" ||
       status.state === "connecting");
-
-  // Group tracks for the <optgroup> rendering
-  const grouped = useMemo(() => {
-    const recSet = new Set(RECOMMENDED_TRACKS);
-    const recommended = tracks.filter((t) => recSet.has(t.name));
-    const others: Record<string, TorcsTrack[]> = {};
-    tracks
-      .filter((t) => !recSet.has(t.name))
-      .forEach((t) => {
-        (others[t.category] ||= []).push(t);
-      });
-    return { recommended, others };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks]);
 
   return (
     <section
