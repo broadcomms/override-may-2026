@@ -8,6 +8,7 @@
   --color-border: #2A2A2A;
   --color-text: #F5F5F5;
   --color-text-muted: #9A9A9A;
+  --color-chrome-subhead: #B4B4B4;  /* between text-muted and text — reserved for the chrome subhead line */
   --color-accent: #FF4500;        /* override-orange */
   --color-success: #00C853;       /* sustainable-fuel green */
   --color-warning: #F9A825;

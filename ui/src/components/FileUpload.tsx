@@ -1,6 +1,13 @@
 /**
- * Drag-drop upload zone per docs/04-ui-ux-design.md §4.1.
- * States: idle / hovering / uploading / error.
+ * Single-purpose drop+browse affordance for the Upload page.
+ *
+ * Per the design audit (docs/plans/ui-design-audit-2026-05-14.md §13, brief A3),
+ * this component is deliberately *secondary*: the hero on /upload is the
+ * sample-replay list. Hierarchy here is solid 1px border, no glyph, single
+ * line — the dropzone reads as "bring your own", not "upload to begin".
+ *
+ * Sample-replay rendering previously lived here. It now lives in
+ * SampleReplayList so each surface owns one job.
  */
 
 import { useCallback, useRef, useState } from "react";
@@ -9,11 +16,9 @@ interface Props {
   onFile: (file: File) => void;
   isUploading: boolean;
   error?: string | null;
-  /** When true, surfaces a "use sample replay" affordance per §4.1. */
-  sampleReplays?: { label: string; onClick: () => void }[];
 }
 
-export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props) {
+export function FileUpload({ onFile, isUploading, error }: Props) {
   const [hovering, setHovering] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,7 +31,7 @@ export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props)
   );
 
   return (
-    <div className="w-full max-w-xl">
+    <div className="w-full">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -39,8 +44,10 @@ export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props)
           handleFile(e.dataTransfer.files?.[0]);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`rounded-card border-2 border-dashed p-12 text-center cursor-pointer transition-colors ${
-          hovering ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-2"
+        className={`rounded-card border p-6 text-center cursor-pointer transition-colors ${
+          hovering
+            ? "border-accent/60 bg-accent/[0.03]"
+            : "border-border bg-surface hover:bg-surface-2"
         }`}
         role="button"
         tabIndex={0}
@@ -57,15 +64,12 @@ export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props)
             </div>
           </div>
         ) : (
-          <>
-            <div className="text-2xl mb-2">⤓</div>
-            <div className="text-text mb-1">
-              Drop a <span className="font-mono">.json</span> or <span className="font-mono">.parquet</span> file, or click to browse
-            </div>
-            <div className="text-xs text-muted">
-              Supported: TORCS, FastF1 — max 25 MB, up to 120 laps
-            </div>
-          </>
+          <div className="text-sm text-text">
+            Drop a replay, or browse — <span className="font-mono text-muted">.json</span>{" "}
+            <span className="text-muted">/</span>{" "}
+            <span className="font-mono text-muted">.parquet</span>
+            <span className="text-muted">, up to 25 MB</span>
+          </div>
         )}
         <input
           ref={inputRef}
@@ -82,25 +86,6 @@ export function FileUpload({ onFile, isUploading, error, sampleReplays }: Props)
           className="mt-3 px-3 py-2 rounded-md bg-danger/15 border border-danger/40 text-sm text-danger"
         >
           {error}
-        </div>
-      )}
-
-      {sampleReplays && sampleReplays.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs uppercase tracking-wider text-muted mb-2">Or try a sample replay</div>
-          <div className="flex flex-wrap gap-2">
-            {sampleReplays.map((s) => (
-              <button
-                key={s.label}
-                type="button"
-                onClick={s.onClick}
-                disabled={isUploading}
-                className="px-3 py-1.5 rounded-pill border border-border bg-surface text-sm hover:bg-surface-2 disabled:opacity-50"
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>

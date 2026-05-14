@@ -1,13 +1,17 @@
 /**
- * Upload page — drop zone + sample replays per docs/04-ui-ux-design.md §4.1.
- * Posts to FastAPI /api/sessions, navigates to the session detail page.
+ * Upload page — two-pane entry surface per the design audit
+ * (docs/plans/ui-design-audit-2026-05-14.md §8 + brief A2).
+ *
+ * Left pane (Begin): SampleReplayList — the hero path — above BringYourOwn —
+ * the drop+browse fallback. Right pane (Live capture): the existing race
+ * control + JSONL run list, only rendered when meaningful (local dev OR the
+ * shared volume actually has runs). On the hosted demo without runs, the
+ * right pane collapses and the left pane spans full width.
  *
  * v6 plan task 3.2 addition: when `GET /api/torcs-status` reports the
- * torcs-telemetry volume has JSONL runs available (i.e., the user is
- * running `podman compose --profile torcs up` AND has driven at least
- * one capture via gym_torcs's torcs_jm_par.py with OVERRIDE_LOG_TELEMETRY
- * set), surface a banner with per-run "Ingest" buttons. Progressive
- * enhancement — invisible when the torcs profile isn't running.
+ * torcs-telemetry volume has JSONL runs available, surface per-run "Ingest"
+ * buttons. Progressive enhancement — invisible when the torcs profile isn't
+ * running.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -15,9 +19,10 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { OverrideApiError, api, type FixtureName } from "@/api/client";
 import type { TorcsRunSummary } from "@/api/types";
+import { BringYourOwn } from "@/components/BringYourOwn";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { FileUpload } from "@/components/FileUpload";
-import { TorcsControlPanel } from "@/components/TorcsControlPanel";
+import { SampleReplayList } from "@/components/SampleReplayList";
+import { TorcsControlPanel, isLocalHost } from "@/components/TorcsControlPanel";
 
 // Phase 4: page the Live TORCS banner so 19+ runs don't push the rest of
 // the page off-screen. Small page so the banner stays compact in the
@@ -28,6 +33,7 @@ export function UploadPage() {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [torcsAvailable, setTorcsAvailable] = useState(false);
   const [torcsRuns, setTorcsRuns] = useState<TorcsRunSummary[]>([]);
   const [runsTotal, setRunsTotal] = useState(0);
   const [runsOffset, setRunsOffset] = useState(0);
@@ -67,6 +73,7 @@ export function UploadPage() {
   const loadRuns = useCallback(async (offset: number) => {
     try {
       const res = await api.torcsStatus({ limit: RUN_PAGE_SIZE, offset });
+      setTorcsAvailable(res.available);
       if (res.available) {
         setTorcsRuns(res.runs);
         setRunsTotal(res.total ?? res.runs.length);
@@ -77,7 +84,7 @@ export function UploadPage() {
         setRunsOffset(0);
       }
     } catch {
-      // ignore — see comment above
+      setTorcsAvailable(false);
     }
   }, []);
 
@@ -154,129 +161,144 @@ export function UploadPage() {
     [navigate],
   );
 
+  // Show the right pane when there's anything to put in it: local dev (the
+  // control plane surface always shows), or the shared volume has runs. On
+  // the hosted demo with no runs, omit the pane and let the left span full.
+  const showRightPane = isLocalHost() || torcsAvailable;
+
   return (
-    <div className="flex flex-col items-center pt-16 px-6">
-      <h1 className="text-3xl font-semibold mb-2">Drop a session replay to begin</h1>
-      <p className="text-muted text-sm mb-8">
-        OVERRIDE will detect inefficient zones, reason over them, and ground every recommendation in the 2026 F1 regulations.
-      </p>
-      <FileUpload
-        onFile={onFile}
-        isUploading={isUploading}
-        error={error}
-        sampleReplays={[
-          { label: "TORCS engineer demo", onClick: () => useSample("torcs_engineer") },
-          { label: "Engineer happy-path demo", onClick: () => useSample("engineer_happy") },
-          { label: "Layered-defense demo (cached)", onClick: () => useSample("layered_defense") },
-        ]}
-      />
+    <div className="max-w-6xl mx-auto px-6 pt-12 pb-12">
+      <h1 className="sr-only">Upload a session replay</h1>
+      <div className={`grid gap-6 ${showRightPane ? "md:grid-cols-[3fr_2fr]" : ""}`}>
+        <section aria-labelledby="begin-heading" className="space-y-4">
+          <h2
+            id="begin-heading"
+            className="text-[11px] uppercase tracking-wider text-muted font-mono"
+          >
+            Begin
+          </h2>
+          <SampleReplayList onSample={useSample} isUploading={isUploading} />
+          <BringYourOwn onFile={onFile} isUploading={isUploading} error={error} />
+        </section>
 
-      {/* Phase 2 — Start/Stop race controls. Hidden on the hosted demo
-          (window.location.hostname guard) AND hidden when the override
-          API reports the control plane isn't configured (server-side
-          ENABLED flag). Defense in depth — see ADR-004 §security. */}
-      <TorcsControlPanel />
+        {showRightPane && (
+          <aside aria-labelledby="live-capture-heading" className="space-y-4">
+            <h2
+              id="live-capture-heading"
+              className="text-[11px] uppercase tracking-wider text-muted font-mono"
+            >
+              Live capture
+            </h2>
 
-      {/* Live TORCS banner — only renders when the torcs compose profile is
-          running AND has emitted at least one JSONL capture. Progressive
-          enhancement; invisible otherwise.
-          Phase 4: paginates at RUN_PAGE_SIZE; runs that have already been
-          ingested show an "Open session →" link instead of an Ingest button
-          (which would 409 since /api/sessions/torcs-live adopts the same
-          session_id); per-row × button deletes the JSONL after confirmation. */}
-      {torcsRuns.length > 0 && (
-        <section
-          className="mt-8 w-full max-w-xl rounded-card border border-accent/40 bg-surface/60 p-4"
-          aria-label="Live TORCS captures available"
-        >
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-[11px] uppercase tracking-wider text-accent font-mono">
-              Live TORCS detected
-            </span>
-            <span className="text-xs text-muted">
-              {runsTotal} run{runsTotal === 1 ? "" : "s"} available
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {torcsRuns.map((r) => {
-              const ingested = r.ingested_session_id ?? null;
-              return (
-                <li
-                  key={r.run_id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface p-2"
-                >
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <span className="font-mono text-sm text-text truncate" title={r.run_id}>
-                      {r.run_id}
-                    </span>
-                    <span className="text-xs text-muted">
-                      {(r.size_bytes / 1024).toFixed(0)} KB · ≈{r.lap_count_estimate} lap
-                      {r.lap_count_estimate === 1 ? "" : "s"}
-                      {ingested && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">
-                          ingested
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {ingested ? (
-                      <Link
-                        to={`/session/${encodeURIComponent(ingested)}`}
-                        className="px-3 py-1.5 rounded-pill border border-border bg-surface-2 text-xs hover:bg-surface transition-colors"
+            {/* Phase 2 — Start/Stop race controls. Hidden on the hosted demo
+                (window.location.hostname guard) AND hidden when the override
+                API reports the control plane isn't configured (server-side
+                ENABLED flag). Defense in depth — see ADR-004 §security.
+                Phase B will split this into RaceControlCard + CockpitPage. */}
+            <TorcsControlPanel />
+
+            {/* Live TORCS detected — only renders when the torcs compose profile
+                is running AND has emitted at least one JSONL capture.
+                Phase 4: paginates at RUN_PAGE_SIZE; ingested runs show
+                "Open session →" instead of an Ingest button. Per audit P6,
+                this card uses calm border-border chrome — accent is reserved
+                for the action buttons inside. */}
+            {torcsRuns.length > 0 && (
+              <section
+                className="rounded-card border border-border bg-surface p-4"
+                aria-label="Live TORCS captures available"
+              >
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="text-[11px] uppercase tracking-wider text-muted font-mono">
+                    Captures on disk
+                  </span>
+                  <span className="text-xs text-muted">
+                    {runsTotal} run{runsTotal === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <ul className="space-y-2">
+                  {torcsRuns.map((r) => {
+                    const ingested = r.ingested_session_id ?? null;
+                    return (
+                      <li
+                        key={r.run_id}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-2 p-2"
                       >
-                        Open session →
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onIngestRun(r.run_id)}
-                        disabled={isUploading}
-                        className="px-3 py-1.5 rounded-pill bg-accent text-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      >
-                        Ingest →
-                      </button>
-                    )}
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-mono text-sm text-text truncate" title={r.run_id}>
+                            {r.run_id}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {(r.size_bytes / 1024).toFixed(0)} KB · ≈{r.lap_count_estimate} lap
+                            {r.lap_count_estimate === 1 ? "" : "s"}
+                            {ingested && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">
+                                ingested
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {ingested ? (
+                            <Link
+                              to={`/session/${encodeURIComponent(ingested)}`}
+                              className="px-3 py-1.5 rounded-pill border border-border bg-surface text-xs hover:bg-surface-2 transition-colors"
+                            >
+                              Open →
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onIngestRun(r.run_id)}
+                              disabled={isUploading}
+                              className="px-3 py-1.5 rounded-pill bg-accent text-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                            >
+                              Ingest →
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setRunDelete(r.run_id)}
+                            title="Delete this telemetry capture"
+                            aria-label={`Delete ${r.run_id}`}
+                            className="px-2 py-1 rounded text-muted hover:text-danger hover:bg-danger/10 text-sm leading-none transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {runsTotal > RUN_PAGE_SIZE && (
+                  <nav className="flex items-center justify-between mt-3 text-xs">
                     <button
                       type="button"
-                      onClick={() => setRunDelete(r.run_id)}
-                      title="Delete this telemetry capture"
-                      aria-label={`Delete ${r.run_id}`}
-                      className="px-2 py-1 rounded text-muted hover:text-danger hover:bg-danger/10 text-sm leading-none transition-colors"
+                      onClick={() => loadRuns(Math.max(0, runsOffset - RUN_PAGE_SIZE))}
+                      disabled={runsOffset === 0}
+                      className="px-2 py-1 rounded-pill border border-border bg-surface hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      ×
+                      ← Newer
                     </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {runsTotal > RUN_PAGE_SIZE && (
-            <nav className="flex items-center justify-between mt-3 text-xs">
-              <button
-                type="button"
-                onClick={() => loadRuns(Math.max(0, runsOffset - RUN_PAGE_SIZE))}
-                disabled={runsOffset === 0}
-                className="px-2 py-1 rounded-pill border border-border bg-surface hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                ← Newer
-              </button>
-              <span className="text-muted">
-                {runsOffset + 1}–{runsOffset + torcsRuns.length} of {runsTotal}
-              </span>
-              <button
-                type="button"
-                onClick={() => loadRuns(runsOffset + RUN_PAGE_SIZE)}
-                disabled={runsOffset + torcsRuns.length >= runsTotal}
-                className="px-2 py-1 rounded-pill border border-border bg-surface hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Older →
-              </button>
-            </nav>
-          )}
-        </section>
-      )}
+                    <span className="text-muted">
+                      {runsOffset + 1}–{runsOffset + torcsRuns.length} of {runsTotal}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadRuns(runsOffset + RUN_PAGE_SIZE)}
+                      disabled={runsOffset + torcsRuns.length >= runsTotal}
+                      className="px-2 py-1 rounded-pill border border-border bg-surface hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Older →
+                    </button>
+                  </nav>
+                )}
+              </section>
+            )}
+          </aside>
+        )}
+      </div>
 
       <ConfirmDialog
         open={runDelete !== null}
