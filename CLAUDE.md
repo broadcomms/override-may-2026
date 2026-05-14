@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OVERRIDE is an explainable AI race-strategy copilot for 2026 hybrid energy decisions (telemetry reasoning, regulation grounding, what-if analysis). Submission for the IBM SkillsBuild AI Builders Challenge (May 2026).
 
-Canonical project context lives in `AGENTS.md` (repo root) and `.bob/AGENTS.md` / `.bob/rules.md`. Read them before non-trivial work. Numbered design docs are in `docs/` (`00-thesis`, `02-problem`, `03-architecture`, `03-prd`, `04-schema`, `04-api`, `04-ui-ux-design`, `05-risk`, `05-security`, `06-roadmap`, `06-testing`, `07-deployment`); ADRs are cumulative in `docs/adrs/`.
+Canonical project context lives in `AGENTS.md` (repo root) and `.bob/AGENTS.md` / `.bob/rules.md`. Read them before non-trivial work. Numbered design docs are in `docs/` (`00-thesis`, `02-problem`, `03-architecture`, `03-prd`, `04-schema`, `04-api`, `04-ui-ux-design`, `05-risk-register`, `05-security`, `06-roadmap`, `06-testing`, `07-deployment`); ADRs are cumulative in `docs/adrs/` (`ADR-001` watsonx runtime, `ADR-002` TORCS sandbox, `ADR-003` LLM runtime abstraction, `ADR-004` TORCS control plane).
 
 ## Repo state
 

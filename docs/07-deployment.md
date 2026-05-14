@@ -40,7 +40,7 @@ Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → 
 | `torcs.patrickndille.com` | `http://localhost:6080` | **Cloudflare Access** (email allowlist) | Optional "drive TORCS yourself" affordance for curious judges. |
 | `jaeger.patrickndille.com` | `http://localhost:16686` | **Cloudflare Access** (email allowlist) | Observability proof. Same gate as torcs. |
 | ~~`ollama.patrickndille.com`~~ | ~~`http://localhost:11434`~~ | **Route deleted** | No legitimate external consumer; OVERRIDE reaches Ollama internally via the compose network at `http://torcs:11434`. |
-| ~~`langflow.patrickndille.com`~~ | ~~`http://localhost:7860`~~ | **Route deleted** | Out of v1 scope. Langflow service runs locally only. |
+| ~~`langflow.patrickndille.com`~~ | ~~`http://localhost:7860`~~ | **Route deleted** | Out of v1 scope. Langflow is a profile-gated compose service (`podman compose --profile langflow up langflow`); it runs locally for design-canvas work and is intentionally not tunneled. |
 
 ---
 
@@ -126,9 +126,9 @@ EOF
 # ── 6. Bring up the compose stack ─────────────────────────────────────────
 cd ~/overdrive-may-2026
 cp .env.example .env       # or edit existing — watsonx creds + OVERRIDE_TRACING=otlp
-podman-compose up -d override                   # public demo path
-podman-compose up -d override torcs             # if torcs subdomain is in routes
-podman-compose up -d override jaeger            # if jaeger subdomain is in routes
+podman compose up -d override                   # public demo path
+podman compose up -d override torcs             # if torcs subdomain is in routes
+podman compose up -d override jaeger            # if jaeger subdomain is in routes
 # Verify each service responds on its loopback port BEFORE starting the tunnel.
 
 # ── 7. Start cloudflared as a systemd service ─────────────────────────────
@@ -185,7 +185,7 @@ Host no-sleep set:       [ ] yes
 Same shape as before — the named-volume + bind-mount layout the compose stack uses works identically whether the tunnel is up or not. The named volume `torcs-telemetry` shadows the bind-mount path at `/home/student/workspace/gym_torcs/telemetry/` inside the `torcs` container.
 
 ```bash
-podman-compose up -d override torcs
+podman compose up -d override torcs
 podman exec torcs sh -c "touch /home/student/workspace/gym_torcs/telemetry/__test.txt"
 podman exec override sh -c "cat /app/data/telemetry/__test.txt && echo OK"
 podman exec torcs rm /home/student/workspace/gym_torcs/telemetry/__test.txt
@@ -208,15 +208,15 @@ Quick reference for iterating on the code locally while the tunnel is up. The Cl
 
 ```bash
 # After editing api/, core/, ingest/, analysis/:
-podman-compose build override                   # rebuild image
-podman-compose up -d --force-recreate override  # recreate so env_file + new image apply
+podman compose build override                   # rebuild image
+podman compose up -d --force-recreate override  # recreate so env_file + new image apply
 
 # After editing ui/:
 cd ui && npm run build && cd ..                 # rebuild static bundle
-podman-compose up -d --force-recreate override  # static bundle is COPYed into the image
+podman compose up -d --force-recreate override  # static bundle is COPYed into the image
 
 # Clean rebuild (no layer cache — use after dependency changes):
-podman-compose build --no-cache override
+podman compose build --no-cache override
 
 # Inspect image size growth between rebuilds:
 podman images override --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedSince}}\t{{.Size}}"
@@ -225,7 +225,7 @@ podman images override --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedSinc
 podman image prune -f
 ```
 
-**`podman restart` vs `podman-compose up -d --force-recreate`** — `podman restart` reuses the container's existing env; new `.env` values are NOT picked up. Always use `--force-recreate` after editing `.env` or any env_file-referenced variable.
+**`podman restart` vs `podman compose up -d --force-recreate`** — `podman restart` reuses the container's existing env; new `.env` values are NOT picked up. Always use `--force-recreate` after editing `.env` or any env_file-referenced variable.
 
 ---
 
@@ -247,7 +247,7 @@ cloudflared tunnel delete torcs
 
 # Local containers + volumes
 cd ~/overdrive-may-2026
-podman-compose down -v        # drops torcs-telemetry named volume + langflow-data
+podman compose down -v        # drops torcs-telemetry named volume + langflow-data
 # Repo can stay; it's the canonical local-clone path going forward.
 
 # Disable host no-sleep + WSL --restart=always tweaks if you want laptop back to normal.
@@ -277,7 +277,7 @@ The trade-off vs a hosted VM is **availability tracks the laptop**, not a datace
 | Laptop sleeps | Windows → Power → Screen and sleep → Never (plugged in). For May 24–31. |
 | Containers crash | `podman update --restart=always override torcs jaeger` in Step 9. |
 | cloudflared crashes | `systemctl enable --now cloudflared` in Step 7 — auto-restart on failure. |
-| WSL kernel hang | Rare. Recovery: `wsl --shutdown` then `wsl` from PowerShell, then re-run `podman-compose up -d`. Tunnel re-connects automatically. |
+| WSL kernel hang | Rare. Recovery: `wsl --shutdown` then `wsl` from PowerShell, then re-run `podman compose up -d`. Tunnel re-connects automatically. |
 | Power outage / network outage | No mitigation — falls back to README local-clone path. Judges still see a fully-reproducible local demo. |
 
 **Fallback that doesn't cost more**: the README's local-clone Quickstart works regardless of the hosted URL. The portal copy explicitly states this: "OVERRIDE runs locally via `podman compose up` — see README. The hosted URL is convenience, not the architectural promise." If `override.patrickndille.com` goes dark mid-judging, the rubric story is unchanged.

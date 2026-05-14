@@ -44,8 +44,10 @@ override-may-2026/
 │
 ├── data/
 │   ├── samples/                   # Real TORCS-lab captures (baseline + modified .jsonl)
-│   ├── regs/                      # FIA public PDFs (Section C Issue 18, Section B Issue 06)
-│   │                              # + extracted_chunks.sample.json (Docling output, committed)
+│   ├── regs/                      # extracted_chunks.sample.json (Docling output, committed)
+│   │                              # FIA PDFs (Section C Issue 18, Section B Issue 06) are
+│   │                              # NOT committed — downloaded at build time via
+│   │                              # scripts/download_regulations.py per R14 (licensing)
 │   ├── sessions/                  # Persisted Session JSONs (host-mounted in compose)
 │   └── README.md                  # Data sources + licensing note
 │
@@ -135,7 +137,7 @@ override-may-2026/
     ├── 06-{roadmap,testing}.md
     ├── 07-deployment.md
     ├── adrs/                      # ADR-001 watsonx runtime, ADR-002 TORCS sandbox,
-    │                              # ADR-003 LLM-runtime abstraction
+    │                              # ADR-003 LLM-runtime abstraction, ADR-004 TORCS control plane
     ├── plans/                     # per-feature plans, deleted on ship
     └── user/                      # CHANGELOG, end-user documentation
 ```
@@ -146,4 +148,4 @@ CI workflows are not in v1.0 scope (see README "What's coming next"). The qualit
 - `dev` — daily working branch.
 - Tag `v0.0.1` for first prototype.
 - Tag `v0.1.0` when core features are complete.
-- Tag `v1.0.0` when ready for production.
+- Tag `v1.0.0-submission` at the IBM SkillsBuild submission commit (per `docs/plans/final-lock-checklist.md` T-12h).
