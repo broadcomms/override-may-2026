@@ -365,9 +365,12 @@ export function TorcsControlPanel() {
       )}
 
       {/* Phase 2.6: embed noVNC iframe so the operator sees TORCS rendering
-          live, in the same pane as Race Control. The lab's noVNC web client
-          at :6080/vnc.html accepts ?autoconnect=1 to skip the splash Connect
-          button and ?resize=scale to fit the iframe.
+          live, in the same pane as Race Control. We use the lab's
+          vnc_lite.html (minimal client; no sidebar; no localStorage prefs)
+          with ?autoconnect=1 to skip the splash Connect button and
+          ?scale=true to client-side-scale the 1920x1080 Xvfb canvas into
+          the iframe (see the inner comment block by the iframe element
+          for the exact parameter-name gotcha).
           Local-only by design — the outer panel is already gated on
           isLocalHost() (won't render on the hosted demo, which doesn't
           expose noVNC publicly per ADR-004 §security). */}
@@ -387,18 +390,21 @@ export function TorcsControlPanel() {
               Fullscreen ⤢
             </button>
           </div>
-          {/* Phase 2.7 v2: switch from vnc.html → vnc_lite.html. The full
-              vnc.html has a settings panel that persists scaling prefs in
-              localStorage, which overrides the URL's resize=scale param —
-              that's why the iframe kept showing scrollbars even after the
-              URL was changed. vnc_lite.html is noVNC's minimal client:
-              no sidebar, no persisted prefs, auto-scales to fit by default.
-              Iframe height 720px keeps the 1920x1080 Xvfb scaled down
-              ~33%; HUD text legible at desktop sizes. */}
+          {/* Phase 2.7 v3: vnc_lite.html requires ?scale=true (NOT
+              ?resize=scale — that param name is vnc.html-only).
+              vnc_lite.html reads `scale` via WebUtil.getConfigVar; without
+              the param, rfb.scaleViewport defaults to false and the RFB
+              canvas paints at native Xvfb resolution (1920x1080), forcing
+              the iframe's scroll container to display scrollbars.
+              Do NOT add &resize=true — that triggers RFB DesktopSize
+              negotiation which Xvfb in the lab image doesn't support
+              cleanly. Client-side scale is the right knob: Xvfb stays at
+              1920x1080 (good for capture quality), browser scales the
+              canvas to fit the iframe's 720px height. */}
           <iframe
             id="torcs-iframe"
             title="TORCS in noVNC"
-            src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1"
+            src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
             className="w-full h-[720px] rounded-card border border-border bg-black"
           />
           <p className="text-[11px] text-muted mt-1">
