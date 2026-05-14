@@ -10,7 +10,7 @@ Canonical project context lives in `AGENTS.md` (repo root) and `.bob/AGENTS.md` 
 
 ## Repo state
 
-The pipeline is substantially shipped: `api/`, `core/`, `ingest/` (including `torcs_parser.py`), `analysis/`, `tests/` (305 tests — 301 unit + 4 network-marked), `ui/`, `scripts/`, and `langflow/override_components/` all contain working code. `Dockerfile`, `Dockerfile.langflow`, `docker-compose.yml`, `models.json`, `.env.example`, `requirements.txt`, `pytest.ini`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, and `prompts/*.system.md` are populated.
+The pipeline is substantially shipped: `api/`, `core/`, `ingest/` (including `torcs_parser.py`), `analysis/`, `tests/` (358 tests — 354 unit + 4 network-marked, recorded 2026-05-14), `ui/`, `scripts/`, and `langflow/override_components/` all contain working code. `Dockerfile`, `Dockerfile.langflow`, `docker-compose.yml`, `models.json`, `.env.example`, `requirements.txt`, `pytest.ini`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, and `prompts/*.system.md` are populated.
 
 **Intentional stub — do not "fix":** `core/forecasting.py` is a docstring-only stub. TTM-R2 is deferred to v1.1 per the graceful-degradation guardrail; the pipeline runs end-to-end without it.
 
@@ -24,7 +24,7 @@ Python 3.12 venv at `.venv`. Use the venv binaries directly (don't rely on `sour
 # Install / refresh deps
 .venv/bin/pip install -r requirements.txt
 
-# Run the full test suite (231+ unit tests, network tests skipped by default)
+# Run the full test suite (354 unit tests, 4 network tests skipped by default; recorded 2026-05-14)
 .venv/bin/pytest
 
 # Run a single test file / single test

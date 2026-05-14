@@ -107,7 +107,7 @@ override-may-2026/
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   ├── api/                   # client.ts, types.ts (fixture-mode synthesis included)
-│   │   ├── components/            # FileUpload, WhatIfPanel, WhatIfDiff, etc.
+│   │   ├── components/            # FileUpload, WhatIfDiff, etc. (WhatIfRail is inline in RecommendationCard.tsx)
 │   │   ├── pages/                 # UploadPage (with live-TORCS banner), SessionPage
 │   │   └── styles/
 │   ├── index.html

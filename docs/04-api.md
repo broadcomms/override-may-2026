@@ -29,7 +29,7 @@
 | `GET`  | `/api/sessions/{session_id}/zones` | All recommendations for the session |
 | `GET`  | `/api/sessions/{session_id}/zones/{zone_id}` | One recommendation, full detail |
 | `GET`  | `/api/sessions/{session_id}/zones/{zone_id}/stream` | Optional SSE stream of reasoning generation |
-| `POST` | `/api/sessions/{session_id}/whatif` | Run a what-if perturbation |
+| `POST` | `/api/sessions/{session_id}/what-if` | Run a what-if perturbation |
 | `POST` | `/api/sessions/torcs-live` | Ingest a JSONL capture from the shared TORCS-telemetry volume |
 | `GET`  | `/api/torcs-status` | Discover what TORCS runs are available on the shared volume |
 | `GET`  | `/api/sessions/{session_id}/stream` | Live per-lap SSE stream for an `active` session |
@@ -260,21 +260,56 @@ data: {"recommendation_id": "z_t16_l23"}
 
 The final `done` event signals that the full `Recommendation` is now retrievable via §4.9. Nothing in the stream is normative — clients that don't need streaming use §4.9 directly.
 
-### 4.11 `POST /api/sessions/{session_id}/whatif`
+### 4.11 `POST /api/sessions/{session_id}/what-if`
 
-Run a perturbation against one zone.
+Run a perturbation against the session's lap list. Full per-perturbation semantics, edge-case behavior, and cache-key derivation live in [`docs/plans/whatif-semantics.md`](./plans/whatif-semantics.md) (the source of truth that `analysis/perturbations.py` references by section).
 
-**Request body** — `WhatIfRequest` per [`04-schema.md` §11](./04-schema.md#11-api-surface-types).
+**Request body** — `WhatIfRequest` per [`04-schema.md` §11](./04-schema.md#11-api-surface-types) (also `ingest/schema.py:405`). Pydantic `frozen=True` so the cache key `sha256(model_dump_json())[:16]` is deterministic.
+
+Three perturbation kinds, each with its own required fields (enforced by `WhatIfRequest._enforce_required_fields`):
 
 ```json
-{
-  "zone_id": "z_t16_l23",
-  "parameter": "delay_first_deploy",
-  "delta": 1
-}
+{ "perturbation": "delay_first_deploy", "n": 2 }
+```
+```json
+{ "perturbation": "skip_harvest_zone", "zone_id": "z_lrch_full_l1_s3" }
+```
+```json
+{ "perturbation": "extend_override", "zone_id": "z_lrch_full_l1_s3", "extra_laps": 2 }
 ```
 
-**Response 200** — `WhatIfResult`. The full pipeline runs on the perturbed zone, so the response includes both passes' outcomes. A what-if that fails Pass 1 or Pass 2 is **returned**, not hidden — the UI shows the failure inline.
+Field constraints:
+- `perturbation` (required) — `delay_first_deploy` | `skip_harvest_zone` | `extend_override`.
+- `n` — required for `delay_first_deploy`; bounded `[1, 10]`; ignored otherwise.
+- `zone_id` — required for `skip_harvest_zone` and `extend_override`; must match `^z_[A-Za-z0-9_]+$`; ignored for `delay_first_deploy`.
+- `extra_laps` — optional for `extend_override` (default `1`, bounded `[1, 5]`); ignored otherwise.
+
+**Response 200** — `WhatIfResult` containing the `WhatIfRequest`, the 16-hex-char `cache_key`, the unperturbed `original: list[Recommendation]`, the perturbed `perturbed: list[Recommendation]`, and an honest `note` field populated when edge-case handling fired (truncation, no-op, energy retained as headroom). The full pipeline runs on the perturbed laps, so both passes' outcomes are present; a what-if that fails Pass 1 or Pass 2 is **returned**, not hidden — the UI's `WhatIfDiff` shows the failure inline.
+
+#### Perturbation semantics
+
+FR-8 pins three exploratory scenarios. The implementations live in `analysis/perturbations.py` (`apply_delay_first_deploy`, `apply_skip_harvest_zone`, `apply_extend_override`); the dispatcher is `apply_perturbation(...)`. Each is a pure function over `list[LapFeatures]` — the perturbed list is then fed back through `core.pipeline.run_pipeline`, so reasoning + Pass-1 + Pass-2 see only the modified telemetry.
+
+| `perturbation` | Required fields | Behavior | Energy bookkeeping |
+|---|---|---|---|
+| `delay_first_deploy` | `n` (1–10) | Finds the first lap `k` where `deploy_mj ≥ 0.05 MJ` (cruise-blip filter) and **shifts** that deploy to lap `k+n`. Lap-1 first deploys shift to lap `1+n`. | **Conserved.** The deploy moves; total deployed energy across the session is unchanged. SoC trajectory downstream of the shift is recomputed. If `k+n` is past the last lap, energy is retained as SoC headroom (no destination); `note` surfaces this honestly. |
+| `skip_harvest_zone` | `zone_id` | Zeroes `harvest_mj` on the lap containing the named zone; clears that lap's `recharge_zones` for consistency. | **Lost, not deferred.** The harvest window is permanently gone. SoC trajectory recomputes from the perturbation lap onward; downstream deploys may now overrun the available budget — Pass 1 flags. `note` reads `"zone 'z_…': harvest of X.XX MJ on lap N LOST (skipped opportunity, energy not deferred)"` for the UI banner. |
+| `extend_override` | `zone_id`; optional `extra_laps` (1–5, default 1) | Bumps `override_uses` on the seed lap by 1, then adds **0.5 MJ deploy** per lap (`OVERRIDE_DEPLOY_MJ_PER_LAP`) to `extra_laps` consecutive laps after the seed. | **Spent, not saved.** Each extra MJ is drawn from that lap's SoC budget. If SoC underflows mid-extension, the perturbation truncates honestly (partial-MJ on the depleted lap, zero after) and `note` carries the truncation message. |
+
+Common invariants:
+
+- The perturbed list re-runs the **full** pipeline. No shortcut path, no reusing the original recommendations.
+- A what-if that takes the perturbed session into a Pass-1 or Pass-2 failure is **returned with the failure intact**, not retried or hidden. Surfacing failure is the entire point of the FR-8 affordance.
+- The handler does not mutate the stored session — the original `Session` on disk is untouched.
+
+#### Caching
+
+The handler hashes the canonical JSON of the `WhatIfRequest` (sha256, first 16 hex chars) and persists results to `data/sessions/{session_id}/whatif/{cache_key}.json`. A cache hit short-circuits the pipeline — judges replaying the same scenario during demo exploration don't re-spend watsonx tokens. Cache writes are best-effort; a write failure is logged but does not fail the response.
+
+#### Error responses
+
+- **`404 NOT_FOUND`** — session does not exist on disk, OR the supplied `zone_id` is not present in the session's recommendations.
+- **`5xx`** — surfaced from the watsonx call path via the shared exception mapper (same as `POST /api/sessions`). The `request_id` propagates so traces stay correlated.
 
 ### 4.12 `POST /api/sessions/torcs-live`
 
@@ -321,6 +356,13 @@ The parser tolerates incomplete tail lines and malformed observations silently p
 
 Discovery helper for the live-ingest path. Lists every `*.jsonl` file in `/app/data/telemetry/` (the override side of the shared `torcs-telemetry` volume), sorted by mtime descending. Used by the UploadPage banner to enable/disable per-run "Ingest" buttons without polling. Returns `200` always (no `404` for "empty volume" — just `available: false`), so the UI can call it on every page load without error-state branching.
 
+**Query parameters** (Phase 4):
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `limit` | int | `50` | clamped to `[1, 200]`; `> 200` returns `422` |
+| `offset` | int | `0` | `>= 0`; `< 0` returns `422` |
+
 **Response 200**
 
 ```json
@@ -333,11 +375,20 @@ Discovery helper for the live-ingest path. Lists every `*.jsonl` file in `/app/d
       "lap_count_estimate": 12,
       "started_at": "2026-05-12T18:12:31+00:00",
       "last_written_at": "2026-05-12T18:23:45+00:00",
-      "duration_seconds": 674.0
+      "duration_seconds": 674.0,
+      "ingested_session_id": "s_20260512_a4f9"
     }
-  ]
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
 }
 ```
+
+Top-level fields:
+- `available` — `true` when at least one JSONL replay exists across the full set (not just the paged slice).
+- `runs` — the paged slice, newest-first.
+- `total`, `limit`, `offset` — pagination markers. `total` reflects the full set so the UI can render "showing N of M" + pager controls without a second call.
 
 Phase 1 enrichment per run:
 - `lap_count_estimate` — cheap heuristic from file size (~5000 ticks per lap at 50 Hz).
@@ -345,7 +396,10 @@ Phase 1 enrichment per run:
 - `last_written_at` — UTC ISO-8601, from file `st_mtime`.
 - `duration_seconds` — `last_written_at − started_at`, clamped to ≥ 0.
 
-When the `torcs` compose profile isn't running, the named volume still exists but is empty → `{ "available": false, "runs": [] }`. The UI uses this to hide the banner entirely, making the live-TORCS affordance pure progressive enhancement.
+Phase 4 enrichment per run:
+- `ingested_session_id` — non-null when a completed Session on disk references this JSONL via `summary.telemetry_file`. `null` for replays that haven't been POSTed to `/api/sessions/torcs-live` yet, and `null` for `active` stub sessions (so the UI doesn't false-positive on a run still being ingested). Lets the UI render "Ingested →" navigation links for known runs instead of dangling "Ingest" buttons that would 409 on the second click.
+
+When the `torcs` compose profile isn't running, the named volume still exists but is empty → `{ "available": false, "runs": [], "total": 0, "limit": 50, "offset": 0 }`. The UI uses this to hide the banner entirely, making the live-TORCS affordance pure progressive enhancement.
 
 ### 4.14 `GET /api/regulation-source`
 

@@ -640,8 +640,15 @@ def create_app() -> FastAPI:
     ):
         """FR-8 what-if perturbations — pin three exploratory scenarios.
 
-        Spec lives at ``docs/plans/whatif-semantics.md`` (deleted in this PR
-        per plan-file-lifecycle). The handler composes three pure pieces:
+        Two-doc split (reconciled 2026-05-14):
+          * Semantics + edge cases + design rationale: ``docs/plans/whatif-semantics.md``
+            (the doc this module's ``analysis.perturbations`` references by
+            section as ``Per whatif-semantics.md §Perturbation 1/2/3`` etc.).
+            Deletes in the FR-8 submission PR per its own lifecycle header.
+          * API contract for callers (request/response, field constraints,
+            example payloads): ``docs/04-api.md`` §4.11.
+
+        The handler composes three pure pieces:
           1. ``analysis.perturbations.apply_perturbation`` mutates the lap
              list per the request (delay_first_deploy / skip_harvest_zone /
              extend_override).

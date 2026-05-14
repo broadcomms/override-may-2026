@@ -16,7 +16,7 @@ Per the v6 plan task 2.9 ("Pre-record Segment 3 retake (~1h, end of Week 2)"):
 
 **The goal is discovery, not the final Segment 3 video** — that lands in
 Week 3 step 3.6. The pre-record proves the click flow works end-to-end
-with the new fixture + WhatIfPanel UI so any layout / timing / cross-fade
+with the new fixture + WhatIfRail UI so any layout / timing / cross-fade
 issues surface a week before they could threaten the video schedule.
 
 ## What was verified programmatically (2.9 status: discovery complete)

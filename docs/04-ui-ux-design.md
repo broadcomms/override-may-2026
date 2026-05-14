@@ -192,7 +192,7 @@ Behaviors:
 - **Validation badge** is green when `ValidatorResult.passed`, red with the failed rule list when not. Failed rules are listed as small chips.
 - **AI Safety Review badge** shows the lower of the two Guardian criterion scores. Hover reveals both scores and rationales.
 - **Confidence chip** color: green for high, yellow for medium, gray for low.
-- **What-if** is a radio set + Run button. Submitting calls `POST /api/sessions/{id}/whatif` and replaces the card body in place with a `WhatIfResult` view (split: original on the left, modified on the right). A "Reset" link returns to the original card.
+- **What-if** is a radio set + Run button. Submitting calls `POST /api/sessions/{id}/what-if` and replaces the card body in place with a `WhatIfResult` view (split: original on the left, modified on the right). A "Reset" link returns to the original card.
 
 ### 4.4 Recommendation card (Fan)
 

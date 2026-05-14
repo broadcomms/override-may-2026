@@ -34,7 +34,7 @@
 | Zone detector heuristics | `tests/test_zone_detector.py` | ✅ |
 | Observability (OTel hooks) | `tests/test_observability.py` — 9 tests | ✅ |
 
-**Test totals**: 231 unit tests + 4 network-marked integration tests = **235 green**, 0 skipped, 0 xfailed.
+**Test totals** (recorded 2026-05-14): 354 unit tests + 4 network-marked integration tests = **358 green**, 0 skipped, 0 xfailed. Prior baseline (2026-05-09): 231 unit + 4 network = 235 green; growth is from the TORCS parser, perturbations, Ollama client, live-ingest + status endpoints, session management, and observability work shipped across Phases 1–4.
 
 ## 2. Live run record (2026-05-09)
 

@@ -316,12 +316,18 @@ Document which assets need re-capture in Week 3 step 3.5.
 
 Week 2 is the integration-heavy block (FR-8 touches schema + perturbation + endpoint + UI + tests + cache; the LLM abstraction touches reasoning + fan_mode + env config). The +8h contingency above sub-task totals is honest budget for realistic integration friction. Track it explicitly so the buffer doesn't burn silent.
 
-#### 2.1 — `docs/plans/whatif-semantics.md` (~30 min, **blocking 2.2**)
-Write BEFORE coding. Resolve the three ambiguities:
-- `delay_first_deploy(n)`: if the first deploy IS on lap 1, perturbation **shifts** it to lap 1+n (energy budget conserved), not skipped.
-- `skip_harvest_zone(zone_id)`: harvest in that zone is zeroed; SoC trajectory recomputes downstream from the perturbation point (energy is **lost**, not deferred).
-- `extend_override(zone_id, laps=1)`: default duration 1 lap; deploys an additional 0.5 MJ in the lap after the original zone.
-- Schema-hashable WhatIfRequest payload for caching.
+#### 2.1 — ~~`docs/plans/whatif-semantics.md` (~30 min, **blocking 2.2**)~~ DONE — restored 2026-05-14
+The original write-before-coding doc was deleted prematurely and then restored on 2026-05-14 after the architect audit found `analysis/perturbations.py` had nine `Per whatif-semantics.md §...` references with no destination. **Two-doc split now stable:**
+- `docs/plans/whatif-semantics.md` — full semantics, edge cases, design rationale (the "why"). Code references it by section.
+- `docs/04-api.md` §4.11 — API contract for callers (request/response shapes, field constraints, example payloads). Links back to the plans doc.
+
+The three originally-ambiguous semantics, captured for closeout in both docs:
+- `delay_first_deploy(n)`: shift the first deploy event by `n` laps; energy conserved (the deploy moves, it isn't deleted). If `k+n` is past the last lap, energy retained as SoC headroom.
+- `skip_harvest_zone(zone_id)`: harvest on that lap zeroed; energy LOST (not deferred); SoC trajectory recomputes downstream.
+- `extend_override(zone_id, extra_laps=1)`: +0.5 MJ/lap (`OVERRIDE_DEPLOY_MJ_PER_LAP`) for `extra_laps` after the zone; truncates honestly on SoC underflow.
+- Schema-hashable: `WhatIfRequest` is `frozen=True`; cache key is `sha256(model_dump_json())[:16]`.
+
+Plans doc deletes in the FR-8 submission PR (per its own lifecycle header) — until then, code's `Per whatif-semantics.md §...` references stay load-bearing.
 
 #### 2.2 — Schema + perturbation functions (~4h)
 - Add `WhatIfRequest`, `WhatIfResult` to `ingest/schema.py` (Pydantic, frozen).
@@ -337,11 +343,11 @@ Write BEFORE coding. Resolve the three ambiguities:
 - Return `WhatIfResult` with original + perturbed Recommendation pairs.
 - Reuses existing watsonx clients via `api/main.py:112-121` dependency providers.
 
-#### 2.4 — UI (~6h)
-- `ui/src/components/WhatIfPanel.tsx`: three radio options for perturbation type + parameter input + "Run scenario" button.
+#### 2.4 — UI (~6h) — SHIPPED, naming drift
+- ~~`ui/src/components/WhatIfPanel.tsx`~~ Shipped instead as **`WhatIfRail`**, an inline component defined within `ui/src/components/RecommendationCard.tsx` (see `RecommendationCard.tsx:151,345`). Functionally equivalent: three radios + parameter input + "Run ▶". Rendered as a per-card disclosure rail rather than a standalone panel — the per-card framing keeps the perturbation visually scoped to the recommendation it modifies, which is the affordance the UI doc §4.3 actually wanted.
 - `ui/src/components/WhatIfDiff.tsx`: side-by-side Recommendation cards (original vs perturbed). NO animation; clear "Before / After" labeling per UI doc §4.3.
-- Wire into `SessionPage.tsx` Engineer mode only (FR-8.3); hide in Fan mode.
-- `ui/src/api/client.ts` adds `runWhatIf(sessionId, request)` including fixture-mode synthesis for offline UI dev.
+- Wired into `SessionPage.tsx` Engineer mode only (FR-8.3); hidden in Fan mode.
+- `ui/src/api/client.ts` exposes `runWhatIf(sessionId, request)` including fixture-mode synthesis for offline UI dev.
 
 #### 2.5 — Tests (~3h)
 - `tests/test_perturbations.py` — golden tests for each perturbation function.
@@ -353,8 +359,14 @@ Write BEFORE coding. Resolve the three ambiguities:
 - README: add to "What it looks like" table.
 - Delete `docs/plans/p3.6-jaeger-trace-capture.md` in the same PR (plan-file lifecycle).
 
-#### 2.7 — Sessions list discipline cleanup (~30 min)
-Don't wire `GET /api/sessions` (Tier-2 stays Tier-2). Update `ui/src/pages/SessionsPage.tsx` body to match the FR-8/TTM v1.1 framing pattern — explicit, intentional, not "coming soon".
+#### 2.7 — Sessions list discipline cleanup (~30 min) — SUPERSEDED in Phase 1
+The v6 plan locked this as *"Don't wire `GET /api/sessions`; show explicit v1.1 framing."* Phase 1 ship reversed that call: `GET /api/sessions` is wired with pagination + checkbox-driven session-compare + single/bulk delete + Live TORCS pagination (see commits `d47a6a3` / `207d9d6`). Drivers for the change:
+
+1. Live TORCS workflow (§3.2) writes a new session per drive — without a sessions list, judges had no way to find earlier captures.
+2. Side-by-side comparison (`SessionComparePage.tsx`) needs a multi-select surface; the sessions list is the natural host.
+3. The "v1.1 framing" empty-state is preserved as the genuinely-empty branch in `SessionsPage.tsx` — explicit, intentional, not "coming soon" — so the discipline this section was protecting still holds when there are zero sessions on disk.
+
+**Action:** none. Treat the original §2.7 as historical context for why the page exists at all. If anyone proposes removing the page to "match the plan," point at this note.
 
 #### 2.8 — Regenerate engineer_happy_demo fixture against real TORCS (~1h, **high-value add**)
 After 2.3 lands, pipe `data/samples/torcs_baseline.json` through the full pipeline (reasoning + Pass-1 + Pass-2 + Fan + one what-if) and save as `tests/fixtures/torcs_engineer_demo.json`. Update `ui/src/api/client.ts` `fixtureNameForSessionId` routing so `s_torcs_engineer_demo` resolves to it. Upgrades rubric story from "we have a TORCS parser, here's a synthetic demo" → "the demo you're watching is a real lab session piped through the full pipeline." Watsonx cost: ~$0.05–0.10 (pipeline + Fan translation across 5 zones).
@@ -531,7 +543,7 @@ Per the locked 2:55 script in `docs/plans/video-script.md`, re-shoot:
 
 **Asset re-captures** (deferred from 1.10): re-shoot the screenshots flagged in the Week 1 scan, now that the FR-8 what-if rail is in its active state (not the disabled stub).
 - `assets/screenshots/upload.png` (post-rename text)
-- `assets/screenshots/dashboard.png` + `engineer-mode.png` (now showing the what-if panel active)
+- `assets/screenshots/dashboard.png` + `engineer-mode.png` (now showing the what-if rail active)
 - `assets/demo.gif` (re-export only if visible `sample_torx` text found)
 
 Budget breakdown for video: rewrite voiceover lines (~30 min) + pace check (~15 min) + voiceover record with retakes (~45 min) + Segment 3 screen-capture retakes (~45 min) + Segment 4 (~30 min) + edit timeline (~1.5h) + export MP4 (~20 min) + YouTube upload (~20 min) + retake-of-retakes contingency (~3–4h). Total ~12h realistic.
@@ -586,7 +598,7 @@ Execute `docs/plans/final-lock-checklist.md` as-written, plus these additions:
 | Area | Paths |
 |---|---|
 | TORCS data path | `hands-on-labs/01_torcs_lab/torcs_jm_par.py`, `ingest/torcs_parser.py`, `analysis/torcs_energy.py`, `api/main.py:_parse_upload`, `data/samples/torcs_*.json` (new), `tests/test_torcs_parser.py` (new), `docs/adrs/ADR-002-torcs-as-primary-sandbox.md` (new) |
-| FR-8 what-if | `ingest/schema.py` (+WhatIfRequest/Result), `analysis/perturbations.py` (new), `api/main.py` (new endpoint), `api/storage.py` (whatif cache helpers), `ui/src/components/WhatIfPanel.tsx` + `WhatIfDiff.tsx` (new), `ui/src/api/client.ts`, `ui/src/pages/SessionPage.tsx`, `tests/test_perturbations.py` (new), `tests/test_api.py` (extend), `docs/plans/whatif-semantics.md` (new, deleted on PR merge) |
+| FR-8 what-if | `ingest/schema.py` (+WhatIfRequest/Result), `analysis/perturbations.py` (new), `api/main.py` (new endpoint), `api/storage.py` (whatif cache helpers), `ui/src/components/RecommendationCard.tsx` (+ inline `WhatIfRail`) + `WhatIfDiff.tsx` (new), `ui/src/api/client.ts`, `ui/src/pages/SessionPage.tsx`, `tests/test_perturbations.py` (new), `tests/test_api.py` (extend); semantics spec at `docs/plans/whatif-semantics.md` (referenced by code; deletes in FR-8 submission PR), API contract at `docs/04-api.md` §4.11 |
 | Concurrency fix | `api/main.py:351-372`, `api/storage.py` (new `save_recommendations_only`), `tests/test_api.py` |
 | TTM-R2 deferral | `core/forecasting.py` (stub docstring), `ui/src/components/EnergyCurve.tsx` (empty-state text), `README.md`, `docs/03-prd.md`, `docs/02-ai-and-technical-approach.md`, `docs/02-problem-and-solution.md` |
 | Podman compose | `Containerfile` (or `Dockerfile`), `docker-compose.yml` (new — three services: override / torcs / jaeger; two profiles: torcs / observability; one shared volume: torcs-telemetry; `./RaceYourCode` mount), `.containerignore` (new), `api/main.py` (mount StaticFiles + new live-ingest endpoint + status helper), `scripts/torcs_container_init.sh` (new — Ollama chown + VS Code hang fixes), `README.md` |
@@ -594,7 +606,7 @@ Execute `docs/plans/final-lock-checklist.md` as-written, plus these additions:
 | LLM runtime abstraction | `core/llm_clients/ollama.py` (new — `OllamaChatClient` impl of the existing Protocol), `api/main.py:get_chat_client` (factory reads `OVERRIDE_LLM_RUNTIME`), `.env.example` (new env vars), `docs/adrs/ADR-003-llm-runtime-abstraction.md` (new), `tests/test_llm_clients_ollama.py` (new, mocked HTTP) |
 | RaceYourCode in repo | `RaceYourCode/gym_torcs/*` (committed unzip of `hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip`), `.gitignore` (telemetry/, results/, __pycache__) |
 | VM deployment | `docs/07-deployment.md` (refresh — VM size, OS, firewall rules, TLS via Caddy, tear-down command) |
-| Cleanup | Delete `.github/workflows/ci.yml`, `docs/plans/phase-1-foundation-implementation.md`, `docs/plans/zone-patterns.md`, `docs/plans/p2.5-docling-kicker.md`, `docs/plans/discord-pitch-feedback.md`, `docs/plans/quick-follow-up-on-github-invite.md`, `docs/plans/p3.6-jaeger-trace-capture.md` (after Week 2), `docs/plans/torcs-entrypoint.md` (created in 1.1, deleted in 3.1b after init script chains to the pinned entrypoint), `docs/plans/whatif-semantics.md` (created in 2.1, deleted when FR-8 merges) |
+| Cleanup | Delete `.github/workflows/ci.yml`, `docs/plans/phase-1-foundation-implementation.md`, `docs/plans/zone-patterns.md`, `docs/plans/p2.5-docling-kicker.md`, `docs/plans/discord-pitch-feedback.md`, `docs/plans/quick-follow-up-on-github-invite.md`, `docs/plans/p3.6-jaeger-trace-capture.md` (after Week 2), `docs/plans/torcs-entrypoint.md` (created in 1.1, deleted in 3.1b after init script chains to the pinned entrypoint). **Note:** the v6 plan originally proposed `docs/plans/whatif-semantics.md` as a transient spec; in flight the team decided to fold the semantics directly into `docs/04-api.md` §4.11 instead, so no plan file was ever created. |
 | Observability | `assets/screenshots/jaeger-trace.png` (new), `README.md` (link it) |
 | SessionsPage discipline | `ui/src/pages/SessionsPage.tsx` (v1.1 framing) |
 | Asset refresh (Week 3) | `assets/screenshots/upload.png`, `dashboard.png`, `engineer-mode.png`, `assets/demo.gif` (conditional) |
@@ -646,7 +658,7 @@ Execute `docs/plans/final-lock-checklist.md` as-written, plus these additions:
 
 In order of what gets dropped first:
 1. **Second TORCS fixture** (`torcs_modified.json`) — ship just the baseline; one fixture is enough for the video.
-2. **WhatIfPanel UI polish** (animation, parameter sliders) — ship radios + button only.
+2. **WhatIfRail UI polish** (animation, parameter sliders) — ship radios + button only.
 3. **Demo fixture regeneration** (2.8) — keep the existing engineer_happy_demo synthetic fixture.
 4. **Hosted demo URL** (3.7) — skip cloud-VM provisioning; README-only deploy with `podman compose up` on a local machine. Judges still run it; rubric loses the "implementation & feasibility" hosted-demo bullet.
 5. **Live-ingest UI button + status endpoint** (parts of 3.2) — keep `POST /api/sessions/torcs-live` (architectural promise), cut `GET /api/torcs-status` discovery helper and the upload-page banner. Judges fall back to curl for the live ingest.
