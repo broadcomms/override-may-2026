@@ -16,9 +16,14 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { api, OverrideApiError } from "@/api/client";
 import type { SessionSummary } from "@/api/types";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyStates";
 
 const PAGE_SIZE = 50;
+
+type DeleteTarget =
+  | { kind: "single"; sessionId: string }
+  | { kind: "bulk"; sessionIds: string[] };
 
 function formatUploaded(iso: string): string {
   try {
@@ -56,6 +61,9 @@ export function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [removeTelemetry, setRemoveTelemetry] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async (newOffset: number) => {
     setLoading(true);
@@ -83,21 +91,20 @@ export function SessionsPage() {
   }, [load]);
 
   const toggleSelected = useCallback((sid: string) => {
+    // Phase 4: selection is no longer capped at 2 — bulk delete may take N.
+    // Compare still consumes exactly 2 (button is enabled only at size === 2).
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(sid)) {
         next.delete(sid);
       } else {
-        if (next.size >= 2) {
-          // Drop oldest, keep newest two
-          const first = next.values().next().value as string;
-          next.delete(first);
-        }
         next.add(sid);
       }
       return next;
     });
   }, []);
+
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
 
   const compareReady = selected.size === 2;
   const compareUrl = useMemo(() => {
@@ -111,6 +118,49 @@ export function SessionsPage() {
     if (compareUrl) navigate(compareUrl);
   }, [compareUrl, navigate]);
 
+  const openSingleDelete = useCallback((sid: string) => {
+    setRemoveTelemetry(false);
+    setDeleteTarget({ kind: "single", sessionId: sid });
+  }, []);
+
+  const openBulkDelete = useCallback(() => {
+    if (selected.size === 0) return;
+    setRemoveTelemetry(false);
+    setDeleteTarget({ kind: "bulk", sessionIds: Array.from(selected) });
+  }, [selected]);
+
+  const cancelDelete = useCallback(() => {
+    if (deleting) return;
+    setDeleteTarget(null);
+  }, [deleting]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      if (deleteTarget.kind === "single") {
+        await api.deleteSession(deleteTarget.sessionId, { removeTelemetry });
+      } else {
+        await api.bulkDeleteSessions(deleteTarget.sessionIds, { removeTelemetry });
+        clearSelection();
+      }
+      setDeleteTarget(null);
+      // Reload current page so counts/rows match disk.
+      await load(offset);
+    } catch (e) {
+      const msg =
+        e instanceof OverrideApiError
+          ? e.payload.message
+          : e instanceof Error
+          ? e.message
+          : "Delete failed.";
+      setError(msg);
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, removeTelemetry, clearSelection, load, offset]);
+
   const hasMore = offset + sessions.length < total;
   const hasPrev = offset > 0;
 
@@ -120,9 +170,26 @@ export function SessionsPage() {
         <h1 className="text-2xl font-semibold">Sessions</h1>
         <div className="flex items-center gap-3">
           {selected.size > 0 && (
-            <span className="text-sm text-muted">
-              {selected.size === 1 ? "1 selected — pick a second to compare" : "2 selected"}
-            </span>
+            <>
+              <span className="text-sm text-muted">
+                {selected.size} selected
+              </span>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="text-xs text-muted hover:text-text underline-offset-2 hover:underline"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={openBulkDelete}
+                className="px-3 py-1.5 rounded-pill border border-danger/40 bg-danger/10 text-sm text-danger hover:bg-danger/20"
+                title={`Delete ${selected.size} selected session${selected.size === 1 ? "" : "s"}`}
+              >
+                Delete ({selected.size})
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -132,7 +199,7 @@ export function SessionsPage() {
             title={
               compareReady
                 ? "Compare the two selected sessions side-by-side"
-                : "Select two sessions to compare"
+                : "Select exactly two sessions to compare"
             }
           >
             Compare
@@ -178,7 +245,7 @@ export function SessionsPage() {
                 <li key={s.session_id} className="flex items-center gap-3 px-4 py-3">
                   <input
                     type="checkbox"
-                    aria-label={`Select ${s.session_id} for comparison`}
+                    aria-label={`Select ${s.session_id}`}
                     checked={isSelected}
                     onChange={(e) => {
                       e.stopPropagation();
@@ -215,6 +282,18 @@ export function SessionsPage() {
                       {formatUploaded(s.uploaded_at)}
                     </span>
                   </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSingleDelete(s.session_id);
+                    }}
+                    title="Delete this session"
+                    aria-label={`Delete ${s.session_id}`}
+                    className="px-2 py-1 rounded text-muted hover:text-danger hover:bg-danger/10 text-sm leading-none transition-colors"
+                  >
+                    ×
+                  </button>
                 </li>
               );
             })}
@@ -245,6 +324,45 @@ export function SessionsPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === "bulk"
+            ? `Delete ${deleteTarget.sessionIds.length} session${deleteTarget.sessionIds.length === 1 ? "" : "s"}?`
+            : "Delete this session?"
+        }
+        body={
+          deleteTarget?.kind === "bulk" ? (
+            <p>
+              This removes the session record{deleteTarget.sessionIds.length === 1 ? "" : "s"}{" "}
+              from history. Any TORCS live captures (JSONL files) stay on disk
+              unless you opt in below — so you can re-ingest after a delete.
+            </p>
+          ) : (
+            <p>
+              This removes the session record from history. If it came from a
+              TORCS live capture, the underlying JSONL stays on disk unless
+              you opt in below — so you can re-ingest after a delete.
+            </p>
+          )
+        }
+        options={[
+          {
+            key: "remove-telemetry",
+            label: "Also remove source telemetry (JSONL)",
+            description:
+              "Permanently unlinks the raw capture from the torcs-telemetry volume. Only affects sessions ingested from a live TORCS run.",
+            checked: removeTelemetry,
+            onChange: setRemoveTelemetry,
+          },
+        ]}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }

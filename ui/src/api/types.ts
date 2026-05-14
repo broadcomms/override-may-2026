@@ -357,11 +357,30 @@ export interface TorcsRunSummary {
   run_id: string;
   size_bytes: number;
   lap_count_estimate: number;
+  // Phase 1 enrichment (already shipped by the backend; surfacing here)
+  started_at?: string | null;
+  last_written_at?: string | null;
+  duration_seconds?: number | null;
+  // Phase 4: non-null when an existing Session references this JSONL via
+  // its telemetry_file. UI uses this to mark the row as ingested rather
+  // than offering a duplicate Ingest button that would 409 on the second
+  // click.
+  ingested_session_id?: string | null;
 }
 
 export interface TorcsStatusResponse {
   available: boolean;
   runs: TorcsRunSummary[];
+  // Phase 4 pagination (default page size 50, max 200). Older endpoints
+  // returning the legacy shape will leave these undefined.
+  total?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface BulkDeleteSessionsResponse {
+  deleted: number;
+  telemetry_removed: number;
 }
 
 export interface WhatIfResult {

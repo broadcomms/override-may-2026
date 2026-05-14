@@ -1769,6 +1769,225 @@ def test_delete_session_idempotent(tmp_path):
     assert r3.status_code == 404
 
 
+def test_delete_session_keeps_telemetry_by_default(tmp_path, monkeypatch):
+    """Phase 4: deleting a torcs_live session should NOT unlink its JSONL
+    by default — keep-by-default per user preference so re-ingest stays
+    possible after a delete."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "keep_me.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post("/api/sessions/torcs-live", json={"run_id": "keep_me"})
+    assert created.status_code == 201
+    sid = created.json()["summary"]["session_id"]
+
+    r = client.delete(f"/api/sessions/{sid}")
+    assert r.status_code == 204
+    # Session gone, but JSONL still on disk
+    assert client.get(f"/api/sessions/{sid}").status_code == 404
+    assert (telem / "keep_me.jsonl").exists()
+
+
+def test_delete_session_with_remove_telemetry_unlinks_jsonl(tmp_path, monkeypatch):
+    """Opt-in: ?remove_telemetry=true also unlinks the source JSONL."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "bye_run.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post("/api/sessions/torcs-live", json={"run_id": "bye_run"})
+    sid = created.json()["summary"]["session_id"]
+
+    r = client.delete(f"/api/sessions/{sid}?remove_telemetry=true")
+    assert r.status_code == 204
+    assert not (telem / "bye_run.jsonl").exists()
+
+
+def test_delete_session_remove_telemetry_noop_when_no_capture(tmp_path):
+    """A plain upload session has no telemetry_file — remove_telemetry
+    should succeed harmlessly without touching the volume."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+    r = client.delete(f"/api/sessions/{sid}?remove_telemetry=true")
+    assert r.status_code == 204
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# POST /api/sessions/bulk-delete
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_bulk_delete_removes_multiple_sessions(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    sids = []
+    for _ in range(3):
+        created = client.post(
+            "/api/sessions",
+            files={"file": ("s.json", _laps_payload(), "application/json")},
+            data={"source": "fastf1"},
+        ).json()
+        sids.append(created["summary"]["session_id"])
+
+    r = client.post("/api/sessions/bulk-delete", json={"session_ids": sids})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["deleted"] == 3
+    assert body["telemetry_removed"] == 0
+    # All gone
+    for sid in sids:
+        assert client.get(f"/api/sessions/{sid}").status_code == 404
+
+
+def test_bulk_delete_idempotent_for_missing_ids(tmp_path):
+    """Mix of existing + missing IDs returns the count of those that
+    actually existed; no error on the missing ones."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("s.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    r = client.post(
+        "/api/sessions/bulk-delete",
+        json={"session_ids": [sid, "s_ghost_one", "s_ghost_two"]},
+    )
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 1
+
+
+def test_bulk_delete_with_remove_telemetry_unlinks_jsonl_per_session(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "alpha.jsonl").write_bytes(_torcs_jsonl_payload())
+    (telem / "beta.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    a = client.post("/api/sessions/torcs-live", json={"run_id": "alpha"}).json()
+    b = client.post("/api/sessions/torcs-live", json={"run_id": "beta"}).json()
+    sids = [a["summary"]["session_id"], b["summary"]["session_id"]]
+
+    r = client.post(
+        "/api/sessions/bulk-delete",
+        json={"session_ids": sids, "remove_telemetry": True},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["deleted"] == 2
+    assert body["telemetry_removed"] == 2
+    assert not (telem / "alpha.jsonl").exists()
+    assert not (telem / "beta.jsonl").exists()
+
+
+def test_bulk_delete_rejects_empty_list(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/sessions/bulk-delete", json={"session_ids": []})
+    assert r.status_code == 422
+
+
+def test_bulk_delete_skips_invalid_ids(tmp_path):
+    """Path-traversal-shaped IDs are silently skipped (treated like missing),
+    not 400. Belt-and-suspenders alongside the regex match in delete_session."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/sessions/bulk-delete",
+        json={"session_ids": ["../etc/passwd", "not_a_session"]},
+    )
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DELETE /api/torcs/runs/{run_id}
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_delete_torcs_run_unlinks_jsonl(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "scratch.jsonl").write_bytes(b'{"x":1}\n')
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.delete("/api/torcs/runs/scratch")
+    assert r.status_code == 204
+    assert not (telem / "scratch.jsonl").exists()
+
+
+def test_delete_torcs_run_idempotent_when_missing(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.delete("/api/torcs/runs/ghost_run")
+    assert r.status_code == 204
+
+
+def test_delete_torcs_run_rejects_path_traversal(tmp_path):
+    """Path-traversal attempts must NOT 204. Three valid blocking outcomes:
+       - 422: pydantic pattern rejects (raw ``..`` in segment)
+       - 404: router doesn't match (encoded slash normalized away)
+       - 405: normalized URL hits an existing route with no DELETE verb
+    The contract is "anything that isn't a successful 204"."""
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.delete("/api/torcs/runs/..%2Fetc%2Fpasswd")
+    assert r.status_code != 204
+    assert 400 <= r.status_code < 500
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /api/torcs-status — pagination + ingested_session_id
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_torcs_status_paginates(tmp_path, monkeypatch):
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    for i in range(5):
+        (telem / f"run_{i}.jsonl").write_bytes(_torcs_jsonl_payload(n_laps=1, ticks_per_lap=10))
+        import time as _t; _t.sleep(0.01)  # distinct mtimes
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    r = client.get("/api/torcs-status?limit=2&offset=0")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 5
+    assert body["limit"] == 2
+    assert body["offset"] == 0
+    assert len(body["runs"]) == 2
+    # Newest first
+    assert body["runs"][0]["run_id"] == "run_4"
+
+    r2 = client.get("/api/torcs-status?limit=2&offset=2")
+    body2 = r2.json()
+    assert [r["run_id"] for r in body2["runs"]] == ["run_2", "run_1"]
+
+
+def test_torcs_status_marks_ingested_runs(tmp_path, monkeypatch):
+    """After torcs-live ingest, the run shows ingested_session_id pointing
+    to the resulting session. Unaffected runs return None for that field."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "ingest_me.jsonl").write_bytes(_torcs_jsonl_payload())
+    (telem / "leave_me.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post("/api/sessions/torcs-live", json={"run_id": "ingest_me"}).json()
+    expected_sid = created["summary"]["session_id"]
+
+    r = client.get("/api/torcs-status")
+    runs = {row["run_id"]: row for row in r.json()["runs"]}
+    assert runs["ingest_me"]["ingested_session_id"] == expected_sid
+    assert runs["leave_me"]["ingested_session_id"] is None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Headers + middleware
 # ──────────────────────────────────────────────────────────────────────────────

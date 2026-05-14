@@ -185,6 +185,39 @@ def delete_session(session_id: str, *, root: Optional[Path] = None) -> bool:
     return existed
 
 
+def get_session_telemetry_file(session_id: str, *, root: Optional[Path] = None) -> Optional[str]:
+    """Return the ``telemetry_file`` basename stamped on the session's
+    summary, or None when the session has no associated capture (uploads,
+    fastf1 sessions) or doesn't exist. Used by DELETE /api/sessions/{id}
+    to resolve the JSONL on the shared volume when ``remove_telemetry``
+    is requested. Reads summary.json directly to avoid a round-trip
+    through the full Session model.
+    """
+    summary_path = (root or _sessions_root()) / session_id / "summary.json"
+    if not summary_path.is_file():
+        return None
+    try:
+        data = json.loads(summary_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    fname = data.get("telemetry_file")
+    return fname if isinstance(fname, str) and fname else None
+
+
+def list_telemetry_filenames(*, root: Optional[Path] = None) -> dict[str, str]:
+    """Map ``telemetry_file`` basename → ``session_id`` for the cross-ref
+    used by GET /api/torcs-status to surface ``ingested_session_id`` on
+    each run. Cheap: one index read, no per-session IO.
+    """
+    out: dict[str, str] = {}
+    for entry in _read_index(root=root):
+        fname = entry.get("telemetry_file")
+        sid = entry.get("session_id")
+        if isinstance(fname, str) and fname and isinstance(sid, str):
+            out[fname] = sid
+    return out
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Index — single JSON file with the per-session summaries
 # ──────────────────────────────────────────────────────────────────────────────
@@ -239,4 +272,6 @@ __all__ = [
     "load_session",
     "delete_session",
     "list_sessions",
+    "get_session_telemetry_file",
+    "list_telemetry_filenames",
 ]

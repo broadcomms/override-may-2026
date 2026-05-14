@@ -26,6 +26,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 
 # Load .env at module import so uvicorn picks up watsonx credentials etc.
@@ -89,7 +90,9 @@ from .errors import api_error, map_watsonx_exception, new_request_id
 from .observability import setup_tracing
 from .storage import (
     delete_session,
+    get_session_telemetry_file,
     list_sessions as storage_list_sessions,
+    list_telemetry_filenames,
     load_session,
     save_recommendations_only,
     save_session,
@@ -215,6 +218,28 @@ class SessionListResponse(BaseModel):
     total: int = Field(ge=0, description="Total session count across all pages.")
     limit: int = Field(ge=1, le=200)
     offset: int = Field(ge=0)
+
+
+class BulkDeleteSessionsRequest(BaseModel):
+    """Body for POST /api/sessions/bulk-delete (Phase 4 — session mgmt).
+
+    ``session_ids`` is bounded to 200 to mirror the GET /api/sessions
+    page-size ceiling; bulk deletes larger than a single page should
+    iterate page-by-page on the client.
+    """
+    session_ids: list[str] = Field(min_length=1, max_length=200)
+    remove_telemetry: bool = False
+
+
+class BulkDeleteSessionsResponse(BaseModel):
+    """Tally of what the bulk delete actually touched. ``deleted`` is the
+    count of session directories removed (idempotent: missing IDs count
+    as deletes per the single DELETE endpoint's contract). ``telemetry_removed``
+    counts JSONL captures unlinked from the shared volume — only non-zero
+    when the request opted in.
+    """
+    deleted: int
+    telemetry_removed: int
 
 
 class TorcsStartRaceRequest(BaseModel):
@@ -709,8 +734,95 @@ def create_app() -> FastAPI:
     @app.delete("/api/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def remove_session(
         session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+        remove_telemetry: bool = Query(
+            False,
+            description=(
+                "When true AND the session has a telemetry_file (typically "
+                "torcs_live sessions), also unlink the JSONL capture from "
+                "the shared torcs-telemetry volume. Default false keeps the "
+                "JSONL so the session can be re-ingested after a delete."
+            ),
+        ),
     ):
+        # Resolve telemetry filename BEFORE deleting the session — once the
+        # summary.json is gone, the mapping is lost.
+        telemetry_file = get_session_telemetry_file(session_id) if remove_telemetry else None
         delete_session(session_id)
+        if remove_telemetry and telemetry_file:
+            # Defensive: strip any path component to keep the unlink scoped
+            # to the telemetry dir, even if a future caller stamps a weird
+            # relative path on telemetry_file. get_session_telemetry_file
+            # returns the persisted basename today, but belt-and-suspenders.
+            safe_name = Path(telemetry_file).name
+            candidate = _telemetry_dir() / safe_name
+            try:
+                candidate.unlink(missing_ok=True)
+            except OSError:
+                pass  # Best-effort — session is already gone, log-level only
+        # Always 204 (idempotent)
+
+    @app.post(
+        "/api/sessions/bulk-delete",
+        response_model=BulkDeleteSessionsResponse,
+    )
+    async def bulk_delete_sessions(body: BulkDeleteSessionsRequest):
+        """Delete N sessions in one request. Returns counts of what was
+        actually unlinked. Idempotent: missing IDs are silently skipped.
+
+        ``remove_telemetry=true`` opts the whole batch into JSONL unlink;
+        per-session opt-in would require N round-trips and isn't needed
+        for the operator-clean-up use case.
+        """
+        deleted = 0
+        telemetry_removed = 0
+        # Compile the same pattern the single endpoint uses so the bulk
+        # path can't be tricked into traversing outside the sessions root.
+        valid = re.compile(r"^s_[A-Za-z0-9_]+$")
+        tdir = _telemetry_dir() if body.remove_telemetry else None
+        for sid in body.session_ids:
+            if not valid.match(sid):
+                continue  # silently skip invalid IDs; treat as "already gone"
+            telemetry_file = (
+                get_session_telemetry_file(sid) if body.remove_telemetry else None
+            )
+            if delete_session(sid):
+                deleted += 1
+            if tdir is not None and telemetry_file:
+                safe_name = Path(telemetry_file).name
+                candidate = tdir / safe_name
+                try:
+                    candidate.unlink(missing_ok=False)
+                    telemetry_removed += 1
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+        return BulkDeleteSessionsResponse(
+            deleted=deleted,
+            telemetry_removed=telemetry_removed,
+        )
+
+    @app.delete(
+        "/api/torcs/runs/{run_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def delete_torcs_run(
+        run_id: str = PathParam(..., pattern=r"^[A-Za-z0-9_-]+$", min_length=1, max_length=64),
+    ):
+        """Unlink a JSONL replay from the shared torcs-telemetry volume.
+
+        Idempotent: returns 204 whether or not the file existed. The
+        path pattern blocks ``..``/``/`` so we cannot be tricked into
+        unlinking outside the telemetry dir. Note this does NOT delete
+        any Session that was ingested from this JSONL — those persist
+        until DELETE /api/sessions/{id} runs.
+        """
+        tdir = _telemetry_dir()
+        candidate = tdir / f"{run_id}.jsonl"
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError:
+            pass
         # Always 204 (idempotent)
 
     @app.get("/api/sessions/{session_id}/stream")
@@ -1031,7 +1143,10 @@ def create_app() -> FastAPI:
         return body
 
     @app.get("/api/torcs-status")
-    async def torcs_status():
+    async def torcs_status(
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+    ):
         """List JSONL replays available on the shared ``torcs-telemetry``
         volume — produced by ``RaceYourCode/gym_torcs/torcs_jm_par.py`` when
         ``OVERRIDE_LOG_TELEMETRY`` is set inside the torcs compose service.
@@ -1040,11 +1155,27 @@ def create_app() -> FastAPI:
         exist or holds no JSONL files. The UI's UploadPage banner polls
         this to enable/disable the "Ingest live TORCS run" affordance
         without surfacing 404s during the no-torcs-profile common case.
+
+        Phase 4 — session management:
+        - Pagination via ``limit`` (default 50, max 200) + ``offset``.
+          ``total`` and ``available`` reflect the FULL set so the UI can
+          render "showing N of M" and pager controls without a second call.
+        - Each run carries ``ingested_session_id`` — non-null when an
+          existing Session references this JSONL via ``telemetry_file``.
+          Lets the UI mark ingested rows as "Ingested →" links instead of
+          dangling "Ingest" buttons that would 409 on the second click.
         """
         tdir = _telemetry_dir()
         if not tdir.is_dir():
-            return {"available": False, "runs": []}
-        runs = []
+            return {
+                "available": False,
+                "runs": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+            }
+        ingested_map = list_telemetry_filenames()
+        all_runs = []
         for p in sorted(tdir.glob("*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True):
             try:
                 stat = p.stat()
@@ -1061,15 +1192,24 @@ def create_app() -> FastAPI:
             last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
             started = _extract_start_time(p) or last_written
             duration = (last_written - started).total_seconds()
-            runs.append({
+            all_runs.append({
                 "run_id": p.stem,
                 "size_bytes": size,
                 "lap_count_estimate": tick_estimate // 5000,
                 "started_at": started.isoformat(),
                 "last_written_at": last_written.isoformat(),
                 "duration_seconds": max(0.0, duration),
+                "ingested_session_id": ingested_map.get(p.name),
             })
-        return {"available": bool(runs), "runs": runs}
+        total = len(all_runs)
+        page = all_runs[offset : offset + limit]
+        return {
+            "available": bool(all_runs),
+            "runs": page,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
 
     @app.post("/api/sessions/torcs-live", status_code=status.HTTP_201_CREATED)
     async def torcs_live(

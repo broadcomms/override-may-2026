@@ -37,6 +37,7 @@ import type {
   ApiError,
   HealthResponse,
   LiveStreamEvent,
+  BulkDeleteSessionsResponse,
   Recommendation,
   RegulationSource,
   Session,
@@ -530,11 +531,18 @@ export const api = {
    * Fixture mode short-circuits to "unavailable" to keep offline dev
    * predictable.
    */
-  async torcsStatus(opts?: ApiOpts): Promise<TorcsStatusResponse> {
+  async torcsStatus(
+    params: { limit?: number; offset?: number } = {},
+    opts?: ApiOpts,
+  ): Promise<TorcsStatusResponse> {
     if (resolveFixture(opts)) {
-      return { available: false, runs: [] };
+      return { available: false, runs: [], total: 0, limit: 50, offset: 0 };
     }
-    return jsonFetch<TorcsStatusResponse>("/api/torcs-status", {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return jsonFetch<TorcsStatusResponse>(`/api/torcs-status${suffix}`, {
       signal: opts?.signal,
     });
   },
@@ -612,9 +620,73 @@ export const api = {
     });
   },
 
-  async deleteSession(sessionId: string, opts?: ApiOpts): Promise<void> {
+  /**
+   * Delete a single session. Phase 4: ``removeTelemetry`` (default false)
+   * opts into also unlinking the source JSONL from the shared
+   * torcs-telemetry volume. Default keeps the JSONL so the session
+   * can be re-ingested after a delete (matches the persisted "source
+   * of truth" model — JSONL is the raw capture, Session is derived).
+   */
+  async deleteSession(
+    sessionId: string,
+    params: { removeTelemetry?: boolean } = {},
+    opts?: ApiOpts,
+  ): Promise<void> {
     if (resolveFixture(opts)) return;
-    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+    const qs = params.removeTelemetry ? "?remove_telemetry=true" : "";
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}${qs}`, {
+      method: "DELETE",
+      signal: opts?.signal,
+    });
+    if (!res.ok && res.status !== 204) {
+      let payload: ApiError;
+      try {
+        payload = (await res.json()) as ApiError;
+      } catch {
+        payload = {
+          error_code: "INTERNAL_ERROR",
+          message: `HTTP ${res.status}`,
+          detail: null,
+          request_id: "unknown",
+        };
+      }
+      throw new OverrideApiError(res.status, payload);
+    }
+  },
+
+  /**
+   * Bulk-delete N sessions in one request. Returns the count of sessions
+   * actually unlinked (missing IDs are silently skipped — idempotent)
+   * plus the count of JSONL captures removed (only non-zero when
+   * ``removeTelemetry`` is true).
+   */
+  async bulkDeleteSessions(
+    sessionIds: string[],
+    params: { removeTelemetry?: boolean } = {},
+    opts?: ApiOpts,
+  ): Promise<BulkDeleteSessionsResponse> {
+    if (resolveFixture(opts)) {
+      return { deleted: 0, telemetry_removed: 0 };
+    }
+    return jsonFetch<BulkDeleteSessionsResponse>("/api/sessions/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_ids: sessionIds,
+        remove_telemetry: params.removeTelemetry ?? false,
+      }),
+      signal: opts?.signal,
+    });
+  },
+
+  /**
+   * Unlink a raw JSONL capture from the shared torcs-telemetry volume.
+   * Idempotent: returns success whether or not the file existed. Does
+   * NOT touch any Session that was previously ingested from this run.
+   */
+  async deleteTorcsRun(runId: string, opts?: ApiOpts): Promise<void> {
+    if (resolveFixture(opts)) return;
+    const res = await fetch(`/api/torcs/runs/${encodeURIComponent(runId)}`, {
       method: "DELETE",
       signal: opts?.signal,
     });
