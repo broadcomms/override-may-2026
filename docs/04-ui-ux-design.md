@@ -78,37 +78,52 @@ Wireframes are described in text — we are not blocking implementation on figma
 
 ### 4.1 `/upload`
 
+Two-pane layout per the design audit (`docs/plans/ui-design-audit-2026-05-14.md` §8). Phase A shipped 2026-05-14.
+
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  [OVERRIDE wordmark]                  [history]  [docs ↗]          │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│              Drop a session replay to begin                        │
-│              ─────────────────────────────                          │
-│                                                                    │
-│         ┌───────────────────────────────────────┐                  │
-│         │                                       │                  │
-│         │        ⤓  Drag a .json or .parquet    │                  │
-│         │           file here, or browse        │                  │
-│         │                                       │                  │
-│         │       Supported: TORCS, FastF1         │                  │
-│         │       Max 25 MB, up to 120 laps       │                  │
-│         │                                       │                  │
-│         └───────────────────────────────────────┘                  │
-│                                                                    │
-│         Or try a sample replay:                                    │
-│         [ Monza 2024 (FastF1) ]  [ TORCS demo session ]             │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  [◐ OVERRIDE]                   [Upload] [Sessions]   v0.1.0 · sha   │
+│  Explainable AI race-strategy copilot · grounded in FIA · watsonx.ai │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  BEGIN                              LIVE CAPTURE                     │
+│  ┌──────────────────────────────┐   ┌────────────────────────────┐   │
+│  │ ▸ TORCS engineer demo   ◆    │   │ Race Control               │   │
+│  │   12 laps · 1 zone · sample  │   │   STATUS  ● Idle           │   │
+│  │ ──────────────────────────── │   │   Track  [aalborg     ▾]   │   │
+│  │ ▸ Layered-defense demo       │   │   Laps   [    5         ]  │   │
+│  │   47 laps · 3 zones · cached │   │   ☐ Headless               │   │
+│  │ ──────────────────────────── │   │   [ Start race ▸ ]         │   │
+│  │ ▸ Engineer happy-path demo   │   │   ▸ Manual setup           │   │
+│  │   18 laps · 2 zones · sample │   │                            │   │
+│  │                              │   │ Captures on disk · 3       │   │
+│  │ BRING YOUR OWN               │   │   baseline-1lap  Open →    │   │
+│  │ ┌─────────────────────────┐  │   │   run_…181      Ingest →   │   │
+│  │ │ Drop a replay, or       │  │   │   s_torcs_…069  Ingest →   │   │
+│  │ │ browse — .json/.parquet │  │   │                            │   │
+│  │ │ up to 25 MB             │  │   └────────────────────────────┘   │
+│  │ └─────────────────────────┘  │                                    │
+│  └──────────────────────────────┘                                    │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│ © OVERRIDE · Apache 2.0 · IBM SkillsBuild May 2026 · Repo ↗ ·        │
+│ Decision support, never replacement.                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+- **Chrome row 1**: wordmark + nav + version chip. The chip pops a popover whitelisting `{build_sha, models, app_version}` — never the watsonx project ID or any auth-adjacent field (M3).
+- **Chrome row 2**: brand-promise subhead at `--color-chrome-subhead`. Shown on every page per OQ-D4 (Phase C replaces it with session metadata on `/session/:id` per §9.5 of the audit).
+- **Begin pane (left, 3fr)**: `SampleReplayList` — row-style picker with `◆ Recommended` on `torcs_engineer` per architect M2 — above `BringYourOwn`, a single-line drop+browse affordance. The previous big-arrow dashed dropzone is retired.
+- **Live capture pane (right, 2fr)**: existing `TorcsControlPanel` (Phase B will split this into `RaceControlCard` + `CockpitPage`) above the JSONL run list. Card chrome calmed to solid `border-border` per audit P6. The pane auto-collapses to full-width left when `!isLocalHost() && !torcsAvailable`.
+- **Breakpoints** per audit §8.3: two-pane at `≥ 1024px`; single column below; mobile density warning at `< 768px`.
 
 States:
-- **Idle** — call-to-action centered, sample chips below.
-- **Hovering with file** — drop zone glows orange (`--color-accent`).
-- **Uploading** — drop zone replaced with progress bar (indeterminate), copy: *"Parsing 47 laps… reasoning over 3 zones… running safety review…"* (steps populated in real time from upload progress events).
-- **Error** — `ApiError.message` displayed inline, retry button.
+- **Idle** — Begin pane visible with sample list + dropzone; Live capture visible on localhost or when JSONL runs exist.
+- **Hovering with file** — dropzone border + bg shift to `accent/60` + `accent/[0.03]` (softer than the previous accent solid).
+- **Uploading** — dropzone replaced with progress bar (indeterminate) + copy: *"Parsing session… Reasoning over zones · running safety review · this can take ~30 s."*
+- **Error** — `ApiError.message` displayed inline below the dropzone, retry by re-clicking.
 
-The sample replays trigger the same `POST /api/sessions` endpoint with a server-side fixture — they let judges click through the demo without uploading anything.
+The sample replays trigger the same `POST /api/sessions` endpoint with `?fixture=1` against the corresponding `tests/fixtures/*.json` — judges click through the full demo without uploading anything.
 
 ### 4.2 `/session/[session_id]` — Engineer Mode
 

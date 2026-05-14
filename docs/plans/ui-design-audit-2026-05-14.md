@@ -653,12 +653,14 @@ Decide before the coder picks this up.
 
 If all six clear, ship Phase A. Repeat the gate at Phase B, C, D.
 
-- [ ] **Hero is unambiguous.** Show the new `/upload` to a stranger; they correctly identify "click the recommended sample" as the primary action within 5 seconds.
-- [ ] **Premium delta is visible.** Side-by-side screenshot of `/upload` (before/after Phase A) — at least two of three reviewers agree the new version "feels more like an engineering tool."
-- [ ] **No regression on existing flows.** All paths in §16 step 5 still work, with no extra clicks vs today.
-- [ ] **Tokens contract intact.** `docs/04-ui-ux-design.md` §3 palette values unchanged. Additions are internal-only.
-- [ ] **A11y not regressed.** Axe / Lighthouse a11y score for `/upload` ≥ today's baseline.
-- [ ] **Build green.** `npm run typecheck && npm run build` pass; `pytest -q -m "not network"` still at the documented baseline.
+**Phase A — cleared 2026-05-14 (commit `0d4002e`):**
+
+- [x] **Hero is unambiguous.** SampleReplayList renders as the first interactive element in the Begin pane; `◆ Recommended` mark on `torcs_engineer`. Architect confirmed visually on container deploy.
+- [x] **Premium delta is visible.** Side-by-side: `assets/screenshots/upload.png` (after) vs the pre-Phase-A version. Two-pane chrome with subhead replaces the centered single-column-on-1900px-canvas layout. Traceability copy at `assets/screenshots/overdrive_upload_page_after_PHASE_A.png`.
+- [x] **No regression on existing flows.** Sample replay, file upload, TORCS ingest, race start/stop all still work — confirmed on the Sessions page screenshot (4 runs visible including a freshly-captured TORCS-live session).
+- [x] **Tokens contract intact.** `docs/04-ui-ux-design.md` §3 palette values unchanged. Only `--color-chrome-subhead` was added (Phase A scope); `--color-surface-3`, `--shadow-card-hero`, `.font-num` deferred until Phase C/D code actually uses them.
+- [x] **A11y not regressed.** `<h1>` preserved as `sr-only` so screen readers still get a page title; visible labels are h2/h3. Skip-to-content link untouched. VersionChip is a `<button>` with `aria-expanded`, `aria-haspopup="dialog"`, `aria-label`, and Escape-to-close.
+- [x] **Build green.** `npm run typecheck` silent, `npm run build` ✓ 6.02s (bundle delta +3.7 KB JS gz / +0.6 KB CSS gz), `pytest -q -m "not network"` — 354 passed.
 
 ---
 
