@@ -1,19 +1,25 @@
 /**
- * Engineer-Mode recommendation card (P3.3 polished).
+ * Engineer-Mode recommendation card (Phase C C4).
  *
- * Per docs/04-ui-ux-design.md §4.3:
- *   - Header: lap · sector · zone_type · severity
- *   - Cause / Consequence / Recommendation
- *   - Reasoning chain (collapsible, smooth transition, default closed)
- *   - Citation passage (verbatim) + source line — §6 hard rule honored
- *   - Validator + Guardian + Confidence chips
- *   - What-if rail (disabled state — Tier-2 API endpoint pending)
+ * Structural changes from P3.3 (per docs/plans/ui-design-audit-2026-05-14.md §9.4):
+ *   - Headline-led: `reasoning.recommendation` is the h3 at top; metadata
+ *     becomes the sub-line below.
+ *   - Citation in a 30%-width right rail at `md` and up (CSS grid); stacks
+ *     below on narrow.
+ *   - Sticky footer for validator/guardian/confidence badges — they stay
+ *     visible while the card is in view, even when the reasoning chain or
+ *     WhatIfRail are expanded.
  *
- * Two failure modes get explicit visual treatment:
- *   - Validator failed permanently (retry_count==2, still failing) → §7 row 4:
- *     show failed_rules instead of Granite reasoning.
- *   - Pass-2 Guardian shipped with final_confidence='low' → small inline banner
+ * Two failure modes get explicit visual treatment (unchanged):
+ *   - Validator failed terminally → §7 row 4 ValidatorFailedPanel replaces
+ *     the headline + grid (the recommendation was rejected; promoting it as
+ *     a headline would mis-state confidence).
+ *   - Pass-2 Guardian shipped with `final_confidence='low'` → small banner
  *     ("Treat as exploratory") per §7 row 3.
+ *
+ * WhatIfRail is preserved verbatim per docs/plans/seg3-recording-handoff.md —
+ * disclosure → radios → Run ▶ click choreography unchanged. Visual position
+ * sits above the sticky footer so its expansion doesn't get overlaid.
  *
  * Fan card variant lives in the same file — `mode='fan'` with a fan output.
  */
@@ -49,7 +55,6 @@ export function RecommendationCard({
   fanError,
   onWhatIf,
 }: Props) {
-  // Decide what to render. The cross-fade lives in the wrapper div below.
   const showFan = mode === "fan" && fan;
   const showFanSkeleton = mode === "fan" && !fan && fanLoading;
   return (
@@ -87,7 +92,6 @@ function EngineerCard({
 }) {
   const { zone, reasoning, validator, guardian } = rec;
 
-  // Failure-state predicates per §7
   const validatorFailedTerminally =
     !validator.passed && validator.retry_count >= 2;
   const guardianShippedLowConfidence =
@@ -102,59 +106,88 @@ function EngineerCard({
   return (
     <article
       data-zone-id={zone.zone_id}
-      className={`group rounded-card bg-surface border border-border p-5 shadow-card scroll-mt-20 transition-[transform,box-shadow,border-color] duration-[var(--motion-card)] ease-snap-out hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border/70 focus-within:border-accent/50 ${ringClass}`}
+      className={`group relative rounded-card bg-surface border border-border shadow-card scroll-mt-20 transition-[transform,box-shadow,border-color] duration-[var(--motion-card)] ease-snap-out hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border/70 focus-within:border-accent/50 ${ringClass}`}
     >
-      <header className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="font-mono text-sm text-muted">L{zone.lap_number}</span>
-          <span className="text-muted">·</span>
-          <span className="font-mono text-sm text-muted">S{zone.sector}</span>
-          <span className="text-muted">·</span>
-          <code className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text">{zone.zone_type}</code>
-        </div>
-        <BadgeChip tone={severityTone(zone.severity)}>{zone.severity} severity</BadgeChip>
-      </header>
+      <div className="p-5 pb-3">
+        {fanError && (
+          <div
+            role="alert"
+            className="mb-4 p-2 rounded-md border border-warning/40 bg-warning/10 text-xs text-text"
+          >
+            <span className="font-medium text-warning">Fan translation unavailable</span> — showing Engineer view. {fanError}
+          </div>
+        )}
 
-      {fanError && (
-        <div
-          role="alert"
-          className="mb-4 p-2 rounded-md border border-warning/40 bg-warning/10 text-xs text-text"
-        >
-          <span className="font-medium text-warning">Fan translation unavailable</span> — showing Engineer view. {fanError}
-        </div>
-      )}
+        {validatorFailedTerminally ? (
+          <>
+            <header className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="font-mono text-sm text-muted">L{zone.lap_number}</span>
+                <span className="text-muted">·</span>
+                <span className="font-mono text-sm text-muted">S{zone.sector}</span>
+                <span className="text-muted">·</span>
+                <code className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text">{zone.zone_type}</code>
+              </div>
+              <BadgeChip tone={severityTone(zone.severity)}>{zone.severity} severity</BadgeChip>
+            </header>
+            <ValidatorFailedPanel rec={rec} />
+          </>
+        ) : (
+          <>
+            {/* Headline-led: the Granite single-sentence recommendation is
+                promoted to h3. Metadata moves to the sub-line. */}
+            <h3 className="text-base font-semibold text-text leading-snug mb-2">
+              {reasoning.recommendation}
+            </h3>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-baseline gap-2 flex-wrap text-xs">
+                <span className="font-mono text-muted">L{zone.lap_number}</span>
+                <span className="text-muted">·</span>
+                <span className="font-mono text-muted">S{zone.sector}</span>
+                <span className="text-muted">·</span>
+                <code className="px-1.5 py-0.5 rounded bg-surface-2 text-text">{zone.zone_type}</code>
+              </div>
+              <BadgeChip tone={severityTone(zone.severity)}>{zone.severity} severity</BadgeChip>
+            </div>
 
-      {/* When validator failed terminally, the Granite reasoning is suppressed
-          (per §7 row 4) and the failed-rules list is the primary content. */}
-      {validatorFailedTerminally ? (
-        <ValidatorFailedPanel rec={rec} />
-      ) : (
-        <>
-          <CauseConsequenceRecommendation rec={rec} />
-          <CollapsibleReasoningChain steps={reasoning.reasoning_chain} />
-          <Citation rec={rec} />
-        </>
-      )}
+            {/* Two-column grid at md+ — cause/consequence/chain on the left,
+                citation in the right rail. Stacks below on narrow. */}
+            <div className="md:grid md:grid-cols-[1fr_minmax(0,30%)] md:gap-5">
+              <div className="space-y-3 mb-4 md:mb-0">
+                <Field label="Cause">{reasoning.cause}</Field>
+                <Field label="Consequence">{reasoning.consequence}</Field>
+                <CollapsibleReasoningChain steps={reasoning.reasoning_chain} />
+              </div>
+              <div>
+                <Citation rec={rec} />
+              </div>
+            </div>
 
-      {guardianShippedLowConfidence && !validatorFailedTerminally && (
-        <LowConfidenceBanner rec={rec} />
-      )}
+            {guardianShippedLowConfidence && (
+              <LowConfidenceBanner rec={rec} />
+            )}
+          </>
+        )}
 
-      <footer className="mt-5 flex flex-wrap items-center gap-2">
+        <WhatIfRail
+          zoneId={zone.zone_id}
+          onRun={onWhatIf}
+          disabled={!onWhatIf}
+        />
+      </div>
+
+      {/* Sticky footer — badges remain visible while the card is in view.
+          Negative-mx + matching padding keeps the bar full-width inside the
+          rounded card. mt-auto isn't needed because the article isn't a
+          flex column; the bar simply renders at the bottom of normal flow,
+          then sticks to viewport bottom while the card is in view. */}
+      <footer className="sticky bottom-0 px-5 py-3 bg-surface border-t border-border rounded-b-card flex flex-wrap items-center gap-2 z-[1]">
         <ValidatorBadge validator={validator} />
         <GuardianBadge guardian={guardian} />
         <BadgeChip tone={confidenceTone(guardian.final_confidence)}>
           Confidence: {guardian.final_confidence}
         </BadgeChip>
       </footer>
-
-      <WhatIfRail
-        zoneId={zone.zone_id}
-        onRun={onWhatIf}
-        // Engineer-mode only per FR-8.3 — caller passes `undefined` for `onWhatIf`
-        // in Fan mode, which disables the rail and surfaces the mode hint.
-        disabled={!onWhatIf}
-      />
     </article>
   );
 }
@@ -162,16 +195,6 @@ function EngineerCard({
 // ──────────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ──────────────────────────────────────────────────────────────────────────────
-
-function CauseConsequenceRecommendation({ rec }: { rec: Recommendation }) {
-  return (
-    <div className="space-y-3 mb-4">
-      <Field label="Cause">{rec.reasoning.cause}</Field>
-      <Field label="Consequence">{rec.reasoning.consequence}</Field>
-      <Field label="Recommendation">{rec.reasoning.recommendation}</Field>
-    </div>
-  );
-}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -223,16 +246,16 @@ function Citation({ rec }: { rec: Recommendation }) {
   const cit = rec.reasoning.regulation_citation;
   if (!cit) {
     return (
-      <div className="mt-4 p-3 rounded-md border border-dashed border-border text-xs text-muted">
+      <div className="p-3 rounded-md border border-dashed border-border text-xs text-muted h-full">
         No regulation citation for this zone — confidence is low and reasoning is from observed data alone.
       </div>
     );
   }
   return (
-    <div className="mt-4 pl-3 pr-3 py-3 rounded-md border border-granite/40 bg-granite/10 border-l-[3px] border-l-granite">
+    <div className="pl-3 pr-3 py-3 rounded-md border border-granite/40 bg-granite/10 border-l-[3px] border-l-granite h-full">
       <div className="text-[11px] uppercase tracking-wider text-muted mb-1.5 flex items-center gap-1.5">
         <span aria-hidden="true">¶</span>
-        <span>Citation — verbatim from FIA source</span>
+        <span>Citation — verbatim</span>
       </div>
       <blockquote className="text-sm italic text-text mb-2 leading-[1.55]">
         &ldquo;{cit.passage}&rdquo;
@@ -292,7 +315,6 @@ function GuardianBadge({ guardian }: { guardian: Recommendation["guardian"] }) {
 
 // §7 row 3 — Pass-2 retries exhausted, shipped with final_confidence='low'
 function LowConfidenceBanner({ rec }: { rec: Recommendation }) {
-  // Surface the lowest-scoring criterion's rationale to the user
   const sorted = Object.entries(rec.guardian.scores).sort((a, b) => a[1] - b[1]);
   const [lowestKey, lowestScore] = sorted[0] ?? ["unknown", 0];
   const rationale = rec.guardian.rationales[lowestKey];
@@ -340,6 +362,10 @@ function ValidatorFailedPanel({ rec }: { rec: Recommendation }) {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // What-if rail (FR-8.3: Engineer-mode only; disabled in Fan mode)
+// Per docs/plans/seg3-recording-handoff.md, the disclosure → radio → Run ▶
+// click choreography is video-recording load-bearing. Preserve the
+// functional path verbatim — visual placement may change with the card but
+// the affordances stay.
 // ──────────────────────────────────────────────────────────────────────────────
 
 function WhatIfRail({

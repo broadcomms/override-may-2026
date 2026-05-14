@@ -5,6 +5,7 @@
   --color-bg: #0A0A0A;            /* carbon black */
   --color-surface: #141414;
   --color-surface-2: #1F1F1F;
+  --color-surface-3: #181818;     /* between surface and surface-2 — used by the KPI strip + premium row treatments */
   --color-border: #2A2A2A;
   --color-text: #F5F5F5;
   --color-text-muted: #9A9A9A;
@@ -41,6 +42,15 @@
   --shadow-card-hover:
     0 8px 24px -4px rgba(0, 0, 0, 0.32),
     0 2px 4px -2px rgba(0, 0, 0, 0.18);
+}
+
+/* Tabular numerals shortcut — for numeric values that need to align column-wise
+   (KPI tiles, lap counts, MJ readings). Applies tnum + lnum + tabular-nums for
+   cross-browser coverage. */
+.font-num {
+  font-family: var(--font-mono, "JetBrains Mono"), ui-monospace, monospace;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

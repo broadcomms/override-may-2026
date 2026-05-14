@@ -25,6 +25,7 @@ import {
   GroundingPendingBanner,
   LoadingSkeleton,
 } from "@/components/EmptyStates";
+import { KpiStrip } from "@/components/KpiStrip";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import { LiveTelemetry } from "@/components/LiveTelemetry";
 import { RecommendationCard } from "@/components/RecommendationCard";
@@ -295,6 +296,15 @@ export function SessionPage() {
           </div>
         </>
       )}
+
+      {/* KPI strip — Phase C C1, above the fold. Tiles that depend on lap
+          aggregates (HARVEST / DEPLOY / FINAL SOC) hide internally when
+          status === "active". Renders even in active state so the LAPS,
+          ZONES, SAFETY FLOOR, CITATION, VALIDATOR tiles are still visible
+          while the race finishes. */}
+      <div className="mb-4">
+        <KpiStrip session={session} />
+      </div>
 
       {/* Energy curve + zone heatmap — hidden while the race is still
           active; the stub Session has empty laps/forecast and the

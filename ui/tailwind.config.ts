@@ -13,6 +13,7 @@ export default {
         bg: "var(--color-bg)",
         surface: "var(--color-surface)",
         "surface-2": "var(--color-surface-2)",
+        "surface-3": "var(--color-surface-3)",
         border: "var(--color-border)",
         text: "var(--color-text)",
         // The colours below are used with Tailwind's alpha-modifier syntax
