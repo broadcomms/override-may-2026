@@ -1,34 +1,38 @@
 /**
- * TorcsControlPanel — Phase 2 + 2.5 Start/Stop race UI.
+ * RaceControlCard — Phase 2 + 2.5 Start/Stop race form.
  *
- * Surface contract:
+ * Phase B split from the previous monolithic TorcsControlPanel: this card
+ * owns the *form* (status, track dropdown, lap input, headless toggle,
+ * manual-setup disclosure, Start/Stop), and emits a disclosure link to
+ * /cockpit for the noVNC view (which now lives on its own surface — see
+ * CockpitPage). Per audit §20 don't #5, the noVNC iframe wrapper-clip
+ * hack moved verbatim to CockpitPage; this file does not touch the
+ * iframe at all.
+ *
+ * Surface contract (unchanged from TorcsControlPanel):
  * 1. Hosted demo (Cloudflare Tunnel → override.patrickndille.com): the
- *    `window.location.hostname` check returns false, the whole panel
- *    doesn't render. Per ADR-004 §security, the control plane is
- *    intentionally NOT exposed publicly.
- * 2. Local dev WITHOUT --profile torcs: the server-side `enabled` flag
- *    from /api/torcs/control-status reports the daemon URL/secret aren't
- *    configured; we render a small "control plane disabled" hint.
- * 3. Local dev WITH --profile torcs but daemon not yet reachable: the
+ *    `isLocalHost` check returns false, the whole card doesn't render.
+ * 2. Local dev WITHOUT --profile torcs: server-side `enabled` flag from
+ *    /api/torcs/control-status reports the daemon URL/secret aren't
+ *    configured; render a small "control plane disabled" hint.
+ * 3. Local dev WITH --profile torcs but daemon not yet reachable:
  *    "Starting…" badge + detail string surfaces while torcs container
  *    boots (~90s on first run).
- * 4. Daemon reachable, race not active: track dropdown + lap count input
- *    + "Start race" enabled.
- * 5. Race in progress: state-aware badge ("Launching…" / "Waiting for
- *    simulator…" / "Connecting client…" / "Live") + "Stop race" enabled
- *    + "View live →" link to the session detail page.
+ * 4. Daemon reachable, race not active: form enabled.
+ * 5. Race in progress: state-aware badge + Stop enabled + View live link.
  *
- * Defense-in-depth: even if a savvy operator forces the panel to render
+ * Defense-in-depth: even if a savvy operator forces the card to render
  * via dev tools, the API proxy STILL refuses with 503 CONTROL_DISABLED
  * when TORCS_CONTROL_SECRET is unset. The hostname check is UX
  * scaffolding, not a security boundary.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
 import type { TorcsControlStatus, TorcsRaceState, TorcsTrack } from "@/api/types";
+import { isLocalHost } from "@/lib/env";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -44,12 +48,6 @@ const FALLBACK_TRACKS: TorcsTrack[] = RECOMMENDED_TRACKS.map((name) => ({
   name,
   category: "road",
 }));
-
-export function isLocalHost(): boolean {
-  if (typeof window === "undefined") return false;
-  const h = window.location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "::1";
-}
 
 function labelForState(state: TorcsRaceState | null): { label: string; tone: string } {
   switch (state) {
@@ -87,7 +85,7 @@ function sortedTracks(tracks: TorcsTrack[]): TorcsTrack[] {
   return [...rec, ...rest];
 }
 
-export function TorcsControlPanel() {
+export function RaceControlCard() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
   const [tracks, setTracks] = useState<TorcsTrack[]>(FALLBACK_TRACKS);
@@ -133,8 +131,6 @@ export function TorcsControlPanel() {
     setBusy(true);
     setError(null);
     try {
-      // Humanize the operator-supplied track slug into a display label
-      // (capitalize first letter, hyphens preserved). aalborg → "Aalborg".
       const track_name = track.charAt(0).toUpperCase() + track.slice(1);
       const resp = await api.startTorcsRace({
         track, laps, track_name, auto_launch_torcs: autoLaunch,
@@ -162,7 +158,7 @@ export function TorcsControlPanel() {
     } finally {
       setBusy(false);
     }
-  }, [refresh, track, laps]);
+  }, [refresh, track, laps, autoLaunch]);
 
   const onStop = useCallback(async () => {
     setBusy(true);
@@ -202,13 +198,12 @@ export function TorcsControlPanel() {
     return { recommended, others };
   }, [tracks]);
 
-  // Hosted demo: completely hide the panel
   if (!isLocalHost()) return null;
 
   if (status === null) {
     return (
       <section
-        className="mt-8 w-full max-w-xl rounded-card border border-border bg-surface/40 p-4"
+        className="rounded-card border border-border bg-surface p-4"
         aria-label="TORCS race control"
       >
         <p className="text-xs text-muted">Probing TORCS control plane…</p>
@@ -217,9 +212,7 @@ export function TorcsControlPanel() {
   }
 
   const badge = labelForState(status.state ?? (status.active ? "active" : "idle"));
-  // Start disabled in any non-idle state (busy guard + state machine)
   const startDisabled = busy || (status.state !== null && status.state !== "idle");
-  // Stop enabled in any state that's "running enough" to have something to stop
   const stopEnabled =
     !busy &&
     (status.state === "active" ||
@@ -229,11 +222,11 @@ export function TorcsControlPanel() {
 
   return (
     <section
-      className="mt-8 w-full max-w-xl rounded-card border border-accent/30 bg-surface/60 p-4"
+      className="rounded-card border border-border bg-surface p-4"
       aria-label="TORCS race control"
     >
       <header className="flex items-center justify-between mb-3">
-        <span className="text-[11px] uppercase tracking-wider text-accent font-mono">
+        <span className="text-[11px] uppercase tracking-wider text-muted font-mono">
           Race control
         </span>
         <ControlBadge labelText={badge.label} tone={badge.tone} />
@@ -318,7 +311,7 @@ export function TorcsControlPanel() {
                 Manual TORCS setup — first time only (~30 s)
               </summary>
               <ol className="ml-5 mt-2 space-y-1 list-decimal">
-                <li>Open TORCS in the noVNC pane below (or in a terminal: <code className="font-mono">torcs &amp;</code>)</li>
+                <li>Open TORCS in the cockpit view (or in a terminal: <code className="font-mono">torcs &amp;</code>)</li>
                 <li>Race → Quick Race → Configure Race</li>
                 <li>Drivers: add <code className="font-mono">scr_server 1</code> and remove the default robot</li>
                 <li>Accept → Accept → <strong>New Race</strong>. The 3D race opens, cars wait at the grid for the SCR client.</li>
@@ -357,75 +350,20 @@ export function TorcsControlPanel() {
               </button>
             )}
           </div>
+
+          {/* Brief B3: disclosure link to the dedicated cockpit surface.
+              Same-tab navigation; the page itself is full-bleed noVNC. */}
+          <Link
+            to="/cockpit"
+            className="mt-3 inline-block text-xs text-muted hover:text-accent transition-colors"
+          >
+            Open cockpit view ↗
+          </Link>
         </>
       )}
 
       {error && (
         <p className="mt-3 text-xs text-muted whitespace-pre-line">{error}</p>
-      )}
-
-      {/* Phase 2.6: embed noVNC iframe so the operator sees TORCS rendering
-          live, in the same pane as Race Control. We use the lab's
-          vnc_lite.html (minimal client; no sidebar; no localStorage prefs)
-          with ?autoconnect=1 to skip the splash Connect button and
-          ?scale=true to client-side-scale the 1920x1080 Xvfb canvas into
-          the iframe (see the inner comment block by the iframe element
-          for the exact parameter-name gotcha).
-          Local-only by design — the outer panel is already gated on
-          isLocalHost() (won't render on the hosted demo, which doesn't
-          expose noVNC publicly per ADR-004 §security). */}
-      {status.enabled && status.reachable && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-[11px] uppercase tracking-wider text-muted">TORCS view</div>
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById("torcs-iframe");
-                if (el && el.requestFullscreen) el.requestFullscreen();
-              }}
-              className="text-[11px] text-muted hover:text-accent transition-colors"
-              title="Open the noVNC iframe in browser fullscreen for readable HUD text"
-            >
-              Fullscreen ⤢
-            </button>
-          </div>
-          {/* Phase 2.7 v4 — wrapper-clip pattern. Two problems v3 left open:
-                1. vnc_lite.html hardcodes a "Connected (unencrypted) to <host>"
-                   status bar + Send CtrlAltDel button at the top of <body>.
-                   No URL param hides it — that's the entire UI surface of
-                   vnc_lite. The iframe is :6080 and the parent is :8000 →
-                   different origin → SOP blocks us from injecting CSS into
-                   the iframe contentDocument.
-                2. ?scale=true preserves the Xvfb 16:9 aspect ratio. With a
-                   fixed-height (720px) iframe at a narrow layout column,
-                   the canvas fits-to-width and ends up letterboxed top+bot
-                   by ~210px each.
-              Both fixed by clipping at the outer wrapper:
-                - aspect-video on the wrapper = 16:9 box that matches Xvfb,
-                  so no letterboxing math goes wrong.
-                - overflow-hidden hides anything outside.
-                - iframe is absolutely positioned, pulled up 36px and grown
-                  taller by the same amount; the status bar slides off the
-                  top of the clip region. Bottom is unchanged.
-              Fullscreen button still works (requestFullscreen on the
-              iframe element fills the screen; the negative top offset
-              becomes irrelevant and the bar reappears, which is fine —
-              fullscreen is a "read the HUD now" escape hatch, not the
-              primary display). */}
-          <div className="relative w-full aspect-video overflow-hidden rounded-card border border-border bg-black">
-            <iframe
-              id="torcs-iframe"
-              title="TORCS in noVNC"
-              src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
-              className="absolute inset-x-0 w-full border-0"
-              style={{ top: "-36px", height: "calc(100% + 36px)" }}
-            />
-          </div>
-          <p className="text-[11px] text-muted mt-1">
-            Live TORCS render. Click <span className="text-text">Fullscreen ⤢</span> for readable HUD text. If the panel is blank, the lab container may still be booting; refresh once Race Control reaches "Idle."
-          </p>
-        </div>
       )}
     </section>
   );

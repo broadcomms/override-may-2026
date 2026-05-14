@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import type { VersionResponse } from "@/api/types";
+import { CockpitPage } from "@/pages/CockpitPage";
 import { SessionComparePage } from "@/pages/SessionComparePage";
 import { SessionPage } from "@/pages/SessionPage";
 import { SessionsPage } from "@/pages/SessionsPage";
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/sessions/compare" element={<SessionComparePage />} />
+          <Route path="/cockpit" element={<CockpitPage />} />
           <Route path="/session/:sessionId" element={<SessionPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -261,6 +263,7 @@ function PageTitleManager() {
       "/upload": "Upload — OVERRIDE",
       "/sessions": "Sessions — OVERRIDE",
       "/sessions/compare": "Compare sessions — OVERRIDE",
+      "/cockpit": "Cockpit — OVERRIDE",
     };
     if (location.pathname.startsWith("/session/")) {
       document.title = "Session debrief — OVERRIDE";

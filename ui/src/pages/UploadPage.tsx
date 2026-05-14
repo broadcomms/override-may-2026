@@ -21,8 +21,9 @@ import { OverrideApiError, api, type FixtureName } from "@/api/client";
 import type { TorcsRunSummary } from "@/api/types";
 import { BringYourOwn } from "@/components/BringYourOwn";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { RaceControlCard } from "@/components/RaceControlCard";
 import { SampleReplayList } from "@/components/SampleReplayList";
-import { TorcsControlPanel, isLocalHost } from "@/components/TorcsControlPanel";
+import { isLocalHost } from "@/lib/env";
 
 // Phase 4: page the Live TORCS banner so 19+ runs don't push the rest of
 // the page off-screen. Small page so the banner stays compact in the
@@ -190,12 +191,12 @@ export function UploadPage() {
               Live capture
             </h2>
 
-            {/* Phase 2 — Start/Stop race controls. Hidden on the hosted demo
-                (window.location.hostname guard) AND hidden when the override
+            {/* Phase B split: RaceControlCard is the form-only surface here;
+                the noVNC iframe lives on /cockpit. RaceControlCard auto-hides
+                on the hosted demo (isLocalHost guard) AND when the override
                 API reports the control plane isn't configured (server-side
-                ENABLED flag). Defense in depth — see ADR-004 §security.
-                Phase B will split this into RaceControlCard + CockpitPage. */}
-            <TorcsControlPanel />
+                ENABLED flag). Defense in depth — see ADR-004 §security. */}
+            <RaceControlCard />
 
             {/* Live TORCS detected — only renders when the torcs compose profile
                 is running AND has emitted at least one JSONL capture.
