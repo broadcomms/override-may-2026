@@ -22,22 +22,29 @@
 - [ ] No `.env`, no credentials, no API keys committed (run `git ls-files | xargs grep -lE "WATSONX_API_KEY|sk-|api_key.*=" 2>/dev/null` and verify it returns nothing real)
 
 ### Repo hygiene
-- [ ] Plan files for shipped features deleted per `.bob/rules.md`:
-  - `docs/plans/p2.5-docling-kicker.md`
-  - `docs/plans/p3.6-jaeger-trace-capture.md`
-  - `docs/plans/zone-patterns.md`
-  - `docs/plans/phase-1-foundation-implementation.md`
-- [ ] Plan files KEPT (active work or durable runbook): `README.md`, `discord-pitch-feedback.md`, `quick-follow-up-on-github-invite.md`, `qa-results.md`, `final-lock-checklist.md` (this file), `submission-portal-copy.md`, `video-script.md`
+- [ ] `ls docs/plans/` shows ONLY these files (everything else means a stale plan slipped through):
+  - `README.md` — folder convention (permanent)
+  - `previous-co-work-conversations.md` — development-process transparency (rubric-positive; keep through submission)
+  - `qa-results.md` — P3.7 audit record (permanent per its own header)
+  - `submission-portal-copy.md` — portal copy (deletes in the submission commit per its header)
+  - `final-lock-checklist.md` — this file (deletes in the submission commit per its header)
+  - `video-script.md` — recording sheet (active until Week 3 step 3.6 ships the final video)
+  - `seg3-recording-handoff.md` — deletes in the same PR as Week 3 step 3.6
+  - `overide-complete-plan-to-submission.md` — the v6 execution plan (deletes in the submission commit)
 - [ ] No `__pycache__/` or `node_modules/` committed
 - [ ] No 0-byte placeholder files left in `assets/`
 
 ### Test suite green
 ```bash
-cd /Users/patrickndille/overdrive-may-2026
+cd ~/overdrive-may-2026                          # WSL Ubuntu — adjust to your clone path
 .venv/bin/pytest tests/ -q -m "not network"
-# expect: 340 passed, 4 deselected
+# Expected count is a moving target as Week 1–2 work lands. Baseline floors:
+#   - As of 2026-05-14 post-TORCS-parser ship: 301 unit + 4 network
+#   - End of Week 2 (FR-8 + concurrency fix + calibration regression + WhatIf tests): ~330–340
+# Whatever the count is at T-72h: record it in `qa-results.md` §1 in the same commit
+# that updates this line, so the two numbers can't drift apart again.
 ```
-- [ ] Unit suite green
+- [ ] Unit suite green (count recorded in `qa-results.md` §1)
 - [ ] UI typecheck green: `cd ui && npm run typecheck`
 - [ ] UI build green: `cd ui && npm run build`
 
@@ -141,11 +148,11 @@ git diff main..HEAD --stat       # if branched, verify diff is the submission di
 
 ### Final test sweep
 ```bash
-.venv/bin/pytest tests/ -q -m "not network"     # 340 expected
+.venv/bin/pytest tests/ -q -m "not network"     # match the count recorded at T-72h in qa-results.md §1
 .venv/bin/pytest tests/ -q -m "network" --co     # show network-marked tests; do NOT run unless watsonx budget allows
 cd ui && npm run typecheck && npm run build
 ```
-- [ ] Unit suite green
+- [ ] Unit suite green (count matches T-72h record — no surprise tests added since)
 - [ ] UI build green; bundle size ~178 KB gzipped (sanity check no dependency bloat)
 
 ---

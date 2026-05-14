@@ -10,9 +10,11 @@ Canonical project context lives in `AGENTS.md` (repo root) and `.bob/AGENTS.md` 
 
 ## Repo state
 
-Most of the pipeline is implemented. `api/`, `core/`, `ingest/`, `analysis/`, `tests/`, `ui/`, `scripts/`, and `langflow/override_components/` all contain working code; `models.json`, `.env.example`, `requirements.txt`, `pytest.ini`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, and `prompts/*.system.md` are populated.
+The pipeline is substantially shipped: `api/`, `core/`, `ingest/` (including `torcs_parser.py`), `analysis/`, `tests/` (305 tests — 301 unit + 4 network-marked), `ui/`, `scripts/`, and `langflow/override_components/` all contain working code. `Dockerfile`, `Dockerfile.langflow`, `docker-compose.yml`, `models.json`, `.env.example`, `requirements.txt`, `pytest.ini`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, and `prompts/*.system.md` are populated.
 
-Known empties / not-yet-shipped: `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `core/forecasting.py` (TTM-R2 is **optional**; the pipeline runs without it), `ingest/torcs_parser.py` (TORCS replay path is currently driven through the synthetic JSON fixture / FastF1 path). Verify file has content before assuming a command exists.
+**Intentional stub — do not "fix":** `core/forecasting.py` is a docstring-only stub. TTM-R2 is deferred to v1.1 per the graceful-degradation guardrail; the pipeline runs end-to-end without it.
+
+**Deleted — do not recreate:** `.github/workflows/ci.yml`. CI was deferred to v1.1 and the empty placeholder was misleading. See `AGENTS.md` for the rationale.
 
 ## Common commands
 

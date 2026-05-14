@@ -28,8 +28,8 @@ OVERRIDE is feature-complete for Tier-1: the pipeline (ingest → zones → reas
 |---|---|---|
 | TORCS | Parser + 2 pre-captured fixtures + telemetry logger + **TORCS as a profile-gated service in compose** with shared-volume live-ingest endpoint | Fixture path stays canonical for demo determinism; live TORCS adds realtime explorability for judges who want to drive |
 | FR-8 | Full ship — all 3 perturbations, end-to-end | PRD requirement, not optional |
-| Container runtime | **Podman** (not Docker) — multi-stage build, single OVERRIDE image, TORCS lab image profile-gated alongside | User's chosen runtime; lab already runs on it; Podman is Compose V2 compatible |
-| **LLM runtime (NEW)** | **Hybrid switchable: watsonx primary for OVERRIDE; ollama+granite4:350m kept inside TORCS container for the driver. `OVERRIDE_LLM_RUNTIME=watsonx\|ollama` env var routes the OVERRIDE chat path.** Reasoning + Fan Mode work via either runtime; Guardian + Embedding stay watsonx-only (no equivalent in the shipped ollama model). | User wants the original lab-shipped ollama path preserved + clean v1.1 migration path to all-ollama. The `WatsonxChatClient` Protocol in `core/reasoning.py` already allows this — adding `OllamaChatClient` is structural, not architectural. |
+| Container runtime | **Podman** (not Docker) — multi-stage build, single OVERRIDE image, TORCS lab image profile-gated alongside. **See ADR-004** for the control-plane decision (HTTP daemon inside the torcs container; Podman-socket-mount and sidecar approaches both rejected). | User's chosen runtime; lab already runs on it; Podman is Compose V2 compatible |
+| **LLM runtime (NEW)** | **Hybrid switchable: watsonx primary for OVERRIDE; ollama+granite4:350m kept inside TORCS container for the driver. `OVERRIDE_LLM_RUNTIME=watsonx\|ollama` env var routes the OVERRIDE chat path.** Reasoning + Fan Mode work via either runtime; Guardian + Embedding stay watsonx-only (no equivalent in the shipped ollama model). **See ADR-003** for the full decision record. | User wants the original lab-shipped ollama path preserved + clean v1.1 migration path to all-ollama. The `WatsonxChatClient` Protocol in `core/reasoning.py` already allows this — adding `OllamaChatClient` is structural, not architectural. |
 | Repo layout | **`RaceYourCode/` lives in repo root.** gym_torcs unzipped here once, committed. Compose mounts `./RaceYourCode:/home/student/workspace:Z`. Single repo, no external scratch dir. | User explicit; matches "everything in one repo" principle; avoids the v4 footgun of mounting a path that didn't exist (the zip was in `04_files/gym_torcs.zip`, never extracted on the host). |
 | Deployment target | **Ephemeral Ubuntu Linux VM** (cloud) for judging window; matches WSL Ubuntu architecture for parity. Tear-down post-May-31. | User-stated; ephemeral keeps security posture (single-user, replay-first per `05-security.md`) consistent with the v1 non-goals; ~30 min added to Week 3. |
 | First-time TORCS image pull | **Accept the 10–15 min pull on first `--profile torcs up`.** Document loudly in README. After first pull, the image is cached locally and re-uses fast. | User explicit. Trade-off: judges with slow connections see a one-time delay; subsequent runs are fast. |
@@ -221,7 +221,9 @@ RaceYourCode/gym_torcs/results/      # per-run TORCS artifacts
 ```
 This makes the compose mount `./RaceYourCode:/home/student/workspace:Z` work out of the box on a fresh clone — no manual unzip step required of judges who pull `--profile torcs`.
 
-**License attribution check (~5 min, review #8).** Committing `RaceYourCode/gym_torcs/*` redistributes the IBM lab files. The `hands-on-labs` repo is open and intended for participant use, but spend 30 seconds confirming the LICENSE in `hands-on-labs/01_torcs_lab/04_files/` (or repo root) permits redistribution. If permissive (MIT/Apache/etc.): add a one-line attribution to the README's "Acknowledgements" section ("gym_torcs files derived from IBM SkillsBuild hands-on-labs / 01_torcs_lab; see `LICENSE-LAB.md`"). If restrictive: revert this commit, keep `gym_torcs.zip` in `hands-on-labs/`, and add a `scripts/setup_torcs.sh` that judges run once before `--profile torcs up` to unzip into `RaceYourCode/`.
+**License attribution check (review #8) — RESOLVED 2026-05-14.** Verified: `RaceYourCode/gym_torcs/LICENSE` is the upstream MIT License, © 2016 Naoto Yoshida — the canonical gym_torcs license that travels with the source. Redistribution is permitted. No separate `LICENSE-LAB.md` is needed because the upstream LICENSE is already inside the tree. The `setup_torcs.sh` unzip fallback is unnecessary.
+
+**Required action (~2 min):** add a one-line entry to the README's "Acknowledgements" section: `gym_torcs (MIT, © 2016 Naoto Yoshida) is vendored at RaceYourCode/gym_torcs/ — see RaceYourCode/gym_torcs/LICENSE.` This satisfies the attribution requirement and the IBM SkillsBuild lab attribution by reference (the lab redistributes the same MIT source).
 
 #### 1.2 — TORCS telemetry logger (~1h)
 Edit `hands-on-labs/01_torcs_lab/04_files/gym_torcs/torcs_jm_par.py` to add an env-gated 3-line writer:
@@ -275,8 +277,14 @@ Extract the 2026 hybrid bookkeeping (SoC/harvest/deploy synthesis) into a separa
   Fires if anyone later tweaks the constants for the wrong reason. ~10 min to write.
 - Extend `tests/test_api.py` — POST `torcs_baseline.json` to `/api/sessions?source=torcs` (mocked watsonx clients), verify clean Session round-trips.
 
-#### 1.7 — `docs/adrs/ADR-002-torcs-as-primary-sandbox.md` (~1h)
-TORCS is a learning-lab sandbox for proving decision logic; energy model is synthetic; FastF1 path complements with real data but lacks native MGU-K. Cite Sutton-Barto on RL sims as decision-proving environments.
+#### 1.7 — ~~`docs/adrs/ADR-002-torcs-as-primary-sandbox.md` (~1h)~~ DONE 2026-05-11
+ADR-002 is already on disk (`docs/adrs/ADR-002-torcs-as-primary-sandbox.md`, Status: Accepted, dated 2026-05-11). It covers: TORCS is the primary decision-logic sandbox for v1.0, FastF1 stays complementary, both feed the same `LapFeatures` schema, gym_torcs is MIT-licensed and travels with `RaceYourCode/gym_torcs/LICENSE`. No further action — the §1.1b license check below is satisfied by the same ADR.
+
+**Cross-references for the other locked scope decisions** (so the v6 amendments table maps to ADRs the same way ADR-001 maps to the watsonx runtime split):
+- "Container runtime: Podman" + "TORCS as a profile-gated service in compose" → covered by ADR-002 (sandbox choice) and **ADR-004 — TORCS control plane** (`docs/adrs/ADR-004-torcs-control-plane.md`, accepted 2026-05-13), which records the HTTP-daemon-inside-container decision over the rejected Podman-socket and sidecar-control approaches.
+- "LLM runtime: Hybrid switchable watsonx/ollama via `OVERRIDE_LLM_RUNTIME`" → covered by **ADR-003 — Hybrid LLM runtime** (`docs/adrs/ADR-003-llm-runtime-abstraction.md`, accepted 2026-05-11). Guardian + Embedding stay watsonx-only; chat path is the only switchable surface.
+
+If anything in the v6 "Locked scope decisions" table contradicts ADR-002/003/004, edit the ADR (cumulative; per `.bob/rules.md`) — do not append a "but actually" to the plan.
 
 #### 1.8 — Concurrency fix for fan-mode save (~1.5h, **in hard floor**)
 `api/main.py:351-372` currently does load → modify → save_session for the whole session per fan request. Two parallel calls clobber each other. Fix:
@@ -285,15 +293,10 @@ TORCS is a learning-lab sandbox for proving decision logic; energy model is synt
 - Add a per-session `asyncio.Lock` using `setdefault` (gotcha #3) to serialize fan-mode writes against the same session.
 - Test: `tests/test_api.py` — fire 5 concurrent `?mode=fan` requests on the same session, assert all 5 fan fields land.
 
-#### 1.9 — Stale plan deletion (~5 min)
-Delete in the same PR as the TORCS work (per `.bob/rules.md`):
-- `docs/plans/phase-1-foundation-implementation.md` (P1 shipped)
-- `docs/plans/zone-patterns.md` (P2.1 shipped)
-- `docs/plans/p2.5-docling-kicker.md` (G-4 closed)
-- `docs/plans/discord-pitch-feedback.md` (P1.2 closed)
-- `docs/plans/quick-follow-up-on-github-invite.md` (moot now that lab is in repo)
+#### 1.9 — ~~Stale plan deletion (~5 min)~~ DONE
+All five files originally listed here (`phase-1-foundation-implementation.md`, `zone-patterns.md`, `p2.5-docling-kicker.md`, `discord-pitch-feedback.md`, `quick-follow-up-on-github-invite.md`) are already absent from `docs/plans/`. Verified 2026-05-14 against `ls docs/plans/`. No action.
 
-Keep `docs/plans/previous-co-work-conversations.md` (transparency about development process — rubric-positive). Already in `.dockerignore`.
+The authoritative kept-list lives in `docs/plans/final-lock-checklist.md` T-72h §"Repo hygiene". Keep `previous-co-work-conversations.md` for development-process transparency (already in `.dockerignore`).
 
 #### 1.10 — Post-rename stale-text scan (~5–10 min)
 The Torx→TORCS rename (commit f4191df) may have left stale visible text in screenshots. Scan only — actual re-captures defer to Week 3 (so we don't re-shoot the same screenshot twice once FR-8 changes the Engineer card).
