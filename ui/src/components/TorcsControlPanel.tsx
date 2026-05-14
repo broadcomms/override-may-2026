@@ -387,19 +387,18 @@ export function TorcsControlPanel() {
               Fullscreen ⤢
             </button>
           </div>
-          {/* Phase 2.7 fix: resize=scale (NOT remote) — Xvfb is fixed-size
-              at startup, doesn't support dynamic resize, so remote-resize
-              negotiation fails and noVNC fell back to showing the full
-              1920x1080 framebuffer with scrollbars. scale gracefully
-              downscales the framebuffer to fit the iframe (sharp enough
-              at 720px tall; fullscreen TORCS now fills the Xvfb so
-              there's no double-scaling-through-XFCE problem).
-              Iframe height bumped 420 → 720 so the 1920x1080 Xvfb scales
-              down ~33% instead of ~60%; HUD text legible at desktop sizes. */}
+          {/* Phase 2.7 v2: switch from vnc.html → vnc_lite.html. The full
+              vnc.html has a settings panel that persists scaling prefs in
+              localStorage, which overrides the URL's resize=scale param —
+              that's why the iframe kept showing scrollbars even after the
+              URL was changed. vnc_lite.html is noVNC's minimal client:
+              no sidebar, no persisted prefs, auto-scales to fit by default.
+              Iframe height 720px keeps the 1920x1080 Xvfb scaled down
+              ~33%; HUD text legible at desktop sizes. */}
           <iframe
             id="torcs-iframe"
             title="TORCS in noVNC"
-            src="http://localhost:6080/vnc.html?autoconnect=1&resize=scale&reconnect=1&password="
+            src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1"
             className="w-full h-[720px] rounded-card border border-border bg-black"
           />
           <p className="text-[11px] text-muted mt-1">
