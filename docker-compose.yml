@@ -128,6 +128,17 @@ services:
       # lives (libd3d12.so + libDXCore etc.). Inert on non-WSL2 hosts
       # because /usr/lib/wsl/lib won't be bind-mounted there.
       LD_LIBRARY_PATH: /usr/lib/wsl/lib
+      # WSL2 audio passthrough — point OpenAL (TORCS's audio backend per
+      # ~/.torcs/config/sound.xml `state=openal`) at WSLg's PulseAudio
+      # socket. The /mnt/wslg volume below brings the socket into the
+      # container; without this env var, OpenAL probes localhost:4713
+      # (default Pulse TCP port), finds nothing, and silently disables
+      # audio. The unix:... scheme is mandatory — Pulse won't parse a
+      # bare path. Same WSL-only caveat as the GPU bindings: on a real
+      # Linux host with hardware audio, set this to your host's
+      # /run/user/<uid>/pulse/native socket instead, or drop the var
+      # entirely and let OpenAL auto-detect ALSA.
+      PULSE_SERVER: unix:/mnt/wslg/PulseServer
     ports:
       - "5900:5900"        # VNC (drive via dedicated VNC client)
       - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
