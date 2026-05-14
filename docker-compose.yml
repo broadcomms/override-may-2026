@@ -98,6 +98,24 @@ services:
     # + echo succeed; start.sh inherits root and runs ollama/Xvfb/VNC as
     # root, which works fine (the lab's documented workaround model).
     user: "0:0"
+    # WSL2 GPU passthrough — bind /dev/dxg into the container so Mesa can
+    # load d3d12_dri.so and route OpenGL through Direct3D 12 to the Windows
+    # host GPU. Without this, the container has no GPU device and Mesa
+    # falls back to llvmpipe software rasterization, which produces the
+    # "white bars where menu text should be" artifact under TORCS's
+    # fixed-function GL path (seen 2026-05-13).
+    #
+    # Local-only convenience: this only matters on the WSL2 host that
+    # records the demo video / runs the local-dev TORCS profile.
+    # - On a non-WSL2 host (real Linux server, cloud VM) /dev/dxg does
+    #   not exist and `podman compose --profile torcs up` will fail to
+    #   start the service. The public-facing Cloudflare-fronted demo
+    #   does NOT enable --profile torcs, so this binding never matters
+    #   for the hosted path. If you ever stand up TORCS on a real Linux
+    #   GPU host, swap `/dev/dxg` for `/dev/dri` and drop the WSL volume
+    #   mounts below.
+    devices:
+      - /dev/dxg:/dev/dxg
     environment:
       # Phase 2 control daemon — when present, init script switches into
       # control-daemon mode (backgrounds start.sh, waits for noVNC, then
@@ -106,6 +124,10 @@ services:
       # ADR-004 documents why this is shared-secret over the override-net
       # rather than mTLS or Podman-socket-based control.
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
+      # WSL2 GPU passthrough — tells Mesa where the WSL-provided GL stack
+      # lives (libd3d12.so + libDXCore etc.). Inert on non-WSL2 hosts
+      # because /usr/lib/wsl/lib won't be bind-mounted there.
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib
     ports:
       - "5900:5900"        # VNC (drive via dedicated VNC client)
       - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
@@ -131,6 +153,14 @@ services:
       # also handles the daemon boot chain (start.sh background → wait for
       # noVNC → pip install fastapi/uvicorn → exec uvicorn).
       - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
+      # WSL2 GPU passthrough — mounts the Windows-host-provided WSL GL
+      # stack so Mesa's d3d12_dri.so can find its driver shims. Companion
+      # to the /dev/dxg device above; same WSL-only caveat applies.
+      # /mnt/wslg is optional but pulls in WSLg's PulseAudio + GUI sockets
+      # if the user later wants audio in TORCS too. Read-only is safe —
+      # the container never writes to these paths.
+      - /usr/lib/wsl:/usr/lib/wsl:ro
+      - /mnt/wslg:/mnt/wslg
     # Entrypoint override chains to the image's real Cmd
     # (/usr/local/bin/start.sh — pinned via `podman inspect` per
     # the prior plan-file lifecycle artifact). When TORCS_CONTROL_SECRET
