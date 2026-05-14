@@ -1988,6 +1988,60 @@ def test_torcs_status_marks_ingested_runs(tmp_path, monkeypatch):
     assert runs["leave_me"]["ingested_session_id"] is None
 
 
+def test_torcs_status_active_stub_does_not_mark_ingested(tmp_path, monkeypatch):
+    """Regression: a stub session written by /api/torcs/start-race has
+    status=ACTIVE and stamps telemetry_file pointing at the JSONL that
+    gym_torcs is still writing. That JSONL must NOT show up as
+    ingested — the pipeline hasn't run against it yet, so the UI must
+    keep offering the Ingest → button instead of an Open session → link
+    that lands the operator on a stub debrief.
+    """
+    from datetime import datetime, timezone
+    from api.storage import save_session
+    from ingest.schema import (
+        Session as PydanticSession,
+        SessionSource,
+        SessionStatus,
+        SessionSummary,
+    )
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    sid = "s_torcs_live_99999999_stubtest"
+    (telem / f"{sid}.jsonl").write_bytes(_torcs_jsonl_payload())
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    monkeypatch.setenv("OVERRIDE_SESSIONS_DIR", str(tmp_path / "sessions"))
+
+    # Write the stub the way /api/torcs/start-race does.
+    stub = PydanticSession(
+        summary=SessionSummary(
+            session_id=sid,
+            uploaded_at=datetime.now(timezone.utc),
+            source="torcs",
+            lap_count=0,
+            forecast_available=False,
+            zone_count=0,
+            track_id=f"torcs-live/{sid}",
+            session_source=SessionSource.TORCS_LIVE,
+            status=SessionStatus.ACTIVE,
+            telemetry_file=f"{sid}.jsonl",
+        ),
+        laps=[],
+        forecast=None,
+        recommendations=[],
+        regulation_source=None,
+    )
+    save_session(stub)
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs-status")
+    runs = {row["run_id"]: row for row in r.json()["runs"]}
+    assert runs[sid]["ingested_session_id"] is None, (
+        "ACTIVE stub session must not surface as 'ingested' — the pipeline "
+        "hasn't run against this JSONL yet."
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Headers + middleware
 # ──────────────────────────────────────────────────────────────────────────────

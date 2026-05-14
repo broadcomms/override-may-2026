@@ -208,12 +208,24 @@ def list_telemetry_filenames(*, root: Optional[Path] = None) -> dict[str, str]:
     """Map ``telemetry_file`` basename → ``session_id`` for the cross-ref
     used by GET /api/torcs-status to surface ``ingested_session_id`` on
     each run. Cheap: one index read, no per-session IO.
+
+    Only sessions whose ``status`` is ``"completed"`` count as ingested.
+    Active stub sessions (created by /api/torcs/start-race, Phase 2.5)
+    also stamp ``telemetry_file`` pointing at the same JSONL — but the
+    pipeline hasn't run against them yet, so they should still show
+    the Ingest → button in the UI, not the Open session → link.
     """
     out: dict[str, str] = {}
     for entry in _read_index(root=root):
         fname = entry.get("telemetry_file")
         sid = entry.get("session_id")
-        if isinstance(fname, str) and fname and isinstance(sid, str):
+        status = entry.get("status")
+        if (
+            isinstance(fname, str)
+            and fname
+            and isinstance(sid, str)
+            and status == "completed"
+        ):
             out[fname] = sid
     return out
 
