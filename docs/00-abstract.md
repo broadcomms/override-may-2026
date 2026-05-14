@@ -204,6 +204,28 @@ When you record Segment 3 in Week 3, use the modified fixture as the "watch the 
 The fact that the FastF1-tuned coefficients happen to land in the 3–7 MJ band on TORCS without re-tuning is real luck — both schemes integrate similar duty cycles. The calibration test now permanently locks this: if anyone later "improves" the constants for the wrong reason, the gate fires.
 The 9.30 MJ modified-fixture median is excellent. Over-harvest deliberately exceeds the 8.5 MJ cap → exercises the harvest_cap validator rule → produces a real "system catches a violation" beat for the demo video. The two fixtures now cover both the happy path AND the rejection path organically. That's a meaningful upgrade over the synthetic engineer_happy_demo we've been showing.
 
+**SSE pre-flight passed. Phase 2 greenlit.**
+The Cloudflare test came back clean — data: {"event": "connected", ...} and data: {"event": "no_telemetry", ...} arrived separately and in real-time through override-dev.patrickndille.com, which proves the SSE path through Cloudflare's edge isn't buffering. The hosted demo gets the live beat. That's a real upgrade to the demo story.
+
+How Phase 2 changes the demo
+Segment 3 of the video gains a meaningfully stronger beat. Before/after:
+Before (Phase 1+3 only):
+
+Drop a TORCS replay fixture → dashboard renders
+Cut to live telemetry view (Phase 3) — speed, SoC, lap progression
+Race ends → recommendation cards appear
+
+After (Phase 1+2+3):
+
+(NEW) Click "Start Race" → noVNC tab opens (or visible in another window), TORCS race launches
+(NEW) Race runs in noVNC; OVERRIDE UI shows live telemetry simultaneously
+(Phase 3) Speed, SoC, lap progression update in real-time
+(NEW) When done, click "Stop Race" OR let it complete naturally
+Recommendation cards appear
+
+That's the "judges don't have to type commands" story you wanted from the beginning. The demo now reads as a polished interactive app rather than a hackathon demo with manual terminal steps.
+The video script's Segment 3 needs an update for this — replace "drag-drop a fixture file" with "click Start Race" as the opening action. ~10-min script update.
+
 
 ## The Most Important Insight
 
