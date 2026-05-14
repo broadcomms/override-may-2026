@@ -40,6 +40,11 @@ interface Props {
    *  Per FR-7: if Fan translation fails, stay on Engineer view. */
   fanError?: string | null;
   onWhatIf?: (parameter: WhatIfParameter) => void;
+  /** Suppress the WhatIfRail entirely (Phase D PreviewStrip on /upload —
+   *  the entry-page preview is "frozen" per the audit's read-only intent).
+   *  Distinct from `onWhatIf === undefined`, which renders the rail in its
+   *  disabled "Engineer mode only" hint state. */
+  hideWhatIf?: boolean;
 }
 
 export type WhatIfParameter =
@@ -54,6 +59,7 @@ export function RecommendationCard({
   fanLoading,
   fanError,
   onWhatIf,
+  hideWhatIf,
 }: Props) {
   const showFan = mode === "fan" && fan;
   const showFanSkeleton = mode === "fan" && !fan && fanLoading;
@@ -70,6 +76,7 @@ export function RecommendationCard({
         <EngineerCard
           rec={recommendation}
           onWhatIf={onWhatIf}
+          hideWhatIf={hideWhatIf}
           fanError={mode === "fan" ? fanError : null}
         />
       )}
@@ -84,10 +91,12 @@ export function RecommendationCard({
 function EngineerCard({
   rec,
   onWhatIf,
+  hideWhatIf,
   fanError,
 }: {
   rec: Recommendation;
   onWhatIf?: (parameter: WhatIfParameter) => void;
+  hideWhatIf?: boolean;
   fanError?: string | null;
 }) {
   const { zone, reasoning, validator, guardian } = rec;
@@ -169,11 +178,13 @@ function EngineerCard({
           </>
         )}
 
-        <WhatIfRail
-          zoneId={zone.zone_id}
-          onRun={onWhatIf}
-          disabled={!onWhatIf}
-        />
+        {!hideWhatIf && (
+          <WhatIfRail
+            zoneId={zone.zone_id}
+            onRun={onWhatIf}
+            disabled={!onWhatIf}
+          />
+        )}
       </div>
 
       {/* Sticky footer — badges remain visible while the card is in view.

@@ -21,6 +21,7 @@ import { OverrideApiError, api, type FixtureName } from "@/api/client";
 import type { TorcsRunSummary } from "@/api/types";
 import { BringYourOwn } from "@/components/BringYourOwn";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PreviewStrip } from "@/components/PreviewStrip";
 import { RaceControlCard } from "@/components/RaceControlCard";
 import { SampleReplayList } from "@/components/SampleReplayList";
 import { isLocalHost } from "@/lib/env";
@@ -300,6 +301,12 @@ export function UploadPage() {
           </aside>
         )}
       </div>
+
+      {/* Phase D — "Show the destination on the entry" preview. Uses the
+          torcs_engineer fixture per architect M2 (entry-page peek shows
+          the optimistic case; layered-defense stays available in the
+          SampleReplayList as a Pass-2-rejection learning option). */}
+      <PreviewStrip />
 
       <ConfirmDialog
         open={runDelete !== null}
