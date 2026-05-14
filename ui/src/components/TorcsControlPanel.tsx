@@ -390,23 +390,38 @@ export function TorcsControlPanel() {
               Fullscreen ⤢
             </button>
           </div>
-          {/* Phase 2.7 v3: vnc_lite.html requires ?scale=true (NOT
-              ?resize=scale — that param name is vnc.html-only).
-              vnc_lite.html reads `scale` via WebUtil.getConfigVar; without
-              the param, rfb.scaleViewport defaults to false and the RFB
-              canvas paints at native Xvfb resolution (1920x1080), forcing
-              the iframe's scroll container to display scrollbars.
-              Do NOT add &resize=true — that triggers RFB DesktopSize
-              negotiation which Xvfb in the lab image doesn't support
-              cleanly. Client-side scale is the right knob: Xvfb stays at
-              1920x1080 (good for capture quality), browser scales the
-              canvas to fit the iframe's 720px height. */}
-          <iframe
-            id="torcs-iframe"
-            title="TORCS in noVNC"
-            src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
-            className="w-full h-[720px] rounded-card border border-border bg-black"
-          />
+          {/* Phase 2.7 v4 — wrapper-clip pattern. Two problems v3 left open:
+                1. vnc_lite.html hardcodes a "Connected (unencrypted) to <host>"
+                   status bar + Send CtrlAltDel button at the top of <body>.
+                   No URL param hides it — that's the entire UI surface of
+                   vnc_lite. The iframe is :6080 and the parent is :8000 →
+                   different origin → SOP blocks us from injecting CSS into
+                   the iframe contentDocument.
+                2. ?scale=true preserves the Xvfb 16:9 aspect ratio. With a
+                   fixed-height (720px) iframe at a narrow layout column,
+                   the canvas fits-to-width and ends up letterboxed top+bot
+                   by ~210px each.
+              Both fixed by clipping at the outer wrapper:
+                - aspect-video on the wrapper = 16:9 box that matches Xvfb,
+                  so no letterboxing math goes wrong.
+                - overflow-hidden hides anything outside.
+                - iframe is absolutely positioned, pulled up 36px and grown
+                  taller by the same amount; the status bar slides off the
+                  top of the clip region. Bottom is unchanged.
+              Fullscreen button still works (requestFullscreen on the
+              iframe element fills the screen; the negative top offset
+              becomes irrelevant and the bar reappears, which is fine —
+              fullscreen is a "read the HUD now" escape hatch, not the
+              primary display). */}
+          <div className="relative w-full aspect-video overflow-hidden rounded-card border border-border bg-black">
+            <iframe
+              id="torcs-iframe"
+              title="TORCS in noVNC"
+              src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
+              className="absolute inset-x-0 w-full border-0"
+              style={{ top: "-36px", height: "calc(100% + 36px)" }}
+            />
+          </div>
           <p className="text-[11px] text-muted mt-1">
             Live TORCS render. Click <span className="text-text">Fullscreen ⤢</span> for readable HUD text. If the panel is blank, the lab container may still be booting; refresh once Race Control reaches "Idle."
           </p>
