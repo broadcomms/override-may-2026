@@ -1,0 +1,563 @@
+[
+  {
+    "session_id": "s_forecast_demo_2026",
+    "total_laps": 35,
+    "context_length": 30,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0347,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.0712,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.5236,
+      0.5089,
+      0.4941,
+      0.4794,
+      0.4647
+    ],
+    "actual_soc": [
+      0.4724,
+      0.459,
+      0.4531,
+      0.4538,
+      0.4591
+    ]
+  },
+  {
+    "session_id": "s_forecast_demo_2026",
+    "total_laps": 35,
+    "context_length": 20,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0353,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.0714,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.5241,
+      0.5094,
+      0.4948,
+      0.4801,
+      0.4654
+    ],
+    "actual_soc": [
+      0.4724,
+      0.459,
+      0.4531,
+      0.4538,
+      0.4591
+    ]
+  },
+  {
+    "session_id": "s_forecast_demo_2026",
+    "total_laps": 35,
+    "context_length": 15,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0202,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.0561,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.5005,
+      0.4825,
+      0.4645,
+      0.4465,
+      0.4285
+    ],
+    "actual_soc": [
+      0.4724,
+      0.459,
+      0.4531,
+      0.4538,
+      0.4591
+    ]
+  },
+  {
+    "session_id": "s_forecast_demo_2026",
+    "total_laps": 35,
+    "context_length": 10,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0669,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.4474,
+      0.42,
+      0.3926,
+      0.3651,
+      0.3377
+    ],
+    "actual_soc": [
+      0.4724,
+      0.459,
+      0.4531,
+      0.4538,
+      0.4591
+    ]
+  },
+  {
+    "session_id": "s_forecast_demo_2026",
+    "total_laps": 35,
+    "context_length": 5,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0986,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.4258,
+      0.3933,
+      0.3609,
+      0.3285,
+      0.2961
+    ],
+    "actual_soc": [
+      0.4724,
+      0.459,
+      0.4531,
+      0.4538,
+      0.4591
+    ]
+  },
+  {
+    "session_id": "torcs_20lap_synthetic",
+    "total_laps": 20,
+    "context_length": 30,
+    "eligible": false,
+    "reason": "available_context=15 < context_length=30",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.7423,
+      0.7371,
+      0.7346,
+      0.7333,
+      0.7312
+    ]
+  },
+  {
+    "session_id": "torcs_20lap_synthetic",
+    "total_laps": 20,
+    "context_length": 20,
+    "eligible": false,
+    "reason": "available_context=15 < context_length=20",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.7423,
+      0.7371,
+      0.7346,
+      0.7333,
+      0.7312
+    ]
+  },
+  {
+    "session_id": "torcs_20lap_synthetic",
+    "total_laps": 20,
+    "context_length": 15,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0481,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.7208,
+      0.7042,
+      0.6876,
+      0.671,
+      0.6544
+    ],
+    "actual_soc": [
+      0.7423,
+      0.7371,
+      0.7346,
+      0.7333,
+      0.7312
+    ]
+  },
+  {
+    "session_id": "torcs_20lap_synthetic",
+    "total_laps": 20,
+    "context_length": 10,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0623,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.7104,
+      0.6919,
+      0.6734,
+      0.6549,
+      0.6364
+    ],
+    "actual_soc": [
+      0.7423,
+      0.7371,
+      0.7346,
+      0.7333,
+      0.7312
+    ]
+  },
+  {
+    "session_id": "torcs_20lap_synthetic",
+    "total_laps": 20,
+    "context_length": 5,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0573,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.7134,
+      0.6959,
+      0.6784,
+      0.6609,
+      0.6435
+    ],
+    "actual_soc": [
+      0.7423,
+      0.7371,
+      0.7346,
+      0.7333,
+      0.7312
+    ]
+  },
+  {
+    "session_id": "torcs_15lap_synthetic",
+    "total_laps": 15,
+    "context_length": 30,
+    "eligible": false,
+    "reason": "available_context=10 < context_length=30",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.8207,
+      0.7999,
+      0.7806,
+      0.7641,
+      0.7512
+    ]
+  },
+  {
+    "session_id": "torcs_15lap_synthetic",
+    "total_laps": 15,
+    "context_length": 20,
+    "eligible": false,
+    "reason": "available_context=10 < context_length=20",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.8207,
+      0.7999,
+      0.7806,
+      0.7641,
+      0.7512
+    ]
+  },
+  {
+    "session_id": "torcs_15lap_synthetic",
+    "total_laps": 15,
+    "context_length": 15,
+    "eligible": false,
+    "reason": "available_context=10 < context_length=15",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.8207,
+      0.7999,
+      0.7806,
+      0.7641,
+      0.7512
+    ]
+  },
+  {
+    "session_id": "torcs_15lap_synthetic",
+    "total_laps": 15,
+    "context_length": 10,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0064,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.8181,
+      0.8033,
+      0.7886,
+      0.7739,
+      0.7592
+    ],
+    "actual_soc": [
+      0.8207,
+      0.7999,
+      0.7806,
+      0.7641,
+      0.7512
+    ]
+  },
+  {
+    "session_id": "torcs_15lap_synthetic",
+    "total_laps": 15,
+    "context_length": 5,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0077,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.8096,
+      0.7926,
+      0.7756,
+      0.7586,
+      0.7416
+    ],
+    "actual_soc": [
+      0.8207,
+      0.7999,
+      0.7806,
+      0.7641,
+      0.7512
+    ]
+  },
+  {
+    "session_id": "torcs_10lap_synthetic",
+    "total_laps": 10,
+    "context_length": 30,
+    "eligible": false,
+    "reason": "available_context=5 < context_length=30",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.9097,
+      0.8957,
+      0.8797,
+      0.8616,
+      0.8417
+    ]
+  },
+  {
+    "session_id": "torcs_10lap_synthetic",
+    "total_laps": 10,
+    "context_length": 20,
+    "eligible": false,
+    "reason": "available_context=5 < context_length=20",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.9097,
+      0.8957,
+      0.8797,
+      0.8616,
+      0.8417
+    ]
+  },
+  {
+    "session_id": "torcs_10lap_synthetic",
+    "total_laps": 10,
+    "context_length": 15,
+    "eligible": false,
+    "reason": "available_context=5 < context_length=15",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.9097,
+      0.8957,
+      0.8797,
+      0.8616,
+      0.8417
+    ]
+  },
+  {
+    "session_id": "torcs_10lap_synthetic",
+    "total_laps": 10,
+    "context_length": 10,
+    "eligible": false,
+    "reason": "available_context=5 < context_length=10",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": [
+      0.9097,
+      0.8957,
+      0.8797,
+      0.8616,
+      0.8417
+    ]
+  },
+  {
+    "session_id": "torcs_10lap_synthetic",
+    "total_laps": 10,
+    "context_length": 5,
+    "eligible": true,
+    "reason": "",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": 0.0142,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": 0.04,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": [
+      0.8922,
+      0.8778,
+      0.8634,
+      0.8491,
+      0.8347
+    ],
+    "actual_soc": [
+      0.9097,
+      0.8957,
+      0.8797,
+      0.8616,
+      0.8417
+    ]
+  },
+  {
+    "session_id": "torcs_5lap_synthetic",
+    "total_laps": 5,
+    "context_length": 30,
+    "eligible": false,
+    "reason": "total_laps=5 <= horizon=5; no hold-out possible",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": null
+  },
+  {
+    "session_id": "torcs_5lap_synthetic",
+    "total_laps": 5,
+    "context_length": 20,
+    "eligible": false,
+    "reason": "total_laps=5 <= horizon=5; no hold-out possible",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": null
+  },
+  {
+    "session_id": "torcs_5lap_synthetic",
+    "total_laps": 5,
+    "context_length": 15,
+    "eligible": false,
+    "reason": "total_laps=5 <= horizon=5; no hold-out possible",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": null
+  },
+  {
+    "session_id": "torcs_5lap_synthetic",
+    "total_laps": 5,
+    "context_length": 10,
+    "eligible": false,
+    "reason": "total_laps=5 <= horizon=5; no hold-out possible",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": null
+  },
+  {
+    "session_id": "torcs_5lap_synthetic",
+    "total_laps": 5,
+    "context_length": 5,
+    "eligible": false,
+    "reason": "total_laps=5 <= horizon=5; no hold-out possible",
+    "ttm_available": false,
+    "mae_ttm": null,
+    "mae_trend": null,
+    "median_interval_width_ttm": null,
+    "median_interval_width_trend": null,
+    "predicted_soc_ttm": null,
+    "predicted_soc_trend": null,
+    "actual_soc": null
+  }
+]

@@ -24,7 +24,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PreviewStrip } from "@/components/PreviewStrip";
 import { RaceControlCard } from "@/components/RaceControlCard";
 import { SampleReplayList } from "@/components/SampleReplayList";
-import { isLocalHost } from "@/lib/env";
+import { hasTorcsSurface } from "@/lib/env";
 
 // Phase 4: page the Live TORCS banner so 19+ runs don't push the rest of
 // the page off-screen. Small page so the banner stays compact in the
@@ -166,7 +166,7 @@ export function UploadPage() {
   // Show the right pane when there's anything to put in it: local dev (the
   // control plane surface always shows), or the shared volume has runs. On
   // the hosted demo with no runs, omit the pane and let the left span full.
-  const showRightPane = isLocalHost() || torcsAvailable;
+  const showRightPane = hasTorcsSurface() || torcsAvailable;
 
   return (
     <div className="max-w-6xl mx-auto px-6 pt-12 pb-12">

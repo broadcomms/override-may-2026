@@ -8,7 +8,7 @@ import type {
   TorcsStopRaceResponse,
   TorcsTrack,
 } from "@/api/types";
-import { isLocalHost } from "@/lib/env";
+import { hasTorcsSurface } from "@/lib/env";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -117,14 +117,14 @@ export function useTorcsControl({
   }, []);
 
   useEffect(() => {
-    if (!isLocalHost()) return;
+    if (!hasTorcsSurface()) return;
     refresh();
     const id = window.setInterval(refresh, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [refresh]);
 
   useEffect(() => {
-    if (!isLocalHost()) return;
+    if (!hasTorcsSurface()) return;
     if (!status?.enabled || !status?.reachable) return;
     let cancelled = false;
     api.torcsTracks()

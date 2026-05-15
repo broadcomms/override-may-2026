@@ -14,6 +14,7 @@ Coverage targets (FR-3 graceful-degradation guardrail):
 
 from __future__ import annotations
 
+import logging
 import sys
 from types import ModuleType
 from typing import Optional
@@ -236,6 +237,7 @@ def test_successful_forecast_returns_forecast(monkeypatch):
 
     import core.forecasting as fc
     importlib.reload(fc)
+    monkeypatch.setattr(fc, "_ttm_repo_config", lambda: {"patch_length": 4, "context_length": 30})
 
     laps = _make_laps(35)
     result = fc.forecast_lap_window(laps)
@@ -352,6 +354,29 @@ def test_skip_below_effective_context(monkeypatch):
     assert result is None
 
 
+def test_incompatible_repo_patch_length_returns_none(monkeypatch, caplog):
+    """Pinned checkpoint incompatibility should fail fast with a clear warning."""
+    monkeypatch.setenv("TTM_MIN_LAPS", "30")
+    monkeypatch.setenv("TTM_CONTEXT_LENGTH", "30")
+
+    import importlib
+    import core.forecasting as fc
+    importlib.reload(fc)
+
+    monkeypatch.setattr(
+        fc,
+        "_ttm_repo_config",
+        lambda: {"patch_length": 64, "context_length": 512, "prediction_length": 96},
+    )
+
+    with caplog.at_level(logging.WARNING, logger="core.forecasting"):
+        result = fc.forecast_lap_window(_make_laps(35))
+
+    assert result is None
+    assert "checkpoint incompatible with requested lap window" in caplog.text
+    assert "patch_length=64" in caplog.text
+
+
 def test_trailing_window_honors_context_length(monkeypatch):
     """With TTM_CONTEXT_LENGTH=10, forecast_lap_window uses only the last 10 laps."""
     _clear_tsfm_module()
@@ -382,6 +407,7 @@ def test_trailing_window_honors_context_length(monkeypatch):
     import importlib
     import core.forecasting as fc
     importlib.reload(fc)
+    monkeypatch.setattr(fc, "_ttm_repo_config", lambda: {"patch_length": 4, "context_length": 10})
 
     # 25 laps provided; model should see only the last 10
     laps = _make_laps(25)

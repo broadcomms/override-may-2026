@@ -18,6 +18,14 @@ Controls how many laps the model sees.  Also gates eligibility:
 Evaluation range: 30, 20, 15, 10, 5.  Product default stays at 30 until the
 short-context evaluation recommends a change.
 
+Pinned checkpoint compatibility
+------------------------------
+The pinned ``ibm-granite/granite-timeseries-ttm-r2`` revision declares
+``patch_length=64`` in its Hugging Face config.  OVERRIDE's lap-level forecast
+window tops out at 30 laps, so this checkpoint is incompatible with the current
+pipeline shape and returns None with an explicit warning instead of failing deep
+inside ``tsfm_public``.
+
 tsfm_public availability
 ------------------------
 ``granite-tsfm`` requires ``torch<2.11`` and ``transformers<5``.  The
@@ -38,9 +46,10 @@ See ``docs/06-roadmap.md`` P2.2 for the TTM-R2 context and forecast horizon.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -128,6 +137,53 @@ def _build_input(
 # ──────────────────────────────────────────────────────────────────────────────
 
 _MODEL_CACHE: dict = {}
+_MODEL_CONFIG_CACHE: dict = {}
+
+
+def _ttm_repo_config() -> dict[str, Any]:
+    """Load the pinned Hugging Face config for compatibility preflight checks."""
+    cache_key = (_ttm_repo(), _ttm_revision())
+    if cache_key in _MODEL_CONFIG_CACHE:
+        return _MODEL_CONFIG_CACHE[cache_key]
+
+    config: dict[str, Any] = {}
+    try:
+        from huggingface_hub import hf_hub_download
+
+        config_path = hf_hub_download(
+            repo_id=_ttm_repo(),
+            revision=_ttm_revision(),
+            filename="config.json",
+        )
+        with open(config_path) as f:
+            config = json.load(f)
+    except Exception as exc:
+        logger.debug(
+            "forecasting: unable to read TTM-R2 config for compatibility preflight: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+
+    _MODEL_CONFIG_CACHE[cache_key] = config
+    return config
+
+
+def _ttm_repo_incompatibility(context_length: int) -> Optional[str]:
+    """Return a concrete incompatibility reason for the pinned checkpoint."""
+    config = _ttm_repo_config()
+    patch_length = config.get("patch_length")
+    repo_context_length = config.get("context_length")
+
+    if isinstance(patch_length, int) and context_length <= patch_length:
+        repo_context_note = ""
+        if isinstance(repo_context_length, int):
+            repo_context_note = f" (repo default context_length={repo_context_length})"
+        return (
+            f"checkpoint patch_length={patch_length} requires context_length > {patch_length}, "
+            f"but OVERRIDE requested {context_length}{repo_context_note}"
+        )
+
+    return None
 
 
 def _load_model(context_length: int):
@@ -143,6 +199,15 @@ def _load_model(context_length: int):
 
     model = None
     try:
+        incompatibility = _ttm_repo_incompatibility(context_length)
+        if incompatibility is not None:
+            logger.warning(
+                "forecasting: TTM-R2 checkpoint incompatible with requested lap window: %s — returning None",
+                incompatibility,
+            )
+            _MODEL_CACHE[cache_key] = None
+            return None
+
         from tsfm_public.models.tinytimemixer import TinyTimeMixerForPrediction  # type: ignore[import]
 
         repo = _ttm_repo()
@@ -189,6 +254,8 @@ def forecast_lap_window(laps: list[LapFeatures]) -> Optional[Forecast]:
     - ``len(laps) < max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH)`` — session too short
       (graceful degradation per FR-3; conservative gate protects both quality
       floor and model input requirements)
+        - the pinned checkpoint config is incompatible with the requested lap window
+            (for example ``patch_length=64`` with a 30-lap OVERRIDE window)
     - ``tsfm_public`` not installed (version conflict in standard dev env)
     - Model load or inference fails for any reason
     - Prediction-interval width exceeds ``TTM_MAX_INTERVAL_WIDTH`` (forecast too uncertain)

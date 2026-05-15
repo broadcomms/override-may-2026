@@ -79,10 +79,12 @@ Wireframes are described in text — we are not blocking implementation on figma
 
 ### 4.1 `/cockpit`
 
-Local-only race-intelligence surface. The noVNC TORCS frame remains the hero;
-the UI wraps it with narrow engineer HUD rails so the operator can launch a run,
-read lap telemetry, and inspect hybrid-energy pressure without bouncing back to
-`/upload`.
+Race-intelligence surface for any deployment where the TORCS noVNC display is
+reachable. Locally that means `localhost:6080`; on the tunneled demo it means a
+paired `torcs-run.*` hostname exposed through Cloudflare Access. The noVNC TORCS
+frame remains the hero; the UI wraps it with narrow engineer HUD rails so the
+operator can launch a run, read lap telemetry, and inspect hybrid-energy pressure
+without bouncing back to `/upload`.
 
 Desktop layout:
 
@@ -114,7 +116,7 @@ Desktop layout:
 - **Lap timeline** uses rolling SSE lap events; each tile shows lap time, SoC end, harvest, deploy, and a warning marker when a deterministic live signal is active.
 - **Insight card** is the only prose-heavy cockpit block. Until a real `Recommendation` exists, it uses `Live signal` language and explicitly says Guardian/Granite review is pending.
 - **Lifecycle states** are visible in-page: `connected`, `no_telemetry`, `error`, and `race_ended` all render as useful operational states rather than empty panels.
-- **Guardrail**: hosted-demo traffic still redirects away from `/cockpit` because the noVNC URL is localhost-only.
+- **Guardrail**: `/cockpit` only renders when the frontend can resolve a TORCS display origin. Unsupported hosts still redirect back to `/upload`.
 
 ### 4.2 `/upload`
 
@@ -154,11 +156,11 @@ Two-pane entry layout. Phase A shipped 2026-05-14 and established the split betw
 - **Chrome row 1**: wordmark + nav + version chip. The chip pops a popover whitelisting `{build_sha, models, app_version}` — never the watsonx project ID or any auth-adjacent field (M3).
 - **Chrome row 2**: brand-promise subhead at `--color-chrome-subhead`. Shown on every page per OQ-D4 (Phase C replaces it with session metadata on `/session/:id` per §9.5 of the audit).
 - **Begin pane (left, 3fr)**: `SampleReplayList` — row-style picker with `◆ Recommended` on `torcs_engineer` per architect M2 — above `BringYourOwn`, a single-line drop+browse affordance. The previous big-arrow dashed dropzone is retired.
-- **Live capture pane (right, 2fr)**: existing `TorcsControlPanel` (Phase B will split this into `RaceControlCard` + `CockpitPage`) above the JSONL run list. Card chrome calmed to solid `border-border` per audit P6. The pane auto-collapses to full-width left when `!isLocalHost() && !torcsAvailable`.
+- **Live capture pane (right, 2fr)**: existing `TorcsControlPanel` (Phase B will split this into `RaceControlCard` + `CockpitPage`) above the JSONL run list. Card chrome calmed to solid `border-border` per audit P6. The pane auto-collapses to full-width left when the frontend cannot resolve a TORCS display origin and there are no captured runs on disk.
 - **Breakpoints** per audit §8.3: two-pane at `≥ 1024px`; single column below; mobile density warning at `< 768px`.
 
 States:
-- **Idle** — Begin pane visible with sample list + dropzone; Live capture visible on localhost or when JSONL runs exist.
+- **Idle** — Begin pane visible with sample list + dropzone; Live capture visible when the TORCS surface is reachable for this host or when JSONL runs exist.
 - **Hovering with file** — dropzone border + bg shift to `accent/60` + `accent/[0.03]` (softer than the previous accent solid).
 - **Uploading** — dropzone replaced with progress bar (indeterminate) + copy: *"Parsing session… Reasoning over zones · running safety review · this can take ~30 s."*
 - **Error** — `ApiError.message` displayed inline below the dropzone, retry by re-clicking.

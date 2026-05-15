@@ -20,10 +20,11 @@ import { LiveStrategyInsight } from "@/components/cockpit/LiveStrategyInsight";
 import { TorcsRaceFrame } from "@/components/cockpit/TorcsRaceFrame";
 import { useLiveTelemetry } from "@/hooks/useLiveTelemetry";
 import { useTorcsControl } from "@/hooks/useTorcsControl";
-import { isLocalHost } from "@/lib/env";
+import { hasTorcsSurface, isLocalHost } from "@/lib/env";
 
 export function CockpitPage() {
   const localHost = isLocalHost();
+  const torcsSurface = hasTorcsSurface();
   const {
     status,
     tracks,
@@ -93,11 +94,12 @@ export function CockpitPage() {
     status?.enabled &&
     status?.reachable &&
     status.state === "idle"
-      ? "3D Cockpit mode expects the local TORCS visual stack to be open. Use Headless Capture when you want telemetry without the noVNC race display."
+      ? localHost
+        ? "3D Cockpit mode expects the local TORCS visual stack to be open. Use Headless Capture when you want telemetry without the noVNC race display."
+        : "3D Cockpit mode expects the TORCS noVNC tunnel to be reachable. Use Headless Capture when you want telemetry without the remote display."
       : null);
 
-  // Hosted demo: noVNC isn't reachable off-host; redirect home.
-  if (!localHost) {
+  if (!torcsSurface) {
     return <Navigate to="/upload" replace />;
   }
 

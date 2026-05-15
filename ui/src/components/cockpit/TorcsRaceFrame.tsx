@@ -1,5 +1,6 @@
 import type { LiveLapSnapshot, TorcsControlStatus } from "@/api/types";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
+import { torcsNoVncUrl } from "@/lib/env";
 
 type ViewMode = "cockpit" | "headless";
 
@@ -16,6 +17,8 @@ export function TorcsRaceFrame({
   streamState,
   latestSnapshot,
 }: Props) {
+  const frameUrl = torcsNoVncUrl();
+
   if (viewMode === "headless") {
     const active = status?.state === "active" || status?.state === "connecting";
     return (
@@ -39,6 +42,23 @@ export function TorcsRaceFrame({
     );
   }
 
+  if (!frameUrl) {
+    return (
+      <section className="relative rounded-card border border-border bg-black">
+        <div className="aspect-video w-full px-6 py-8 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
+              3D cockpit unavailable
+            </span>
+            <p className="max-w-xl text-sm text-muted">
+              The TORCS display origin is not configured for this host. Use Headless Capture or open the app from a deployment that exposes the TORCS noVNC surface.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative rounded-card border border-border bg-black shadow-card">
       {/* Phase 2.7 v4 — wrapper-clip pattern.
@@ -51,7 +71,7 @@ export function TorcsRaceFrame({
         <iframe
           id="torcs-iframe"
           title="TORCS in noVNC"
-          src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
+          src={frameUrl}
           className="absolute inset-x-0 w-full border-0"
           style={{ top: "-36px", height: "calc(100% + 36px)" }}
         />

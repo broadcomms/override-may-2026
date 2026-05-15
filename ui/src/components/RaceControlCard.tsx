@@ -35,7 +35,7 @@ import {
   labelForTorcsState,
   useTorcsControl,
 } from "@/hooks/useTorcsControl";
-import { isLocalHost } from "@/lib/env";
+import { hasTorcsSurface } from "@/lib/env";
 
 export function RaceControlCard() {
   const navigate = useNavigate();
@@ -89,7 +89,7 @@ export function RaceControlCard() {
     }
   }, [stopRace]);
 
-  if (!isLocalHost()) return null;
+  if (!hasTorcsSurface()) return null;
 
   if (status === null) {
     return (

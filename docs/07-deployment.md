@@ -32,12 +32,12 @@ This document is the runbook for the Cloudflare Tunnel deployment (v6 plan §3.7
 
 Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → `torcs` → Public Hostnames).
 
-> **Currently live in v1.0: `override.patrickndille.com` only.** The table below documents the route topology pattern; additional gated routes can be added by extending the Cloudflare Tunnel configuration with Access policies as shown in §3. The torcs/jaeger/ollama/langflow rows below are reference for anyone wanting to expand the deployment — they are NOT live on the v1 submission.
+> **Currently live in v1.0: `override.patrickndille.com` only.** The table below documents the route topology pattern; additional gated routes can be added by extending the Cloudflare Tunnel configuration with Access policies as shown in §3. The TORCS/noVNC route below uses the current `torcs-run` hostname shape so the frontend can derive the sibling display origin from `override.*` automatically.
 
 | Subdomain | → Local service | Auth | Purpose |
 |---|---|---|---|
 | `override.patrickndille.com` | `http://localhost:8000` | **Public** | The demo. UI + API. |
-| `torcs.patrickndille.com` | `http://localhost:6080` | **Cloudflare Access** (email allowlist) | Optional "drive TORCS yourself" affordance for curious judges. |
+| `torcs-run.patrickndille.com` | `http://localhost:6080` | **Cloudflare Access** (email allowlist) | Remote noVNC surface for the cockpit iframe and optional "drive TORCS yourself" affordance. |
 | `jaeger.patrickndille.com` | `http://localhost:16686` | **Cloudflare Access** (email allowlist) | Observability proof. Same gate as torcs. |
 | ~~`ollama.patrickndille.com`~~ | ~~`http://localhost:11434`~~ | **Route deleted** | No legitimate external consumer; OVERRIDE reaches Ollama internally via the compose network at `http://torcs:11434`. |
 | ~~`langflow.patrickndille.com`~~ | ~~`http://localhost:7860`~~ | **Route deleted** | Out of v1 scope. Langflow is a profile-gated compose service (`podman compose --profile langflow up langflow`); it runs locally for design-canvas work and is intentionally not tunneled. |
@@ -53,7 +53,7 @@ Risk shape:
 | Subdomain | What an unauth visitor gets | Mitigation chosen |
 |---|---|---|
 | `override` (`:8000`) | Read-only-ish FastAPI + UI; watsonx calls (cost lever, no privilege escalation). Single-user replay-first per [`docs/05-security.md`](./05-security.md). | **Public** — the demo. Only "cost" is watsonx burn, capped by the CA$10 Essentials budget alerts. |
-| `torcs` (`:6080`) | Full remote desktop into the TORCS container. Anyone can drive the sim, change container state, and depending on container escape vectors, potentially reach the host. | **Gated** — Cloudflare Access with email allowlist. |
+| `torcs-run` (`:6080`) | Full remote desktop into the TORCS container. Anyone can drive the sim, change container state, and depending on container escape vectors, potentially reach the host. | **Gated** — Cloudflare Access with email allowlist. |
 | `jaeger` (`:16686`) | All trace content: prompt text, model IDs, request timing, internal pipeline shape. Information disclosure. | **Gated** — same Access policy. |
 | `ollama` (`:11434`) | Free unmetered LLM inference for anyone who finds the subdomain. Even with Cloudflare Access, an authenticated visitor has full inference. No legitimate use case for external access. | **Route deleted entirely.** |
 | `langflow` (`:7860`) | Visual flow editor with arbitrary-tool execution. Out of v1 demo scope. | **Route deleted entirely.** |
@@ -63,7 +63,7 @@ Risk shape:
 ### Cloudflare Access policy setup (~5 min per gated subdomain)
 
 1. Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**.
-2. **Application domain**: e.g. `torcs.patrickndille.com`.
+2. **Application domain**: e.g. `torcs-run.patrickndille.com`.
 3. **Session duration**: 24 hours (judging window is 5 days; 24h is the sweet spot — re-auth once per day, no perpetual sessions).
 4. **Identity providers**: enable **One-time PIN** (zero setup; judges enter their email, get a code, click through). Add specific email allowlist as judges are confirmed.
 5. **Policies → Add a policy → Include → Emails**: `your@email.com` (+ any allowlisted testers / judges as they're known). Allow that one rule; deny all else.
@@ -101,7 +101,7 @@ cloudflared tunnel create torcs
 # Easiest path: Cloudflare dashboard → Zero Trust → Networks → Tunnels
 # → torcs → Public Hostnames → Add three:
 #   override.patrickndille.com → http://localhost:8000
-#   torcs.patrickndille.com    → http://localhost:6080
+#   torcs-run.patrickndille.com → http://localhost:6080
 #   jaeger.patrickndille.com   → http://localhost:16686
 # Do NOT add ollama or langflow routes (per §2).
 
@@ -112,7 +112,7 @@ credentials-file: /home/$USER/.cloudflared/<UUID>.json
 ingress:
   - hostname: override.patrickndille.com
     service: http://localhost:8000
-  - hostname: torcs.patrickndille.com
+  - hostname: torcs-run.patrickndille.com
     service: http://localhost:6080
   - hostname: jaeger.patrickndille.com
     service: http://localhost:16686
@@ -146,7 +146,7 @@ curl -sf https://override.patrickndille.com/api/health | jq .
 # Expected: {"status":"ok",...}
 
 # Gated subdomains should 302 to the Access auth page, NOT 200:
-curl -s -o /dev/null -w "torcs:  %{http_code}\n"  https://torcs.patrickndille.com/
+curl -s -o /dev/null -w "torcs-run:  %{http_code}\n"  https://torcs-run.patrickndille.com/
 curl -s -o /dev/null -w "jaeger: %{http_code}\n"  https://jaeger.patrickndille.com/
 # Expected: 302 each (redirect to Cloudflare Access).
 
