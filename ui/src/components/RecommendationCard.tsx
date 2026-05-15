@@ -1,7 +1,7 @@
 /**
  * Engineer-Mode recommendation card (Phase C C4).
  *
- * Structural changes from P3.3 (per docs/plans/ui-design-audit-2026-05-14.md §9.4):
+ * Structural changes from the session-detail polish pass:
  *   - Headline-led: `reasoning.recommendation` is the h3 at top; metadata
  *     becomes the sub-line below.
  *   - Citation in a 30%-width right rail at `md` and up (CSS grid); stacks

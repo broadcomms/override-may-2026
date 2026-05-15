@@ -1,7 +1,7 @@
 /**
  * Energy curve — Recharts ComposedChart per docs/04-ui-ux-design.md §5.
  *
- * Phase C C2 enrichments (per docs/plans/ui-design-audit-2026-05-14.md §9.2):
+ * Phase C energy-curve enrichments:
  *   - Harvest + deploy stacked areas beneath the SoC line, on a secondary
  *     right Y axis (0-10 MJ range). Same data, more information per pixel.
  *   - Sector tinting via ReferenceArea — vertical bands at each

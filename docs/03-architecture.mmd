@@ -2,6 +2,7 @@ flowchart TB
     A[Session Upload<br/>TORCS replay or FastF1 export] --> B[Ingest Layer<br/>torcs_parser / fastf1_parser]
     B --> C[Lap-Aggregated Features<br/>SoC, harvest, deploy, lap_time, speed]
     C -.->|optional, if 30+ laps| D[TTM-R2 Forecaster<br/>5-lap SoC trajectory]
+    C --> N[Cockpit UI<br/>noVNC hero + live telemetry rails]
     C --> E[Zone Detector<br/>Heuristics — always runs]
     D -.-> F[Reasoning Engine<br/>Granite Instruct]
     E --> F
@@ -26,4 +27,4 @@ flowchart TB
     class F,I,L granite
     class H docling
     class V validator
-    class K,M ui
+    class K,M,N ui

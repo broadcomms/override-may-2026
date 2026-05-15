@@ -27,118 +27,42 @@
  * scaffolding, not a security boundary.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { OverrideApiError, api } from "@/api/client";
-import type { TorcsControlStatus, TorcsRaceState, TorcsTrack } from "@/api/types";
+import {
+  isTorcsActiveState,
+  labelForTorcsState,
+  useTorcsControl,
+} from "@/hooks/useTorcsControl";
 import { isLocalHost } from "@/lib/env";
-
-const POLL_INTERVAL_MS = 3000;
-
-// Architect-recommended: bubble the 6 most-tested road tracks to the top
-// of the dropdown so judges land on safe defaults. Below the divider,
-// the full TORCS library appears alphabetically grouped by category.
-const RECOMMENDED_TRACKS = ["aalborg", "alpine-1", "e-track-3", "forza", "ruudskogen", "wheel-1"];
-
-// Fallback hardcoded list when the daemon's /control/tracks endpoint
-// isn't reachable (e.g. fixture-mode or backend down). Subset of road
-// tracks; ensures the UI still shows something usable.
-const FALLBACK_TRACKS: TorcsTrack[] = RECOMMENDED_TRACKS.map((name) => ({
-  name,
-  category: "road",
-}));
-
-function labelForState(state: TorcsRaceState | null): { label: string; tone: string } {
-  switch (state) {
-    case "launching":
-      return { label: "Launching…", tone: "text-warning" };
-    case "waiting_scr":
-      return { label: "Waiting for simulator…", tone: "text-warning" };
-    case "connecting":
-      return { label: "Connecting client…", tone: "text-warning" };
-    case "active":
-      return { label: "Live", tone: "text-accent" };
-    case "stopping":
-      return { label: "Stopping…", tone: "text-muted" };
-    case "cleanup":
-      return { label: "Cleaning up…", tone: "text-muted" };
-    case "idle":
-    case null:
-      return { label: "Idle", tone: "text-muted" };
-  }
-}
-
-function sortedTracks(tracks: TorcsTrack[]): TorcsTrack[] {
-  // Bubble RECOMMENDED_TRACKS to top (preserving recommended order),
-  // then alphabetical by category then name.
-  const recSet = new Set(RECOMMENDED_TRACKS);
-  const rec = RECOMMENDED_TRACKS
-    .map((name) => tracks.find((t) => t.name === name))
-    .filter((t): t is TorcsTrack => t !== undefined);
-  const rest = tracks
-    .filter((t) => !recSet.has(t.name))
-    .sort((a, b) => {
-      if (a.category !== b.category) return a.category.localeCompare(b.category);
-      return a.name.localeCompare(b.name);
-    });
-  return [...rec, ...rest];
-}
 
 export function RaceControlCard() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState<TorcsControlStatus | null>(null);
-  const [tracks, setTracks] = useState<TorcsTrack[]>(FALLBACK_TRACKS);
-  const [track, setTrack] = useState<string>("aalborg");
-  const [laps, setLaps] = useState<number>(5);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    status,
+    groupedTracks: grouped,
+    track,
+    setTrack,
+    laps,
+    setLaps,
+    busy,
+    error,
+    startRace,
+    stopRace,
+  } = useTorcsControl();
+  const [message, setMessage] = useState<string | null>(null);
   // Phase 2.6 correction: default is manual-launch (3D visible in noVNC).
   // Headless is opt-in for operators who want batch/CI-shape races.
   const [autoLaunch, setAutoLaunch] = useState<boolean>(false);
-
-  const refresh = useCallback(async () => {
-    try {
-      const s = await api.torcsControlStatus();
-      setStatus(s);
-    } catch (_e) {
-      // 200-always endpoint; a thrown error means backend down — keep last state
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isLocalHost()) return;
-    refresh();
-    const id = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [refresh]);
-
-  // Load the track list once the daemon is reachable.
-  useEffect(() => {
-    if (!isLocalHost()) return;
-    if (!status?.enabled || !status?.reachable) return;
-    let cancelled = false;
-    api.torcsTracks()
-      .then((r) => {
-        if (cancelled) return;
-        if (r.tracks.length > 0) setTracks(sortedTracks(r.tracks));
-      })
-      .catch(() => { /* keep fallback list */ });
-    return () => { cancelled = true; };
-  }, [status?.enabled, status?.reachable]);
+  const trackName = track.charAt(0).toUpperCase() + track.slice(1);
 
   const onStart = useCallback(async () => {
-    setBusy(true);
-    setError(null);
     try {
-      const track_name = track.charAt(0).toUpperCase() + track.slice(1);
-      const resp = await api.startTorcsRace({
-        track, laps, track_name, auto_launch_torcs: autoLaunch,
-      });
-      await refresh();
-      setError(
+      const resp = await startRace({ autoLaunchTorcs: autoLaunch });
+      setMessage(
         autoLaunch
-          ? `Headless race launching on ${track_name} (${laps} laps). ` +
+          ? `Headless race launching on ${trackName} (${laps} laps). ` +
             `torcs pid=${resp.torcs_pid ?? "?"} + scr-client pid=${resp.pid}. ` +
             `NOTE: torcs -r is text-mode by design — no 3D in noVNC. ` +
             `Live telemetry will stream in the panel above; click "View live →".`
@@ -147,56 +71,23 @@ export function RaceControlCard() {
             `wasn't running yet — set up scr_server driver in Quick Race and ` +
             `click New Race in TORCS GUI before pressing Start race again.`,
       );
-    } catch (e) {
-      const msg =
-        e instanceof OverrideApiError
-          ? `${e.payload.message}${e.payload.detail ? ` — ${e.payload.detail}` : ""}`
-          : e instanceof Error
-          ? e.message
-          : "Failed to start race.";
-      setError(msg);
-    } finally {
-      setBusy(false);
+    } catch (_error) {
+      setMessage(null);
     }
-  }, [refresh, track, laps, autoLaunch]);
+  }, [autoLaunch, laps, startRace, trackName]);
 
   const onStop = useCallback(async () => {
-    setBusy(true);
-    setError(null);
     try {
-      const resp = await api.stopTorcsRace();
-      await refresh();
-      setError(
+      const resp = await stopRace();
+      setMessage(
         resp.status === "stopped"
           ? `Race stopped (scr exit ${resp.scr_exit_code ?? "-"}, torcs exit ${resp.torcs_exit_code ?? "-"}).`
           : "No active race.",
       );
-    } catch (e) {
-      const msg =
-        e instanceof OverrideApiError
-          ? `${e.payload.message}${e.payload.detail ? ` — ${e.payload.detail}` : ""}`
-          : e instanceof Error
-          ? e.message
-          : "Failed to stop race.";
-      setError(msg);
-    } finally {
-      setBusy(false);
+    } catch (_error) {
+      setMessage(null);
     }
-  }, [refresh]);
-
-  // Group tracks for <optgroup>. Computed unconditionally (React Hooks rules
-  // forbid useMemo after conditional returns — bug fix from initial 2.5 ship).
-  const grouped = useMemo(() => {
-    const recSet = new Set(RECOMMENDED_TRACKS);
-    const recommended = tracks.filter((t) => recSet.has(t.name));
-    const others: Record<string, TorcsTrack[]> = {};
-    tracks
-      .filter((t) => !recSet.has(t.name))
-      .forEach((t) => {
-        (others[t.category] ||= []).push(t);
-      });
-    return { recommended, others };
-  }, [tracks]);
+  }, [stopRace]);
 
   if (!isLocalHost()) return null;
 
@@ -211,14 +102,9 @@ export function RaceControlCard() {
     );
   }
 
-  const badge = labelForState(status.state ?? (status.active ? "active" : "idle"));
+  const badge = labelForTorcsState(status.state ?? (status.active ? "active" : "idle"));
   const startDisabled = busy || (status.state !== null && status.state !== "idle");
-  const stopEnabled =
-    !busy &&
-    (status.state === "active" ||
-      status.state === "launching" ||
-      status.state === "waiting_scr" ||
-      status.state === "connecting");
+  const stopEnabled = !busy && isTorcsActiveState(status.state ?? null);
 
   return (
     <section
@@ -362,8 +248,8 @@ export function RaceControlCard() {
         </>
       )}
 
-      {error && (
-        <p className="mt-3 text-xs text-muted whitespace-pre-line">{error}</p>
+      {(error || message) && (
+        <p className="mt-3 text-xs text-muted whitespace-pre-line">{error ?? message}</p>
       )}
     </section>
   );

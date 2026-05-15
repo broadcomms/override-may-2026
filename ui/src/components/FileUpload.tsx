@@ -1,7 +1,7 @@
 /**
  * Single-purpose drop+browse affordance for the Upload page.
  *
- * Per the design audit (docs/plans/ui-design-audit-2026-05-14.md §13, brief A3),
+ * Entry-page upload affordance after the Phase A UI refresh.
  * this component is deliberately *secondary*: the hero on /upload is the
  * sample-replay list. Hierarchy here is solid 1px border, no glyph, single
  * line — the dropzone reads as "bring your own", not "upload to begin".

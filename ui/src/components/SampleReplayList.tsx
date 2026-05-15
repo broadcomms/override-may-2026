@@ -1,7 +1,7 @@
 /**
  * Sample replay picker for the Upload page.
  *
- * Per the design audit (docs/plans/ui-design-audit-2026-05-14.md §15, brief A2):
+ * Entry-page sample replay list from the shipped upload-page redesign:
  * row-style list with metadata, top row marked ◆ Recommended. Top sample is
  * the rubric-positive happy-path TORCS demo per architect M2 (the entry-page
  * preview should show the optimistic case; layered-defense is still offered

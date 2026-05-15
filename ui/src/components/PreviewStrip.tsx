@@ -1,9 +1,9 @@
 /**
  * PreviewStrip — entry-page peek at the destination (Phase D D1).
  *
- * Per docs/plans/ui-design-audit-2026-05-14.md §15 brief D1 and architect
- * M2 ruling. Renders the EnergyCurve + first RecommendationCard from the
- * cached `torcs_engineer_demo` fixture below the two-pane Begin/Live grid
+ * Phase D preview-strip implementation. Renders the EnergyCurve + first
+ * RecommendationCard from the architect-selected cached
+ * `torcs_engineer_demo` fixture below the two-pane Begin/Live grid
  * on /upload. M2 wins over the audit's original layered_defense suggestion
  * — entry-page preview shows the optimistic case; layered-defense stays
  * available in the SampleReplayList as a Pass-2-rejection learning option.

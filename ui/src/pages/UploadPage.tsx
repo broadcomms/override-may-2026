@@ -1,6 +1,6 @@
 /**
  * Upload page — two-pane entry surface per the design audit
- * (docs/plans/ui-design-audit-2026-05-14.md §8 + brief A2).
+ * after the shipped entry-page redesign.
  *
  * Left pane (Begin): SampleReplayList — the hero path — above BringYourOwn —
  * the drop+browse fallback. Right pane (Live capture): the existing race

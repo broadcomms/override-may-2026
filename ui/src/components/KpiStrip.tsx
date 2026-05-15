@@ -1,7 +1,7 @@
 /**
  * KPI strip — above-the-fold scorecard for the Session debrief.
  *
- * Per docs/plans/ui-design-audit-2026-05-14.md §9.1 (Phase C C1). Eight
+ * Phase C KPI strip. Eight
  * tiles, mono numerals, no chrome ornament. The trust narrative reads in
  * one row: total harvest, total deploy, laps, zones, AI safety floor,
  * final SoC, regulation citation (clickable), validator pass-rate.

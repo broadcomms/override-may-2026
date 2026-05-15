@@ -1,137 +1,161 @@
 /**
- * CockpitPage — full-bleed noVNC surface (Phase B brief B1).
+ * CockpitPage — live race-intelligence surface around the noVNC TORCS view.
  *
- * Single-purpose: page-title chrome + status pill + Back link +
- * Fullscreen button + the 16:9 noVNC iframe. No other content per
- * audit spec.
+ * The cockpit stays self-contained: race start/stop, lap telemetry, live
+ * hybrid-energy signals, and the AI guidance slot all live here so operators
+ * don't have to bounce back to /upload mid-demo.
  *
- * The wrapper-clip hack at the iframe block is verbatim from the
- * previous TorcsControlPanel.tsx — audit §20 don't #5 explicitly
- * preserves it. Don't rewrite that block; the negative top offset +
- * grown height + overflow-hidden combination is what hides the
- * vnc_lite.html status bar across the SOP boundary.
- *
- * isLocalHost guard: anyone hitting /cockpit on the hosted demo is
- * redirected to /upload — the noVNC URL is `localhost:6080`, which
- * doesn't make sense off-host.
+ * The iframe wrapper-clip hack is preserved verbatim inside TorcsRaceFrame.
+ * isLocalHost guard still redirects hosted-demo traffic away from localhost noVNC.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Navigate } from "react-router-dom";
 
-import { api } from "@/api/client";
-import type { TorcsControlStatus, TorcsRaceState } from "@/api/types";
+import { CockpitCommandStrip } from "@/components/cockpit/CockpitCommandStrip";
+import { CockpitTimingRail } from "@/components/cockpit/CockpitTimingRail";
+import { HybridEnergyRail } from "@/components/cockpit/HybridEnergyRail";
+import { LapEnergyTimeline } from "@/components/cockpit/LapEnergyTimeline";
+import { LiveStrategyInsight } from "@/components/cockpit/LiveStrategyInsight";
+import { TorcsRaceFrame } from "@/components/cockpit/TorcsRaceFrame";
+import { useLiveTelemetry } from "@/hooks/useLiveTelemetry";
+import { useTorcsControl } from "@/hooks/useTorcsControl";
 import { isLocalHost } from "@/lib/env";
 
-const POLL_INTERVAL_MS = 3000;
-
-function labelForState(state: TorcsRaceState | null): { label: string; tone: string } {
-  switch (state) {
-    case "launching":
-      return { label: "Launching…", tone: "text-warning" };
-    case "waiting_scr":
-      return { label: "Waiting for simulator…", tone: "text-warning" };
-    case "connecting":
-      return { label: "Connecting client…", tone: "text-warning" };
-    case "active":
-      return { label: "Live", tone: "text-accent" };
-    case "stopping":
-      return { label: "Stopping…", tone: "text-muted" };
-    case "cleanup":
-      return { label: "Cleaning up…", tone: "text-muted" };
-    case "idle":
-    case null:
-      return { label: "Idle", tone: "text-muted" };
-  }
-}
-
 export function CockpitPage() {
-  const [status, setStatus] = useState<TorcsControlStatus | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const s = await api.torcsControlStatus();
-      setStatus(s);
-    } catch (_e) {
-      // 200-always endpoint; thrown error means backend down — keep last state
-    }
-  }, []);
+  const localHost = isLocalHost();
+  const {
+    status,
+    tracks,
+    track,
+    setTrack,
+    laps,
+    setLaps,
+    busy,
+    error,
+    startRace,
+    stopRace,
+  } = useTorcsControl();
+  const [viewMode, setViewMode] = useState<"cockpit" | "headless">("cockpit");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLocalHost()) return;
-    refresh();
-    const id = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [refresh]);
+    if (status?.session_id) setSessionId(status.session_id);
+  }, [status?.session_id]);
 
-  // Hosted demo: noVNC isn't reachable off-host; redirect home.
-  if (!isLocalHost()) {
-    return <Navigate to="/upload" replace />;
-  }
+  const { laps: liveLaps, latestLap, streamState } = useLiveTelemetry(sessionId);
+  const previousLap = useMemo(
+    () => (liveLaps.length > 1 ? liveLaps[liveLaps.length - 2] : null),
+    [liveLaps],
+  );
 
   const onFullscreen = () => {
     const el = document.getElementById("torcs-iframe");
     if (el && el.requestFullscreen) el.requestFullscreen();
   };
 
-  const badge = labelForState(status?.state ?? (status?.active ? "active" : "idle"));
+  const onStartRace = useCallback(async () => {
+    try {
+      const response = await startRace({ autoLaunchTorcs: viewMode === "headless" });
+      setSessionId(response.session_id);
+      setNotice(
+        viewMode === "headless"
+          ? `Headless capture started on ${response.track} for ${response.laps} laps. Live timing and hybrid energy data will stream as laps complete.`
+          : `3D cockpit capture started on ${response.track} for ${response.laps} laps. Live timing will attach as soon as the first lap closes.`,
+      );
+    } catch (_error) {
+      setNotice(null);
+    }
+  }, [startRace, viewMode]);
+
+  const onStopRace = useCallback(async () => {
+    try {
+      const response = await stopRace();
+      setNotice(
+        response.status === "stopped"
+          ? "Race stopped. The completed session remains available for post-lap analysis."
+          : "No active race was running.",
+      );
+    } catch (_error) {
+      setNotice(null);
+    }
+  }, [stopRace]);
+
+  const operationalNote =
+    error ??
+    notice ??
+    status?.last_error ??
+    status?.detail ??
+    (viewMode === "cockpit" &&
+    status?.enabled &&
+    status?.reachable &&
+    status.state === "idle"
+      ? "3D Cockpit mode expects the local TORCS visual stack to be open. Use Headless Capture when you want telemetry without the noVNC race display."
+      : null);
+
+  // Hosted demo: noVNC isn't reachable off-host; redirect home.
+  if (!localHost) {
+    return <Navigate to="/upload" replace />;
+  }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col">
-      {/* Page-title chrome + status pill + actions */}
-      <div className="px-4 py-2 border-b border-border flex items-center gap-3 text-sm">
-        <Link
-          to="/upload"
-          className="text-muted hover:text-accent transition-colors"
-        >
-          ← Back to OVERRIDE
-        </Link>
-        <span className="text-[11px] uppercase tracking-wider font-mono text-muted">
-          Cockpit
-        </span>
-        <span className={`text-xs ${badge.tone}`}>● {badge.label}</span>
-        <button
-          type="button"
-          onClick={onFullscreen}
-          className="ml-auto text-[11px] text-muted hover:text-accent transition-colors"
-          title="Open the noVNC iframe in browser fullscreen for readable HUD text"
-        >
-          Fullscreen ⤢
-        </button>
+    <div className="min-h-[calc(100vh-8rem)] space-y-4 px-4 pb-6">
+      <CockpitCommandStrip
+        status={status}
+        sessionId={sessionId}
+        currentLap={latestLap?.lap ?? 0}
+        targetLaps={laps}
+        track={track}
+        onTrackChange={setTrack}
+        laps={laps}
+        onLapsChange={setLaps}
+        tracks={tracks}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onStartRace={onStartRace}
+        onStopRace={onStopRace}
+        onFullscreen={onFullscreen}
+        busy={busy}
+      />
+
+      {operationalNote && (
+        <div className="rounded-card border border-border bg-surface px-4 py-3 text-sm text-muted">
+          {operationalNote}
+        </div>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[210px_minmax(0,1fr)_240px]">
+        <div className="order-2 xl:order-1">
+          <CockpitTimingRail
+            latestLap={latestLap}
+            streamState={streamState}
+            targetLaps={laps}
+            raceState={status?.state ?? null}
+          />
+        </div>
+
+        <div className="order-1 xl:order-2">
+          <TorcsRaceFrame
+            viewMode={viewMode}
+            status={status}
+            streamState={streamState}
+            latestLap={latestLap}
+          />
+        </div>
+
+        <div className="order-3 xl:order-3">
+          <HybridEnergyRail latestLap={latestLap} previousLap={previousLap} />
+        </div>
       </div>
 
-      {/* Phase 2.7 v4 — wrapper-clip pattern. Preserved verbatim from the
-          previous TorcsControlPanel (audit §20 don't #5). Two problems v3
-          left open:
-            1. vnc_lite.html hardcodes a "Connected (unencrypted) to <host>"
-               status bar + Send CtrlAltDel button at the top of <body>.
-               No URL param hides it — that's the entire UI surface of
-               vnc_lite. The iframe is :6080 and the parent is :8000 →
-               different origin → SOP blocks us from injecting CSS into
-               the iframe contentDocument.
-            2. ?scale=true preserves the Xvfb 16:9 aspect ratio. With a
-               fixed-height iframe at a narrow layout column, the canvas
-               fits-to-width and ends up letterboxed top+bot by ~210px each.
-          Both fixed by clipping at the outer wrapper:
-            - aspect-video on the wrapper = 16:9 box that matches Xvfb,
-              so no letterboxing math goes wrong.
-            - overflow-hidden hides anything outside.
-            - iframe is absolutely positioned, pulled up 36px and grown
-              taller by the same amount; the status bar slides off the
-              top of the clip region. Bottom is unchanged.
-          Fullscreen button still works (requestFullscreen on the iframe
-          element fills the screen; the negative top offset becomes
-          irrelevant and the bar reappears, which is fine — fullscreen is
-          a "read the HUD now" escape hatch, not the primary display). */}
-      <div className="relative w-full aspect-video overflow-hidden bg-black">
-        <iframe
-          id="torcs-iframe"
-          title="TORCS in noVNC"
-          src="http://localhost:6080/vnc_lite.html?autoconnect=1&password=&reconnect=1&scale=true"
-          className="absolute inset-x-0 w-full border-0"
-          style={{ top: "-36px", height: "calc(100% + 36px)" }}
-        />
-      </div>
+      <LapEnergyTimeline laps={liveLaps} />
+      <LiveStrategyInsight
+        sessionId={sessionId}
+        latestLap={latestLap}
+        previousLap={previousLap}
+        streamState={streamState}
+      />
     </div>
   );
 }

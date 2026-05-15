@@ -51,7 +51,7 @@
 
 ---
 
-## Segment 3 — Live Demo (Engineer Mode) · 0:50–1:40 (50s, 44 words)
+## Segment 3 — Live Demo (Cockpit) · 0:50–1:40 (50s, 42 words)
 
 This is the **scoring section** — longest single shot, most cursor work. Practice the click flow once before recording.
 
@@ -59,23 +59,23 @@ This is the **scoring section** — longest single shot, most cursor work. Pract
 
 | Time | Action | What renders |
 |---|---|---|
-| 0:50–0:55 | Drag-drop `data/sessions/sample_torcs.json` onto the upload zone | Loading shimmer (~5s) |
-| 0:55–1:02 | Pause on shimmer — VO covers the wait | "Reasoning over zones · running safety review" copy visible |
-| 1:02–1:10 | Energy curve renders, zone heatmap appears below | Recharts SoC line + 5 sector cells colored by zone severity |
-| 1:10–1:20 | Cursor moves to a `low-roi-deploy` zone in the heatmap (Lap 1, Sector 2), clicks | Smooth scroll to recommendation card; card snap-out hover lift on arrival |
-| 1:20–1:35 | Reasoning card on screen: cause → consequence → recommendation visible. Cursor hovers the citation block | The 3px granite-blue left border + "Citation — verbatim from FIA source" subtitle is in shot |
-| 1:35–1:40 | Cursor expands "Reasoning chain (5 steps)" disclosure | Chain unfurls with the snap-out easing |
+| 0:50–0:56 | Open `/cockpit` | Command strip + noVNC frame + waiting rails |
+| 0:56–1:03 | Leave `3D Cockpit` selected, click **Start race** | State changes to Launching / Connecting; session id appears |
+| 1:03–1:14 | Hold on the TORCS frame while the first lap completes | Timing rail, Hybrid rail, and lap timeline populate together |
+| 1:14–1:28 | Cursor moves to the `AI race engineer` card below the frame | Deterministic live signal + suggested action are visible |
+| 1:28–1:40 | Cursor toggles Engineer → Fan in the cockpit insight card | Same lap is explained in plain language without leaving the cockpit |
 
 **VO (starts at 0:51, ends at 1:35):**
 
-> *"Drop in a session replay. OVERRIDE parses telemetry, aggregates lap-level energy features, then detects inefficient deployment zones. Click any zone — Granite 4-h-small Instruct explains the cause, the consequence, and grounds its recommendation in the 2026 FIA technical regulations, parsed with Docling."*
+> *"In the cockpit, OVERRIDE watches the live race as it unfolds. It streams lap telemetry, explains hybrid energy flow lap by lap, highlights candidate inefficient deployment or energy pressure, and supports the strategist with engineer and fan guidance without replacing the human call."*
 
 ---
 
 ## Segment 4 — Explainability (The Hero) · 1:40–2:10 (30s, 41 words)
 
 **Visual:**
-- 1:40–1:50: Slow zoom on the reasoning card from segment 3 — frame so cause / consequence / recommendation + the citation block are all visible
+- 1:40–1:46: Click from the cockpit insight card into the completed session debrief
+- 1:46–1:50: Slow zoom on the reasoning card — frame so cause / consequence / recommendation + the citation block are all visible
 - 1:50–2:00: Highlight the **citation passage** (subtle glow or border pulse, 1s) — the verbatim FIA quote is the hero moment
 - 2:00–2:10: Cut to the badge row: *✓ Validation* (success-tone), *AI Safety Review: 1.00 / 1.00* (granite-tone), *Confidence: medium* (warning-tone) — three badges in a row, hold
 
@@ -90,7 +90,7 @@ This is the **scoring section** — longest single shot, most cursor work. Pract
 ## Segment 5 — Fan Mode · 2:10–2:30 (20s, 18 words)
 
 **Visual:**
-- 2:10–2:13: Cursor moves to the Mode pill in the top-right of the page header
+- 2:10–2:13: Cursor moves to the Mode pill in the top-right of the completed-session page header
 - 2:13–2:14: **Click "Fan"** — the cross-fade transition fires (240ms cubic-bezier snap-out) — ENGINEER → FAN card swap
 - 2:14–2:25: Fan card on screen — *headline* + *what happened* + *why it mattered*. Hold for the read.
 - Sample fan headline visible: *"The car used battery power too aggressively in low-return corners."*

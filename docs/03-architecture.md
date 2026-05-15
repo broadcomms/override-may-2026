@@ -109,8 +109,11 @@ override-may-2026/
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   ├── api/                   # client.ts, types.ts (fixture-mode synthesis included)
-│   │   ├── components/            # FileUpload, WhatIfDiff, etc. (WhatIfRail is inline in RecommendationCard.tsx)
-│   │   ├── pages/                 # UploadPage (with live-TORCS banner), SessionPage
+│   │   ├── components/            # FileUpload, WhatIfDiff, RecommendationCard, etc.
+│   │   │   └── cockpit/           # cockpit HUD: command strip, rails, timeline, race frame, live insight
+│   │   ├── hooks/                 # useTorcsControl, useLiveTelemetry
+│   │   ├── lib/                   # shared frontend helpers incl. cockpit telemetry derivations
+│   │   ├── pages/                 # UploadPage, CockpitPage, SessionPage
 │   │   └── styles/
 │   ├── index.html
 │   ├── package.json

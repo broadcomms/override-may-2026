@@ -13,17 +13,8 @@
  * then the panel keeps the latest lap stats visible.
  */
 
-import { useEffect, useState } from "react";
-
-import { api } from "@/api/client";
-import type { LiveLapStats, LiveStreamEvent } from "@/api/types";
-
-type StreamState =
-  | { kind: "connecting" }
-  | { kind: "connected"; status: string }
-  | { kind: "no_telemetry"; message: string }
-  | { kind: "error" }
-  | { kind: "ended"; reason: string };
+import type { LiveLapStats } from "@/api/types";
+import { useLiveTelemetry, type LiveStreamState } from "@/hooks/useLiveTelemetry";
 
 interface Props {
   sessionId: string;
@@ -31,56 +22,7 @@ interface Props {
 }
 
 export function LiveTelemetry({ sessionId, onRaceEnded }: Props) {
-  const [laps, setLaps] = useState<LiveLapStats[]>([]);
-  const [state, setState] = useState<StreamState>({ kind: "connecting" });
-
-  useEffect(() => {
-    setLaps([]);
-    setState({ kind: "connecting" });
-
-    const handle = (ev: LiveStreamEvent) => {
-      switch (ev.event) {
-        case "connected":
-          setState({ kind: "connected", status: ev.status });
-          break;
-        case "lap":
-          setLaps((prev) => {
-            // Replace if same lap (re-emit), else append.
-            const existing = prev.findIndex((l) => l.lap === ev.lap);
-            const stats: LiveLapStats = {
-              lap: ev.lap,
-              lap_time_s: ev.lap_time_s,
-              avg_speed_kmh: ev.avg_speed_kmh,
-              max_speed_kmh: ev.max_speed_kmh,
-              harvest_mj: ev.harvest_mj,
-              deploy_mj: ev.deploy_mj,
-              soc_end: ev.soc_end,
-              fuel_used_kg: ev.fuel_used_kg,
-            };
-            if (existing >= 0) {
-              const next = prev.slice();
-              next[existing] = stats;
-              return next;
-            }
-            return [...prev, stats];
-          });
-          break;
-        case "no_telemetry":
-          setState({ kind: "no_telemetry", message: ev.message });
-          break;
-        case "race_ended":
-          setState({ kind: "ended", reason: ev.reason ?? "completed" });
-          if (onRaceEnded) onRaceEnded();
-          break;
-      }
-    };
-
-    const teardown = api.streamSession(sessionId, handle, {
-      onError: () => setState({ kind: "error" }),
-    });
-
-    return teardown;
-  }, [sessionId, onRaceEnded]);
+  const { laps, streamState: state } = useLiveTelemetry(sessionId, { onRaceEnded });
 
   return (
     <section
@@ -137,8 +79,9 @@ export function LiveTelemetry({ sessionId, onRaceEnded }: Props) {
   );
 }
 
-function StatusBadge({ state }: { state: StreamState }) {
-  const map: Record<StreamState["kind"], { label: string; tone: string }> = {
+function StatusBadge({ state }: { state: LiveStreamState }) {
+  const map: Record<LiveStreamState["kind"], { label: string; tone: string }> = {
+    idle: { label: "Idle", tone: "text-muted" },
     connecting: { label: "Connecting", tone: "text-muted" },
     connected: { label: "Live", tone: "text-accent" },
     no_telemetry: { label: "No telemetry", tone: "text-muted" },

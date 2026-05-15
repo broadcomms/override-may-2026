@@ -20,6 +20,7 @@ One backend pipeline serves all three — only the rendering layer changes.
 
 ```
 /                              (auto-redirects to /upload if no sessions, else /sessions)
+├── /cockpit                   (local-only live TORCS surface: start/stop, noVNC, timing + energy rails)
 ├── /upload                    (drop a replay, see progress, navigate to session on success)
 ├── /sessions                  (history of past sessions, list of SessionSummary)
 └── /session/[session_id]      (full debrief view; Engineer ↔ Fan toggle in header)
@@ -76,9 +77,48 @@ Heading scale (Inter): `40 / 32 / 24 / 20 / 16` px, weight 600 for h1–h2, 500 
 
 Wireframes are described in text — we are not blocking implementation on figma. Each layout is a 12-column grid, max-width 1280 px, gutters 24 px.
 
-### 4.1 `/upload`
+### 4.1 `/cockpit`
 
-Two-pane layout per the design audit (`docs/plans/ui-design-audit-2026-05-14.md` §8). Phase A shipped 2026-05-14.
+Local-only race-intelligence surface. The noVNC TORCS frame remains the hero;
+the UI wraps it with narrow engineer HUD rails so the operator can launch a run,
+read lap telemetry, and inspect hybrid-energy pressure without bouncing back to
+`/upload`.
+
+Desktop layout:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Back · COCKPIT · state · session · lap N/M · 2026 Hybrid Energy     │
+│ Fullscreen                                                           │
+│ Track [aalborg] · Laps [5] · View Mode [3D Cockpit | Headless]       │
+│ Start race · Stop race                                               │
+├───────────────┬──────────────────────────────────────┬───────────────┤
+│ TIMING        │                                      │ HYBRID        │
+│ LAP 3/5       │         TORCS 3D noVNC frame         │ SOC 72%       │
+│ TIME 01:34.22 │     (status bar clipped at top)      │ HARVEST 1.20  │
+│ AVG 188       │                                      │ DEPLOY 1.80   │
+│ MAX 302       │                                      │ NET -0.60     │
+│ FUEL 1.42     │                                      │ PRESSURE ...  │
+├───────────────┴──────────────────────────────────────┴───────────────┤
+│ Lap timeline: compact per-lap tiles, horizontally scrollable        │
+├──────────────────────────────────────────────────────────────────────┤
+│ AI race engineer / Fan explanation card                              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **3D Cockpit is the default path.** Start race calls the control API with `auto_launch_torcs: false`; the local visual stack owns TORCS rendering.
+- **Headless Capture is explicit.** The center panel swaps to a deliberate placeholder and states that live timing + hybrid telemetry continue without the 3D display.
+- **Command strip** uses two compact rows on desktop and collapses the setup row into a `Race setup` disclosure on mobile/tablet.
+- **Timing rail** renders compact labels only: `LAP`, `TIME`, `AVG`, `MAX`, `FUEL`, `STATE`.
+- **Hybrid rail** renders `SOC`, `HARVEST`, `DEPLOY`, `NET`, `BALANCE`, `PRESSURE`; the SoC gauge is the dominant element.
+- **Lap timeline** uses rolling SSE lap events; each tile shows lap time, SoC end, harvest, deploy, and a warning marker when a deterministic live signal is active.
+- **Insight card** is the only prose-heavy cockpit block. Until a real `Recommendation` exists, it uses `Live signal` language and explicitly says Guardian/Granite review is pending.
+- **Lifecycle states** are visible in-page: `connected`, `no_telemetry`, `error`, and `race_ended` all render as useful operational states rather than empty panels.
+- **Guardrail**: hosted-demo traffic still redirects away from `/cockpit` because the noVNC URL is localhost-only.
+
+### 4.2 `/upload`
+
+Two-pane entry layout. Phase A shipped 2026-05-14 and established the split between the sample/debrief lane and the live-capture lane.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -125,7 +165,7 @@ States:
 
 The sample replays trigger the same `POST /api/sessions` endpoint with `?fixture=1` against the corresponding `tests/fixtures/*.json` — judges click through the full demo without uploading anything.
 
-### 4.2 `/session/[session_id]` — Engineer Mode
+### 4.3 `/session/[session_id]` — Engineer Mode
 
 Three-region layout: header / main / detail. Detail is a side rail that opens when a zone is selected.
 
@@ -160,7 +200,7 @@ Three-region layout: header / main / detail. Detail is a side rail that opens wh
 
 Header right side carries the **mode toggle** `[E][F]` (Engineer / Fan), the model-version popover (calls `GET /api/version`), and a session-delete `[×]`.
 
-### 4.3 Recommendation card (Engineer)
+### 4.4 Recommendation card (Engineer)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -209,7 +249,7 @@ Behaviors:
 - **Confidence chip** color: green for high, yellow for medium, gray for low.
 - **What-if** is a radio set + Run button. Submitting calls `POST /api/sessions/{id}/what-if` and replaces the card body in place with a `WhatIfResult` view (split: original on the left, modified on the right). A "Reset" link returns to the original card.
 
-### 4.4 Recommendation card (Fan)
+### 4.5 Recommendation card (Fan)
 
 Same backend, different render.
 
@@ -239,7 +279,7 @@ No raw energy numbers. No acronyms. No reasoning chain. No what-if (Fan Mode is 
 
 If `confidence == "low"`, `what_happened` is prefixed with *"It looks like…"* per `prompts/fan_mode.system.md`.
 
-### 4.5 Mode toggle behavior
+### 4.6 Mode toggle behavior
 
 - Header pill: `[ Engineer | Fan ]`. Active side filled with `--color-accent`.
 - Switching to Fan calls `GET /api/sessions/{id}/zones/{zone_id}?mode=fan` for any expanded card; cards keep their current selection.
