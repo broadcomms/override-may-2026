@@ -58,7 +58,7 @@ export function CockpitTimingRail({
         />
         <Metric label="STATE" value={stateValue(streamState, raceState)} />
         {latestLap && (
-          <div className="pt-1 border-t border-border/40">
+          <div className="pt-1">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted/70">
               Closed lap
             </div>
