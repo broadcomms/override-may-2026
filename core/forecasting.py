@@ -5,7 +5,18 @@ gracefully when ``tsfm_public`` is unavailable or the session doesn't qualify.
 
 Eligibility gate
 ----------------
-- ``len(laps) < TTM_MIN_LAPS`` (default 30) → return None immediately.
+- ``len(laps) < max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH)`` → return None.
+
+The conservative ``max(...)`` ensures neither gate can be bypassed individually:
+``TTM_MIN_LAPS`` is the product quality floor; ``TTM_CONTEXT_LENGTH`` is the
+model's required input size.  Lower both together to experiment.
+
+TTM_CONTEXT_LENGTH (env, default 30)
+--------------------------------------
+Controls how many laps the model sees.  Also gates eligibility:
+``len(laps) >= TTM_CONTEXT_LENGTH`` must hold so the model gets a full window.
+Evaluation range: 30, 20, 15, 10, 5.  Product default stays at 30 until the
+short-context evaluation recommends a change.
 
 tsfm_public availability
 ------------------------
@@ -41,8 +52,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ──────────────────────────────────────────────────────────────────────────────
 
-_CONTEXT_LENGTH = 30      # laps fed into TTM-R2 (rolling window)
-_PREDICTION_LENGTH = 5    # horizon per FR-3
+_PREDICTION_LENGTH = 5    # horizon per FR-3 (fixed)
 _NUM_CHANNELS = 5         # soc_end, harvest_mj, deploy_mj, lap_time, avg_speed
 
 
@@ -54,6 +64,19 @@ _NUM_CHANNELS = 5         # soc_end, harvest_mj, deploy_mj, lap_time, avg_speed
 def _ttm_min_laps() -> int:
     try:
         return int(os.environ.get("TTM_MIN_LAPS", "30"))
+    except ValueError:
+        return 30
+
+
+def _ttm_context_length() -> int:
+    """How many laps to feed into TTM-R2 as the rolling context window.
+
+    Configurable via ``TTM_CONTEXT_LENGTH`` (default 30).  Change this for
+    short-context evaluation experiments.  Both ``TTM_MIN_LAPS`` and
+    ``TTM_CONTEXT_LENGTH`` must be set together to lower the effective gate.
+    """
+    try:
+        return int(os.environ.get("TTM_CONTEXT_LENGTH", "30"))
     except ValueError:
         return 30
 
@@ -107,14 +130,14 @@ def _build_input(
 _MODEL_CACHE: dict = {}
 
 
-def _load_model():
-    """Load and cache TinyTimeMixerForPrediction.
+def _load_model(context_length: int):
+    """Load and cache TinyTimeMixerForPrediction for the given context length.
 
     Returns None when ``tsfm_public`` is unavailable or the model fails to
-    load.  The result (model or None) is cached so subsequent calls are
-    instant.
+    load.  The result (model or None) is cached per ``(repo, context_length)``
+    so subsequent calls with the same config are instant.
     """
-    cache_key = (_ttm_repo(), _CONTEXT_LENGTH, _PREDICTION_LENGTH)
+    cache_key = (_ttm_repo(), context_length, _PREDICTION_LENGTH)
     if cache_key in _MODEL_CACHE:
         return _MODEL_CACHE[cache_key]
 
@@ -124,16 +147,16 @@ def _load_model():
 
         repo = _ttm_repo()
         revision = _ttm_revision()
-        logger.info("forecasting: loading TTM-R2 from %s@%s", repo, revision[:8])
+        logger.info("forecasting: loading TTM-R2 from %s@%s (context=%d)", repo, revision[:8], context_length)
         model = TinyTimeMixerForPrediction.from_pretrained(
             repo,
             revision=revision,
-            context_length=_CONTEXT_LENGTH,
+            context_length=context_length,
             prediction_length=_PREDICTION_LENGTH,
             num_input_channels=_NUM_CHANNELS,
         )
         model.eval()
-        logger.info("forecasting: TTM-R2 loaded successfully")
+        logger.info("forecasting: TTM-R2 loaded successfully (context=%d)", context_length)
     except ImportError:
         logger.warning(
             "forecasting: tsfm_public not installed "
@@ -163,7 +186,9 @@ def forecast_lap_window(laps: list[LapFeatures]) -> Optional[Forecast]:
 
     Returns ``None`` when:
 
-    - ``len(laps) < TTM_MIN_LAPS`` — session too short (graceful degradation per FR-3)
+    - ``len(laps) < max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH)`` — session too short
+      (graceful degradation per FR-3; conservative gate protects both quality
+      floor and model input requirements)
     - ``tsfm_public`` not installed (version conflict in standard dev env)
     - Model load or inference fails for any reason
     - Prediction-interval width exceeds ``TTM_MAX_INTERVAL_WIDTH`` (forecast too uncertain)
@@ -173,25 +198,37 @@ def forecast_lap_window(laps: list[LapFeatures]) -> Optional[Forecast]:
     Matches the ``ForecastFn = Callable[[list[LapFeatures]], Optional[Forecast]]``
     signature in ``core/pipeline.py`` so it can be passed directly as
     ``forecast_fn=forecast_lap_window`` in ``run_pipeline``.
+
+    Environment variables
+    ---------------------
+    ``TTM_MIN_LAPS``       — product quality floor (default 30)
+    ``TTM_CONTEXT_LENGTH`` — model input window length (default 30)
+    ``TTM_MAX_INTERVAL_WIDTH`` — max acceptable prediction-interval width (default 0.15)
     """
+    context_length = _ttm_context_length()
     min_laps = _ttm_min_laps()
-    if len(laps) < min_laps:
+    effective_min = max(min_laps, context_length)
+
+    if len(laps) < effective_min:
         logger.debug(
-            "forecasting: %d laps < TTM_MIN_LAPS=%d — skipping forecast",
+            "forecasting: %d laps < effective_min=%d "
+            "(TTM_MIN_LAPS=%d, TTM_CONTEXT_LENGTH=%d) — skipping forecast",
             len(laps),
+            effective_min,
             min_laps,
+            context_length,
         )
         return None
 
-    model = _load_model()
+    model = _load_model(context_length)
     if model is None:
         return None
 
     try:
         import torch  # type: ignore[import]
 
-        # Use the most recent _CONTEXT_LENGTH laps
-        window = laps[-_CONTEXT_LENGTH:]
+        # Use the most recent context_length laps as the rolling input window
+        window = laps[-context_length:]
         x_norm, mins, scales = _build_input(window)
 
         # [1, T, C] batch tensor
@@ -253,4 +290,4 @@ def forecast_lap_window(laps: list[LapFeatures]) -> Optional[Forecast]:
         return None
 
 
-__all__ = ["forecast_lap_window"]
+__all__ = ["forecast_lap_window", "_ttm_context_length", "_ttm_min_laps"]

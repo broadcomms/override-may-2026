@@ -307,3 +307,93 @@ def test_forecast_demo_fixture_validates():
         LapFeatures.model_validate(lap_d)
 
     assert data["session"]["summary"]["forecast_available"] is True
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tests: TTM_CONTEXT_LENGTH configurable behavior
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_context_length_default(monkeypatch):
+    """Default TTM_CONTEXT_LENGTH is 30."""
+    monkeypatch.delenv("TTM_CONTEXT_LENGTH", raising=False)
+    import importlib
+    import core.forecasting as fc
+    importlib.reload(fc)
+
+    assert fc._ttm_context_length() == 30
+
+
+def test_context_length_env_override(monkeypatch):
+    """TTM_CONTEXT_LENGTH env var overrides the default."""
+    monkeypatch.setenv("TTM_CONTEXT_LENGTH", "20")
+    import importlib
+    import core.forecasting as fc
+    importlib.reload(fc)
+
+    assert fc._ttm_context_length() == 20
+
+
+def test_skip_below_effective_context(monkeypatch):
+    """Even when TTM_MIN_LAPS=5, skip if len(laps) < TTM_CONTEXT_LENGTH.
+
+    Effective gate = max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH) = max(5, 20) = 20.
+    A 15-lap session must return None.
+    """
+    monkeypatch.setenv("TTM_MIN_LAPS", "5")
+    monkeypatch.setenv("TTM_CONTEXT_LENGTH", "20")
+
+    import importlib
+    import core.forecasting as fc
+    importlib.reload(fc)
+
+    laps = _make_laps(15)
+    result = fc.forecast_lap_window(laps)
+    assert result is None
+
+
+def test_trailing_window_honors_context_length(monkeypatch):
+    """With TTM_CONTEXT_LENGTH=10, forecast_lap_window uses only the last 10 laps."""
+    _clear_tsfm_module()
+
+    monkeypatch.setenv("TTM_MIN_LAPS", "10")
+    monkeypatch.setenv("TTM_CONTEXT_LENGTH", "10")
+    monkeypatch.setenv("TTM_MAX_INTERVAL_WIDTH", "0.20")
+
+    # Normalized preds placeholder
+    preds = np.full((5, 5), 0.5, dtype=np.float32)
+    _mock_tsfm_module(preds)
+
+    torch_mock = MagicMock()
+    torch_mock.no_grad.return_value.__enter__ = MagicMock(return_value=None)
+    torch_mock.no_grad.return_value.__exit__ = MagicMock(return_value=False)
+    captured_inputs: list = []
+
+    def _capture_tensor(arr, **kwargs):
+        captured_inputs.append(arr)
+        m = MagicMock()
+        m.unsqueeze.return_value = m
+        return m
+
+    torch_mock.tensor.side_effect = _capture_tensor
+    torch_mock.float32 = "float32"
+    sys.modules["torch"] = torch_mock
+
+    import importlib
+    import core.forecasting as fc
+    importlib.reload(fc)
+
+    # 25 laps provided; model should see only the last 10
+    laps = _make_laps(25)
+    fc.forecast_lap_window(laps)
+
+    # _build_input was called with the window; check the shape fed to torch.tensor
+    assert len(captured_inputs) >= 1, "torch.tensor was never called"
+    window_arr = captured_inputs[0]
+    assert window_arr.shape[0] == 10, (
+        f"Expected 10-lap window, got shape {window_arr.shape}"
+    )
+
+    _clear_tsfm_module()
+    del sys.modules["torch"]
+    importlib.reload(fc)
