@@ -44,7 +44,9 @@ export function CockpitPage() {
     if (status?.session_id) setSessionId(status.session_id);
   }, [status?.session_id]);
 
-  const { laps: liveLaps, latestLap, streamState } = useLiveTelemetry(sessionId);
+  const { laps: liveLaps, latestLap, streamState } = useLiveTelemetry(sessionId, {
+    retryNoTelemetry: true,
+  });
   const previousLap = useMemo(
     () => (liveLaps.length > 1 ? liveLaps[liveLaps.length - 2] : null),
     [liveLaps],

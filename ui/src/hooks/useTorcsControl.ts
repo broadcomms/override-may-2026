@@ -98,7 +98,7 @@ interface UseTorcsControlOptions {
 
 export function useTorcsControl({
   defaultTrack = "aalborg",
-  defaultLaps = 5,
+  defaultLaps = 20,
 }: UseTorcsControlOptions = {}) {
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
   const [tracks, setTracks] = useState<TorcsTrack[]>(FALLBACK_TRACKS);

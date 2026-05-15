@@ -13,11 +13,23 @@ export type LiveStreamState =
 
 interface UseLiveTelemetryOptions {
   onRaceEnded?: () => void;
+  /**
+   * Cockpit starts the stream immediately after Start race. The stub Session is
+   * written before the JSONL may exist on disk, so the API can briefly emit
+   * no_telemetry and close. Retry in that mode instead of requiring a page
+   * refresh to attach after the writer creates the file.
+   */
+  retryNoTelemetry?: boolean;
+  retryDelayMs?: number;
 }
 
 export function useLiveTelemetry(
   sessionId: string | null | undefined,
-  { onRaceEnded }: UseLiveTelemetryOptions = {},
+  {
+    onRaceEnded,
+    retryNoTelemetry = false,
+    retryDelayMs = 1500,
+  }: UseLiveTelemetryOptions = {},
 ) {
   const [laps, setLaps] = useState<LiveLapStats[]>([]);
   const [streamState, setStreamState] = useState<LiveStreamState>({ kind: "idle" });
@@ -34,6 +46,30 @@ export function useLiveTelemetry(
     setLaps([]);
     setStreamState({ kind: "connecting" });
     setRaceEnded(false);
+
+    let retryTimer: number | null = null;
+    let teardown: (() => void) | null = null;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) return;
+      teardown?.();
+      teardown = api.streamSession(sessionId, handle, {
+        onError: () => setStreamState({ kind: "error" }),
+      });
+    };
+
+    const scheduleRetry = () => {
+      if (!retryNoTelemetry || cancelled) return;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        if (!cancelled) {
+          setStreamState({ kind: "connecting" });
+          connect();
+        }
+      }, retryDelayMs);
+    };
 
     const handle = (ev: LiveStreamEvent) => {
       switch (ev.event) {
@@ -63,6 +99,7 @@ export function useLiveTelemetry(
           break;
         case "no_telemetry":
           setStreamState({ kind: "no_telemetry", message: ev.message });
+          scheduleRetry();
           break;
         case "race_ended":
           setRaceEnded(true);
@@ -72,12 +109,14 @@ export function useLiveTelemetry(
       }
     };
 
-    const teardown = api.streamSession(sessionId, handle, {
-      onError: () => setStreamState({ kind: "error" }),
-    });
+    connect();
 
-    return teardown;
-  }, [onRaceEnded, sessionId]);
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      teardown?.();
+    };
+  }, [onRaceEnded, retryDelayMs, retryNoTelemetry, sessionId]);
 
   return {
     laps,

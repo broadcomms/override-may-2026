@@ -49,7 +49,8 @@ export function CockpitCommandStrip({
   const startDisabled = busy || (status?.state !== null && status?.state !== "idle");
   const stopEnabled = !busy && isTorcsActiveState(status?.state ?? null);
   const groupedTracks = groupTorcsTracks(tracks);
-  const lapLabel = currentLap > 0 ? `Lap ${currentLap}/${targetLaps}` : `Lap 0/${targetLaps}`;
+  const lapLabel =
+    currentLap > 0 ? `L${currentLap} closed / ${targetLaps}` : `0 closed / ${targetLaps}`;
 
   return (
     <section className="rounded-card border border-border bg-surface px-4 py-3">
@@ -69,7 +70,7 @@ export function CockpitCommandStrip({
           value={sessionId ? truncateSessionId(sessionId) : "standby"}
           title={sessionId ?? "No active session yet"}
         />
-        <MetaPill label="Lap" value={lapLabel} />
+        <MetaPill label="Closed lap" value={lapLabel} />
         <MetaPill label="Mode" value="2026 Hybrid Energy" />
         <button
           type="button"

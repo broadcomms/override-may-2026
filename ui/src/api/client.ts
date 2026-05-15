@@ -601,7 +601,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         track: params.track ?? "aalborg",
-        laps: params.laps ?? 5,
+        laps: params.laps ?? 20,
         track_name: params.track_name ?? null,
         notes: params.notes ?? null,
         auto_launch_torcs: params.auto_launch_torcs ?? true,

@@ -1508,6 +1508,67 @@ def test_stream_emits_no_telemetry_when_session_lacks_telemetry_file(tmp_path):
     assert any(e["event"] == "no_telemetry" for e in events)
 
 
+def test_stream_waits_for_active_torcs_live_file_to_appear(tmp_path, monkeypatch):
+    """A freshly-started 3D Cockpit run writes the ACTIVE session stub before
+    the JSONL file may exist. The stream should wait and emit laps once the
+    writer creates the file instead of closing as no_telemetry."""
+    import threading
+    import time as _time
+    from api.storage import save_session
+    from ingest.schema import Session, SessionSource, SessionStatus, SessionSummary
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    sid = "s_torcs_live_1234567_abcd"
+    save_session(Session(
+        summary=SessionSummary(
+            session_id=sid,
+            uploaded_at=datetime.now(timezone.utc),
+            source="torcs",
+            lap_count=0,
+            forecast_available=False,
+            zone_count=0,
+            track_id=f"torcs-live/{sid}",
+            session_source=SessionSource.TORCS_LIVE,
+            status=SessionStatus.ACTIVE,
+            telemetry_file=f"{sid}.jsonl",
+            track_name="Aalborg",
+            target_laps=5,
+        ),
+        laps=[],
+        forecast=None,
+        recommendations=[],
+        regulation_source=None,
+    ))
+
+    def _write_jsonl_after_stream_starts():
+        _time.sleep(0.1)
+        (telem / f"{sid}.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+
+    events: list[dict] = []
+    writer = threading.Thread(target=_write_jsonl_after_stream_starts)
+    writer.start()
+    try:
+        with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+            assert r.status_code == 200
+            for line in r.iter_lines():
+                if line.startswith("data: "):
+                    ev = json.loads(line[len("data: "):])
+                    events.append(ev)
+                    if ev.get("event") == "lap":
+                        break
+    finally:
+        writer.join(timeout=1.0)
+
+    kinds = [e["event"] for e in events]
+    assert kinds[0] == "connected"
+    assert "no_telemetry" not in kinds
+    assert "lap" in kinds
+
+
 def test_stream_emits_lap_events_then_race_ended_on_stall(tmp_path, monkeypatch):
     """End-to-end SSE happy path: ingest a torcs-live session, open the
     stream, file is static (race already ended) → stream emits laps

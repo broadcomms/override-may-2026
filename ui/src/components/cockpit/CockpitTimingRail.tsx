@@ -21,7 +21,11 @@ export function CockpitTimingRail({
         Timing
       </header>
       <div className="space-y-3">
-        <Metric label="LAP" value={latestLap ? `${latestLap.lap}/${targetLaps}` : `0/${targetLaps}`} prominent />
+        <Metric
+          label="CLOSED LAP"
+          value={latestLap ? `${latestLap.lap}/${targetLaps}` : `0/${targetLaps}`}
+          prominent
+        />
         <Metric
           label="TIME"
           value={latestLap ? `${latestLap.lap_time_s.toFixed(3)}s` : "waiting"}

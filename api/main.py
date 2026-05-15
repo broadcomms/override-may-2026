@@ -251,7 +251,7 @@ class TorcsStartRaceRequest(BaseModel):
     running in noVNC.
     """
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
-    laps: int = Field(default=5, ge=1, le=200)
+    laps: int = Field(default=20, ge=1, le=200)
     track_name: Optional[str] = Field(default=None, max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
     auto_launch_torcs: bool = Field(
@@ -854,11 +854,15 @@ def create_app() -> FastAPI:
         ~1 s rather than leaking until the stall timeout fires.
 
         Endpoint returns 404 only when the session itself doesn't exist; an
-        ACTIVE session with no resolvable telemetry_file emits a single
-        ``{"event":"no_telemetry"}`` and closes.
+        Active torcs-live sessions may be stubbed before the JSONL writer
+        has created its file, so the stream briefly waits for that file.
+        Sessions with no declared telemetry_file still emit a single
+        ``{"event":"no_telemetry"}`` and close.
         """
         STALL_SECONDS_THRESHOLD = 10.0
         POLL_INTERVAL_S = 1.0
+        TELEMETRY_FILE_WAIT_SECONDS = 60.0
+        TELEMETRY_FILE_POLL_INTERVAL_S = 0.5
 
         session = load_session(session_id)
         if session is None:
@@ -883,6 +887,22 @@ def create_app() -> FastAPI:
                 })
 
                 tfile = _find_telemetry_file(session_id)
+                should_wait_for_live_file = (
+                    session.summary.status == SessionStatus.ACTIVE
+                    and session.summary.session_source == SessionSource.TORCS_LIVE
+                    and bool(session.summary.telemetry_file)
+                )
+                if tfile is None and should_wait_for_live_file:
+                    wait_started = time.monotonic()
+                    while (
+                        tfile is None
+                        and time.monotonic() - wait_started < TELEMETRY_FILE_WAIT_SECONDS
+                    ):
+                        if await request.is_disconnected():
+                            return
+                        await asyncio.sleep(TELEMETRY_FILE_POLL_INTERVAL_S)
+                        tfile = _find_telemetry_file(session_id)
+
                 if tfile is None:
                     yield _sse({
                         "event": "no_telemetry",
@@ -1462,14 +1482,10 @@ def _find_telemetry_file(session_id: str) -> Optional[Path]:
     the session has no associated capture (uploads, fastf1 sessions,
     or a torcs_live session whose file was deleted post-ingest).
 
-    NOTE: For Phase 3 v1.0, the live-stream endpoint expects callers to
-    have a telemetry file that is *still being written to*. The session
-    is created by the torcs-live POST after the capture exists; the live
-    stream is for the next race (Phase 2 control daemon will close that
-    loop). v1.0 reality: judges who want live streaming run
-    ``torcs_jm_par.py`` with ``OVERRIDE_LOG_TELEMETRY=/path/to/dir/`` set
-    and pass the resolved run_id, opening the SSE stream BEFORE the
-    capture ends. Documented in the API doc.
+    A control-plane start writes an ACTIVE stub session before the JSONL
+    necessarily exists. The SSE endpoint handles that startup race by
+    waiting briefly for active torcs-live captures that already declare a
+    telemetry filename.
     """
     summary_path = _sessions_root_for_request() / session_id / "summary.json"
     if not summary_path.is_file():
