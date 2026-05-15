@@ -108,9 +108,9 @@ export function EnergyCurve({ laps, forecast, recommendations = [], onZoneClick 
         {!forecast && (
           <span
             className="text-xs text-muted italic"
-            title="TTM-R2 5-lap SoC forecasting (FR-3) is deferred to v1.1 per the graceful-degradation guardrail. The pipeline runs end-to-end without forecasting."
+            title="TTM-R2 5-lap SoC forecast requires 30+ completed laps. The pipeline runs end-to-end without forecasting."
           >
-            Forecast unavailable — TTM-R2 deferred to v1.1.
+            Forecast unavailable — requires 30+ completed laps.
           </span>
         )}
       </div>

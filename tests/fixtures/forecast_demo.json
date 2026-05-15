@@ -1,0 +1,788 @@
+{
+  "fixture_id": "forecast_demo",
+  "captured_at": "2026-05-15T09:00:00Z",
+  "captured_via": "synthetic",
+  "purpose": "35-lap TORCS session demonstrating TTM-R2 5-lap SoC forecast and low-roi-deploy zone detection. Used for Forecast strategy demo in SampleReplayList.",
+  "session": {
+    "summary": {
+      "session_id": "s_forecast_demo_2026",
+      "uploaded_at": "2026-05-15T09:00:00Z",
+      "source": "torcs",
+      "lap_count": 35,
+      "forecast_available": true,
+      "zone_count": 1,
+      "track_id": "torcs/road-1",
+      "note": "35-lap TORCS baseline with TTM-R2 forecast \u2014 demo fixture"
+    },
+    "laps": [
+      {
+        "lap_number": 1,
+        "soc_start": 1.0,
+        "soc_end": 0.9802,
+        "harvest_mj": 3.7,
+        "deploy_mj": 3.7792,
+        "lap_time": 109.8,
+        "sector1_time": 31.842,
+        "sector2_time": 29.646,
+        "sector3_time": 48.312,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 2,
+        "soc_start": 0.9802,
+        "soc_end": 0.9629,
+        "harvest_mj": 3.7195,
+        "deploy_mj": 3.7887,
+        "lap_time": 110.038,
+        "sector1_time": 31.911,
+        "sector2_time": 29.71,
+        "sector3_time": 48.417,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 3,
+        "soc_start": 0.9629,
+        "soc_end": 0.948,
+        "harvest_mj": 3.7359,
+        "deploy_mj": 3.7956,
+        "lap_time": 110.267,
+        "sector1_time": 31.978,
+        "sector2_time": 29.772,
+        "sector3_time": 48.518,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 4,
+        "soc_start": 0.948,
+        "soc_end": 0.9348,
+        "harvest_mj": 3.7466,
+        "deploy_mj": 3.7994,
+        "lap_time": 110.478,
+        "sector1_time": 32.038,
+        "sector2_time": 29.829,
+        "sector3_time": 48.61,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 5,
+        "soc_start": 0.9348,
+        "soc_end": 0.9224,
+        "harvest_mj": 3.75,
+        "deploy_mj": 3.7997,
+        "lap_time": 110.661,
+        "sector1_time": 32.092,
+        "sector2_time": 29.878,
+        "sector3_time": 48.691,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 6,
+        "soc_start": 0.9224,
+        "soc_end": 0.9097,
+        "harvest_mj": 3.7455,
+        "deploy_mj": 3.7964,
+        "lap_time": 110.81,
+        "sector1_time": 32.135,
+        "sector2_time": 29.919,
+        "sector3_time": 48.756,
+        "avg_speed": 83.2,
+        "max_speed": 102.7,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 7,
+        "soc_start": 0.9097,
+        "soc_end": 0.8957,
+        "harvest_mj": 3.7338,
+        "deploy_mj": 3.7898,
+        "lap_time": 110.918,
+        "sector1_time": 32.166,
+        "sector2_time": 29.948,
+        "sector3_time": 48.804,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 8,
+        "soc_start": 0.8957,
+        "soc_end": 0.8797,
+        "harvest_mj": 3.7167,
+        "deploy_mj": 3.7806,
+        "lap_time": 110.983,
+        "sector1_time": 32.185,
+        "sector2_time": 29.965,
+        "sector3_time": 48.832,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 1,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 9,
+        "soc_start": 0.8797,
+        "soc_end": 0.8616,
+        "harvest_mj": 3.6971,
+        "deploy_mj": 3.7696,
+        "lap_time": 110.999,
+        "sector1_time": 32.19,
+        "sector2_time": 29.97,
+        "sector3_time": 48.84,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 10,
+        "soc_start": 0.8616,
+        "soc_end": 0.8417,
+        "harvest_mj": 3.6779,
+        "deploy_mj": 3.7577,
+        "lap_time": 110.969,
+        "sector1_time": 32.181,
+        "sector2_time": 29.962,
+        "sector3_time": 48.826,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 11,
+        "soc_start": 0.8417,
+        "soc_end": 0.8207,
+        "harvest_mj": 3.6622,
+        "deploy_mj": 3.746,
+        "lap_time": 110.891,
+        "sector1_time": 32.158,
+        "sector2_time": 29.941,
+        "sector3_time": 48.792,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 12,
+        "soc_start": 0.8207,
+        "soc_end": 0.7999,
+        "harvest_mj": 3.6524,
+        "deploy_mj": 3.7355,
+        "lap_time": 110.77,
+        "sector1_time": 32.123,
+        "sector2_time": 29.908,
+        "sector3_time": 48.739,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 13,
+        "soc_start": 0.7999,
+        "soc_end": 0.7806,
+        "harvest_mj": 3.6502,
+        "deploy_mj": 3.7273,
+        "lap_time": 110.611,
+        "sector1_time": 32.077,
+        "sector2_time": 29.865,
+        "sector3_time": 48.669,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 14,
+        "soc_start": 0.7806,
+        "soc_end": 0.7641,
+        "harvest_mj": 3.6558,
+        "deploy_mj": 3.7219,
+        "lap_time": 110.419,
+        "sector1_time": 32.021,
+        "sector2_time": 29.813,
+        "sector3_time": 48.584,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 15,
+        "soc_start": 0.7641,
+        "soc_end": 0.7512,
+        "harvest_mj": 3.6684,
+        "deploy_mj": 3.72,
+        "lap_time": 110.202,
+        "sector1_time": 31.959,
+        "sector2_time": 29.755,
+        "sector3_time": 48.489,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 16,
+        "soc_start": 0.7512,
+        "soc_end": 0.7423,
+        "harvest_mj": 3.686,
+        "deploy_mj": 3.7216,
+        "lap_time": 109.969,
+        "sector1_time": 31.891,
+        "sector2_time": 29.692,
+        "sector3_time": 48.387,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 1,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 17,
+        "soc_start": 0.7423,
+        "soc_end": 0.7371,
+        "harvest_mj": 3.7058,
+        "deploy_mj": 3.7267,
+        "lap_time": 109.73,
+        "sector1_time": 31.822,
+        "sector2_time": 29.627,
+        "sector3_time": 48.281,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 18,
+        "soc_start": 0.7371,
+        "soc_end": 0.7346,
+        "harvest_mj": 3.7247,
+        "deploy_mj": 3.7347,
+        "lap_time": 109.493,
+        "sector1_time": 31.753,
+        "sector2_time": 29.563,
+        "sector3_time": 48.177,
+        "avg_speed": 83.1,
+        "max_speed": 102.6,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 19,
+        "soc_start": 0.7346,
+        "soc_end": 0.7333,
+        "harvest_mj": 3.7397,
+        "deploy_mj": 3.745,
+        "lap_time": 109.269,
+        "sector1_time": 31.688,
+        "sector2_time": 29.503,
+        "sector3_time": 48.078,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 20,
+        "soc_start": 0.7333,
+        "soc_end": 0.7312,
+        "harvest_mj": 3.7484,
+        "deploy_mj": 3.7567,
+        "lap_time": 109.066,
+        "sector1_time": 31.629,
+        "sector2_time": 29.448,
+        "sector3_time": 47.989,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 21,
+        "soc_start": 0.7312,
+        "soc_end": 0.7264,
+        "harvest_mj": 3.7495,
+        "deploy_mj": 3.7686,
+        "lap_time": 108.892,
+        "sector1_time": 31.579,
+        "sector2_time": 29.401,
+        "sector3_time": 47.912,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 22,
+        "soc_start": 0.7264,
+        "soc_end": 0.7171,
+        "harvest_mj": 3.7427,
+        "deploy_mj": 3.7798,
+        "lap_time": 108.754,
+        "sector1_time": 31.539,
+        "sector2_time": 29.364,
+        "sector3_time": 47.852,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 23,
+        "soc_start": 0.7171,
+        "soc_end": 0.7021,
+        "harvest_mj": 3.7292,
+        "deploy_mj": 3.7892,
+        "lap_time": 108.658,
+        "sector1_time": 31.511,
+        "sector2_time": 29.338,
+        "sector3_time": 47.81,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 24,
+        "soc_start": 0.7021,
+        "soc_end": 0.6809,
+        "harvest_mj": 3.7111,
+        "deploy_mj": 3.7959,
+        "lap_time": 108.608,
+        "sector1_time": 31.496,
+        "sector2_time": 29.324,
+        "sector3_time": 47.787,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 1,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 25,
+        "soc_start": 0.6809,
+        "soc_end": 0.6538,
+        "harvest_mj": 3.6913,
+        "deploy_mj": 3.7995,
+        "lap_time": 108.605,
+        "sector1_time": 31.495,
+        "sector2_time": 29.323,
+        "sector3_time": 47.786,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 26,
+        "soc_start": 0.6538,
+        "soc_end": 0.6221,
+        "harvest_mj": 3.6728,
+        "deploy_mj": 3.7996,
+        "lap_time": 108.649,
+        "sector1_time": 31.508,
+        "sector2_time": 29.335,
+        "sector3_time": 47.806,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 27,
+        "soc_start": 0.6221,
+        "soc_end": 0.5877,
+        "harvest_mj": 3.6586,
+        "deploy_mj": 3.7961,
+        "lap_time": 108.74,
+        "sector1_time": 31.535,
+        "sector2_time": 29.36,
+        "sector3_time": 47.846,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 28,
+        "soc_start": 0.5877,
+        "soc_end": 0.5531,
+        "harvest_mj": 3.651,
+        "deploy_mj": 3.7894,
+        "lap_time": 108.873,
+        "sector1_time": 31.573,
+        "sector2_time": 29.396,
+        "sector3_time": 47.904,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 29,
+        "soc_start": 0.5531,
+        "soc_end": 0.5209,
+        "harvest_mj": 3.651,
+        "deploy_mj": 3.78,
+        "lap_time": 109.042,
+        "sector1_time": 31.622,
+        "sector2_time": 29.441,
+        "sector3_time": 47.979,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 30,
+        "soc_start": 0.5209,
+        "soc_end": 0.4934,
+        "harvest_mj": 3.6589,
+        "deploy_mj": 3.7689,
+        "lap_time": 109.242,
+        "sector1_time": 31.68,
+        "sector2_time": 29.495,
+        "sector3_time": 48.067,
+        "avg_speed": 83.0,
+        "max_speed": 102.5,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 31,
+        "soc_start": 0.4934,
+        "soc_end": 0.4724,
+        "harvest_mj": 3.6732,
+        "deploy_mj": 3.757,
+        "lap_time": 109.465,
+        "sector1_time": 31.745,
+        "sector2_time": 29.555,
+        "sector3_time": 48.164,
+        "avg_speed": 82.9,
+        "max_speed": 102.4,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 32,
+        "soc_start": 0.4724,
+        "soc_end": 0.459,
+        "harvest_mj": 3.6917,
+        "deploy_mj": 3.7453,
+        "lap_time": 109.7,
+        "sector1_time": 31.813,
+        "sector2_time": 29.619,
+        "sector3_time": 48.268,
+        "avg_speed": 82.9,
+        "max_speed": 102.4,
+        "override_uses": 0,
+        "boost_uses": 1,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 33,
+        "soc_start": 0.459,
+        "soc_end": 0.4531,
+        "harvest_mj": 3.7116,
+        "deploy_mj": 3.735,
+        "lap_time": 109.94,
+        "sector1_time": 31.883,
+        "sector2_time": 29.684,
+        "sector3_time": 48.374,
+        "avg_speed": 82.9,
+        "max_speed": 102.4,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 34,
+        "soc_start": 0.4531,
+        "soc_end": 0.4538,
+        "harvest_mj": 3.7296,
+        "deploy_mj": 3.7269,
+        "lap_time": 110.174,
+        "sector1_time": 31.95,
+        "sector2_time": 29.747,
+        "sector3_time": 48.476,
+        "avg_speed": 82.9,
+        "max_speed": 102.4,
+        "override_uses": 0,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      },
+      {
+        "lap_number": 35,
+        "soc_start": 0.4538,
+        "soc_end": 0.4591,
+        "harvest_mj": 3.743,
+        "deploy_mj": 3.7217,
+        "lap_time": 110.393,
+        "sector1_time": 32.014,
+        "sector2_time": 29.806,
+        "sector3_time": 48.573,
+        "avg_speed": 82.9,
+        "max_speed": 102.4,
+        "override_uses": 1,
+        "boost_uses": 0,
+        "recharge_zones": [
+          2
+        ],
+        "soc_source": "derived"
+      }
+    ],
+    "forecast": {
+      "point": [
+        0.446,
+        0.433,
+        0.42,
+        0.407,
+        0.394
+      ],
+      "lower": [
+        0.406,
+        0.393,
+        0.38,
+        0.367,
+        0.354
+      ],
+      "upper": [
+        0.486,
+        0.473,
+        0.46,
+        0.447,
+        0.434
+      ],
+      "model_version": "ibm-granite/granite-timeseries-ttm-r2@d6a79570",
+      "mae_validation": 0.018
+    },
+    "recommendations": [
+      {
+        "zone": {
+          "zone_id": "z_lrid_l28_s2",
+          "zone_type": "low-roi-deploy",
+          "lap_number": 28,
+          "sector": 2,
+          "severity": "medium",
+          "metrics": {
+            "harvest_mj": 3.651,
+            "lap_time_cost_s": 0.4,
+            "available_window_s": 6.5
+          },
+          "description": "Lap 28: deployed energy in a low-overtaking sector with limited time gain."
+        },
+        "reasoning": {
+          "cause": "Lap 28 deployed energy in Sector 2 where time return per MJ was low \u2014 approximately 0.4 s gained for 0.62 MJ deployed.",
+          "consequence": "Accelerated SoC depletion into the final stint when TTM-R2 projects SoC continuing to decline through lap 40.",
+          "recommendation": "Shift discretionary deployment from Sector 2 to Sector 3 hairpin sequence where harvest opportunity is higher and time return per MJ improves.",
+          "regulation_citation": {
+            "passage": "The difference between the maximum and the minimum state of charge of the ES may not exceed 4MJ at any time the car is on the track.",
+            "source": {
+              "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+              "issue": "Issue 18 \u2014 2026-05-07",
+              "section": "C5.2.9",
+              "public_url": "https://www.fia.com/regulation/category/110",
+              "fetched_at": "2026-05-15T09:00:00Z"
+            }
+          },
+          "confidence": "medium",
+          "confidence_justification": "Pattern consistent across laps 24\u201328; TTM-R2 forecast extends the projection 5 laps with narrow confidence interval (median width 0.08).",
+          "reasoning_chain": [
+            "Observed SoC trend: 0.654 at lap 25 \u2192 0.493 at lap 30.",
+            "TTM-R2 projects continued SoC decline through the final stint.",
+            "Sector 2 deployment ROI: 0.4 s / 0.62 MJ = 0.65 s/MJ vs Sector 3 estimated 1.1 s/MJ.",
+            "Shifting 0.3 MJ to Sector 3 saves ~0.14 s and preserves SoC buffer for final laps."
+          ]
+        },
+        "fan": {
+          "headline": "Driver using boost too early, leaving less energy for the end",
+          "what_happened": "Around lap 28 the driver used the boost button in a section of track that doesn't give much back in lap time. The battery is draining faster than needed heading into the final laps.",
+          "why_it_mattered": "By saving that energy for the hairpin corners later in the lap \u2014 where the boost actually helps more \u2014 the car could go faster at the end without breaking any rules.",
+          "the_rule": "The battery charge must stay within a 4 megajoule window throughout the race \u2014 not too full, not too empty."
+        },
+        "validator": {
+          "passed": true,
+          "failed_rules": [],
+          "retry_count": 0,
+          "notes": []
+        },
+        "guardian": {
+          "passed": true,
+          "pass_threshold": 0.7,
+          "scores": {
+            "energy_safety": 0.95,
+            "regulation_consistency": 0.92
+          },
+          "rationales": {
+            "energy_safety": "no risk detected",
+            "regulation_consistency": "no risk detected"
+          },
+          "metadata": {
+            "model_id": "ibm/granite-guardian-3-8b",
+            "latency_ms": 312
+          }
+        }
+      }
+    ],
+    "regulation_source": {
+      "passage": "The difference between the maximum and the minimum state of charge of the ES may not exceed 4MJ at any time the car is on the track.",
+      "source": {
+        "document_title": "FIA 2026 Formula 1 Technical Regulations \u2014 Section C",
+        "issue": "Issue 18 \u2014 2026-05-07",
+        "section": "C5.2.9",
+        "public_url": "https://www.fia.com/regulation/category/110",
+        "fetched_at": "2026-05-15T09:00:00Z"
+      }
+    }
+  }
+}

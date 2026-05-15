@@ -62,6 +62,7 @@ from pydantic import BaseModel, Field
 
 from analysis.perturbations import apply_perturbation
 from core.fan_mode import FanModeParseError, translate_to_fan_mode
+from core.forecasting import forecast_lap_window
 from core.guardian import WatsonxAIGuardianClient, WatsonxGuardianClient
 from core.llm_clients import OllamaChatClient, probe_ollama_reachable
 from core.pipeline import run_pipeline
@@ -526,6 +527,7 @@ def create_app() -> FastAPI:
                 source=source,
                 track_id=track_id,
                 chunks_path=_chunks_path(),
+                forecast_fn=forecast_lap_window,
             )
         except HTTPException:
             raise
@@ -759,6 +761,7 @@ def create_app() -> FastAPI:
                 source=original.summary.source,
                 track_id=original.summary.track_id,
                 chunks_path=_chunks_path(),
+                forecast_fn=forecast_lap_window,
             )
         except Exception as e:
             raise map_watsonx_exception(e, request_id=rid)
@@ -1367,6 +1370,7 @@ def create_app() -> FastAPI:
                 track_id=f"torcs-live/{body.run_id}",
                 chunks_path=_chunks_path(),
                 session_id=adopt_session_id,
+                forecast_fn=forecast_lap_window,
             )
         except HTTPException:
             raise

@@ -20,6 +20,7 @@ interface Sample {
 
 const SAMPLES: Sample[] = [
   { name: "torcs_engineer", title: "TORCS engineer demo", laps: 12, zones: 1, badge: "sample" },
+  { name: "forecast_demo", title: "Forecast strategy demo", laps: 35, zones: 1, badge: "sample" },
   { name: "layered_defense", title: "Layered-defense demo", laps: 47, zones: 3, badge: "cached" },
   { name: "engineer_happy", title: "Engineer happy-path demo", laps: 18, zones: 2, badge: "sample" },
 ];

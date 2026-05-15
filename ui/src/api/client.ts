@@ -31,6 +31,7 @@
 
 import engineerHappyFixtureRaw from "@fixtures/engineer_happy_demo.json";
 import fanModeFixtureRaw from "@fixtures/fan_mode_demo.json";
+import forecastDemoFixtureRaw from "@fixtures/forecast_demo.json";
 import layeredDefenseFixtureRaw from "@fixtures/layered_defense_demo.json";
 import torcsEngineerFixtureRaw from "@fixtures/torcs_engineer_demo.json";
 import type {
@@ -76,7 +77,7 @@ export class OverrideApiError extends Error {
 // Fixture → Session adapters
 // ──────────────────────────────────────────────────────────────────────────────
 
-export type FixtureName = "fan_mode" | "engineer_happy" | "layered_defense" | "torcs_engineer";
+export type FixtureName = "fan_mode" | "engineer_happy" | "layered_defense" | "torcs_engineer" | "forecast_demo";
 
 /**
  * The fan_mode fixture is shaped as a literal Session under `.session` —
@@ -171,8 +172,20 @@ function layeredDefenseSession(): Session {
   };
 }
 
+/**
+ * The forecast_demo fixture is a synthetic 35-lap TORCS session demonstrating
+ * TTM-R2 5-lap SoC forecast and low-roi-deploy zone detection. Used for
+ * the "Forecast strategy demo" entry in SampleReplayList.
+ */
+function forecastDemoSession(): Session {
+  const wrapper = forecastDemoFixtureRaw as unknown as { session: Session };
+  return wrapper.session;
+}
+
 export function fixtureSession(name: FixtureName = "fan_mode"): Session {
   switch (name) {
+    case "forecast_demo":
+      return forecastDemoSession();
     case "torcs_engineer":
       return torcsEngineerSession();
     case "layered_defense":
@@ -190,6 +203,7 @@ export function fixtureSession(name: FixtureName = "fan_mode"): Session {
  * extra query-string toggle. Order matters — torcs_engineer must beat
  * the generic "engineer" match. */
 function fixtureNameForSessionId(sessionId: string): FixtureName {
+  if (sessionId.includes("forecast_demo")) return "forecast_demo";
   if (sessionId.includes("torcs_engineer")) return "torcs_engineer";
   if (sessionId.includes("layered_defense")) return "layered_defense";
   if (sessionId.includes("engineer_happy")) return "engineer_happy";

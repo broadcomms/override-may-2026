@@ -355,3 +355,34 @@ Two real consequences:
 
 ---
 
+# USER FLOW.
+
+**OVERDRIVE** is a sophisticated tool, grounding AI in the strict, verbatim text of the FIA 2026 Formula 1 Technical Regulations. It solves the massive trust issue in sports analytics: **Explainability**
+
+1. Upload and Live Capture (Setup)
+2. Real-time Cockpit telemetry
+3. Post-race Session Debriefs
+
+### Distinct user personalities
+- Engineers
+- Fans
+
+Here is the mapped user flow detailing how Engineers and Fans interact with the platform Before, During and After the race, incoporating both in session, lap and realtime analysis alongside innovative concepts for the FIA.
+
+## 1. BEFORE THE RACE, preparation and simulation.
+
+Goal: Predictability and strategy formation.
+
+### For Engineers:
+
+User uploads a session replay from TORCS simulator output or FastF1 export, and OVERRIDE turns that into a debrief with zones, reasoning, citations, validation, Guardian reviews and forecasts.
+
+**- Historical ingestion:**
+`/upload` - drop a .json or .parquet race telemetry file from past practice sessions.
+Current supported upload sources:
+a. TORCS / gym_torcs simulation - .json /JSONL-style TORCS telemetry (Baseline simulation and demo data)
+b. FastF1 export - .parquet /.csv in docs (Real-world F1-derived historical race telemetry captured data)
+c. Canonical OVERRIDE race strategy scenario schemas - .json (Preprocessed Normalized LapFeatures payload)
+
+
+

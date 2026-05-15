@@ -9,9 +9,13 @@
 #     stay out of the production runtime — not an interpreter version conflict
 #     (Langflow 1.9.x supports Python 3.10–3.13 on Linux). Per docs/04-langflow-canvas.md
 #     it is the design + demo layer, not the production runtime.
-#   - tsfm_public (TTM-R2 wrapper) is installed at P2.2 from
-#     `git+https://github.com/ibm-granite/granite-tsfm`. It is not on PyPI
-#     under that name and pulls heavy ML deps; defer until forecasting starts.
+#   - tsfm_public (TTM-R2 wrapper) can be installed from
+#     `git+https://github.com/ibm-granite/granite-tsfm`, but granite-tsfm
+#     requires torch<2.11 and transformers<5, which conflicts with our pinned
+#     torch==2.11.0 and transformers==5.x.  core/forecasting.py uses a lazy
+#     import guard so the runtime gracefully returns None (no forecast) when
+#     tsfm_public is absent.  Install only in a compatible env (torch~=2.10,
+#     transformers~=4.57) to enable live TTM-R2 inference.
 #
 # Direct dependencies (manually audited, see requirements.in convention):
 #   docling, fastf1, huggingface_hub[cli], transformers,
