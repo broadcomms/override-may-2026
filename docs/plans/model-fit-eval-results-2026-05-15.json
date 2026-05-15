@@ -1,0 +1,291 @@
+{
+  "eval_date": "2026-05-15",
+  "env": {
+    "torch_available": false,
+    "torch_detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy",
+    "tsfm_public_available": false,
+    "tsfm_public_detail": "",
+    "transformers_patchtst_available": false,
+    "transformers_patchtst_detail": "",
+    "transformers_patchtsmixer_available": false,
+    "transformers_patchtsmixer_detail": "",
+    "override_max_laps": 30,
+    "override_horizon": 5,
+    "override_channels": 5,
+    "torcs_ticks_per_lap": 5411
+  },
+  "models": [
+    {
+      "name": "ttm-r1",
+      "repo": "ibm-granite/granite-timeseries-ttm-r1",
+      "arch": "TinyTimeMixerForPrediction",
+      "lib": "tsfm_public",
+      "checkpoint_config": {
+        "model_type": "tinytimemixer",
+        "context_length": 512,
+        "patch_length": 64,
+        "patch_stride": 64,
+        "prediction_length": 96,
+        "num_patches": 8,
+        "num_input_channels": 1,
+        "distribution_output": "student_t"
+      },
+      "lap_level": {
+        "representation": "lap-level",
+        "available_laps": 30,
+        "checkpoint_context_length": 512,
+        "patch_length": 64,
+        "max_patches_from_30_laps": 0,
+        "context_coverage_pct": 5.9,
+        "checkpoint_prediction_length": 96,
+        "compatible": false,
+        "issues": [
+          "patch_length=64 > OVERRIDE max laps=30: cannot form even one patch \u2014 model structurally incompatible at lap granularity",
+          "OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected",
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+        ],
+        "reason": "patch_length=64 > OVERRIDE max laps=30: cannot form even one patch \u2014 model structurally incompatible at lap granularity; OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected; prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+      },
+      "tick_level": {
+        "representation": "tick-level",
+        "checkpoint_context_length": 512,
+        "patch_length": 64,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "density_plan": {
+          "ticks_per_lap_for_30_lap_session": 17,
+          "ticks_per_lap_for_20_lap_session": 25,
+          "time_resolution_s_at_30_laps": 6.5,
+          "time_resolution_s_at_20_laps": 4.4,
+          "subsample_ratio_30_laps": 318.3,
+          "subsample_ratio_20_laps": 216.4,
+          "patches_from_30_lap_session": 8,
+          "patches_from_20_lap_session": 7
+        },
+        "signal_mapping": [
+          "brake (0..1) \u2192 regen harvest proxy; accel (0..1) \u2192 deploy proxy; speedX \u2192 speed; curLapTime \u2192 time-in-lap; rpm \u2192 power state"
+        ],
+        "issues": [
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+        ],
+        "reason": "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+      },
+      "inference_trial": {
+        "inference_attempted": true,
+        "inference_succeeded": false,
+        "blocker": "torch_unavailable",
+        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+      }
+    },
+    {
+      "name": "ttm-r2",
+      "repo": "ibm-granite/granite-timeseries-ttm-r2",
+      "arch": "TinyTimeMixerForPrediction",
+      "lib": "tsfm_public",
+      "checkpoint_config": {
+        "model_type": "tinytimemixer",
+        "context_length": 512,
+        "patch_length": 64,
+        "patch_stride": 64,
+        "prediction_length": 96,
+        "num_patches": 8,
+        "num_input_channels": 1,
+        "distribution_output": "student_t"
+      },
+      "lap_level": {
+        "representation": "lap-level",
+        "available_laps": 30,
+        "checkpoint_context_length": 512,
+        "patch_length": 64,
+        "max_patches_from_30_laps": 0,
+        "context_coverage_pct": 5.9,
+        "checkpoint_prediction_length": 96,
+        "compatible": false,
+        "issues": [
+          "patch_length=64 > OVERRIDE max laps=30: cannot form even one patch \u2014 model structurally incompatible at lap granularity",
+          "OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected",
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+        ],
+        "reason": "patch_length=64 > OVERRIDE max laps=30: cannot form even one patch \u2014 model structurally incompatible at lap granularity; OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected; prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+      },
+      "tick_level": {
+        "representation": "tick-level",
+        "checkpoint_context_length": 512,
+        "patch_length": 64,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "density_plan": {
+          "ticks_per_lap_for_30_lap_session": 17,
+          "ticks_per_lap_for_20_lap_session": 25,
+          "time_resolution_s_at_30_laps": 6.5,
+          "time_resolution_s_at_20_laps": 4.4,
+          "subsample_ratio_30_laps": 318.3,
+          "subsample_ratio_20_laps": 216.4,
+          "patches_from_30_lap_session": 8,
+          "patches_from_20_lap_session": 7
+        },
+        "signal_mapping": [
+          "brake (0..1) \u2192 regen harvest proxy; accel (0..1) \u2192 deploy proxy; speedX \u2192 speed; curLapTime \u2192 time-in-lap; rpm \u2192 power state"
+        ],
+        "issues": [
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+        ],
+        "reason": "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+      },
+      "inference_trial": {
+        "inference_attempted": true,
+        "inference_succeeded": false,
+        "blocker": "torch_unavailable",
+        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+      }
+    },
+    {
+      "name": "patchtst",
+      "repo": "ibm-granite/granite-timeseries-patchtst",
+      "arch": "PatchTSTForPrediction",
+      "lib": "transformers",
+      "checkpoint_config": {
+        "model_type": "patchtst",
+        "context_length": 512,
+        "patch_length": 12,
+        "patch_stride": 12,
+        "prediction_length": 96,
+        "num_input_channels": 7,
+        "distribution_output": "student_t"
+      },
+      "lap_level": {
+        "representation": "lap-level",
+        "available_laps": 30,
+        "checkpoint_context_length": 512,
+        "patch_length": 12,
+        "max_patches_from_30_laps": 2,
+        "context_coverage_pct": 5.9,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "issues": [
+          "OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected",
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+        ],
+        "reason": "OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected; prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+      },
+      "tick_level": {
+        "representation": "tick-level",
+        "checkpoint_context_length": 512,
+        "patch_length": 12,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "density_plan": {
+          "ticks_per_lap_for_30_lap_session": 17,
+          "ticks_per_lap_for_20_lap_session": 25,
+          "time_resolution_s_at_30_laps": 6.5,
+          "time_resolution_s_at_20_laps": 4.4,
+          "subsample_ratio_30_laps": 318.3,
+          "subsample_ratio_20_laps": 216.4,
+          "patches_from_30_lap_session": 42,
+          "patches_from_20_lap_session": 41
+        },
+        "signal_mapping": [
+          "brake (0..1) \u2192 regen harvest proxy; accel (0..1) \u2192 deploy proxy; speedX \u2192 speed; curLapTime \u2192 time-in-lap; rpm \u2192 power state"
+        ],
+        "issues": [
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+        ],
+        "reason": "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+      },
+      "inference_trial": {
+        "inference_attempted": true,
+        "inference_succeeded": false,
+        "blocker": "torch_unavailable",
+        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+      }
+    },
+    {
+      "name": "patchtsmixer",
+      "repo": "ibm-granite/granite-timeseries-patchtsmixer",
+      "arch": "PatchTSMixerForPrediction",
+      "lib": "transformers",
+      "checkpoint_config": {
+        "model_type": "patchtsmixer",
+        "context_length": 512,
+        "patch_length": 16,
+        "patch_stride": 16,
+        "prediction_length": 96,
+        "num_patches": 32,
+        "num_input_channels": 7,
+        "distribution_output": "student_t"
+      },
+      "lap_level": {
+        "representation": "lap-level",
+        "available_laps": 30,
+        "checkpoint_context_length": 512,
+        "patch_length": 16,
+        "max_patches_from_30_laps": 1,
+        "context_coverage_pct": 5.9,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "issues": [
+          "patch_length=16 yields only 1 patch(es) from 30 laps: too few patches; model was trained with much longer contexts",
+          "OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected",
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+        ],
+        "reason": "patch_length=16 yields only 1 patch(es) from 30 laps: too few patches; model was trained with much longer contexts; OVERRIDE max 30 laps = 5.9% of trained context_length=512: severe distribution shift expected; prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 requires override in from_pretrained; model quality may degrade outside trained horizon"
+      },
+      "tick_level": {
+        "representation": "tick-level",
+        "checkpoint_context_length": 512,
+        "patch_length": 16,
+        "checkpoint_prediction_length": 96,
+        "compatible": true,
+        "density_plan": {
+          "ticks_per_lap_for_30_lap_session": 17,
+          "ticks_per_lap_for_20_lap_session": 25,
+          "time_resolution_s_at_30_laps": 6.5,
+          "time_resolution_s_at_20_laps": 4.4,
+          "subsample_ratio_30_laps": 318.3,
+          "subsample_ratio_20_laps": 216.4,
+          "patches_from_30_lap_session": 32,
+          "patches_from_20_lap_session": 31
+        },
+        "signal_mapping": [
+          "brake (0..1) \u2192 regen harvest proxy; accel (0..1) \u2192 deploy proxy; speedX \u2192 speed; curLapTime \u2192 time-in-lap; rpm \u2192 power state"
+        ],
+        "issues": [
+          "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+        ],
+        "reason": "prediction_length mismatch: checkpoint=96, OVERRIDE needs 5 \u2014 override required but tractable"
+      },
+      "inference_trial": {
+        "inference_attempted": true,
+        "inference_succeeded": false,
+        "blocker": "torch_unavailable",
+        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+      }
+    }
+  ],
+  "recommendations": {
+    "lap_level_compatible_models": [
+      "patchtst",
+      "patchtsmixer"
+    ],
+    "lap_level_blocked_models": [
+      "ttm-r1",
+      "ttm-r2"
+    ],
+    "inference_succeeded_models": [],
+    "best_lap_level_candidate": "patchtst",
+    "primary_recommendation": "test_patchtst_or_patchtsmixer_lap_level",
+    "primary_detail": "patchtst is the best structural fit at lap-level (2 patches from 30 laps). Requires compatible torch + transformers env for inference trial.",
+    "forecasting_should_remain_disabled": true,
+    "tick_level_required_for_ttm": true,
+    "tick_level_notes": "TTM-R1/R2 (patch_length=64) require 64+ data points per context window. At lap granularity OVERRIDE tops out at 30 laps \u2014 always insufficient. Downsampling to 17 ticks/lap \u00d7 30 laps = 510 \u2248 context_length=512 would unlock TTM-R1/R2 with high time-resolution energy signals.",
+    "patchtst_patchtsmixer_notes": "PatchTST (patch=12) and PatchTSMixer (patch=16) can technically form 2 and 1 patches respectively from 30 laps. But the model was trained on 512\u00f712=42 or 512\u00f716=32 patches; operating with 1\u20132 patches is severe out-of-distribution use. Tick-level is still recommended.",
+    "next_steps": [
+      "Fix torch runtime (ncclDevCommDestroy symbol conflict) or use a clean venv",
+      "In a working env: run this script to confirm inference_succeeded",
+      "If PatchTST/PatchTSMixer succeed at lap-level, evaluate MAE vs linear-trend baseline",
+      "If MAE is poor, implement tick-level downsampling (~17 ticks/lap, 30 laps \u2192 510 pts)",
+      "Re-run sweep with representation=tick-level to confirm fit",
+      "Only then reconsider live forecast threshold in production"
+    ]
+  }
+}
