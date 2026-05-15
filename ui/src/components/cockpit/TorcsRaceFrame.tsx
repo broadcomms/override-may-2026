@@ -1,4 +1,4 @@
-import type { LiveLapSnapshot, LiveLapStats, TorcsControlStatus } from "@/api/types";
+import type { LiveLapSnapshot, TorcsControlStatus } from "@/api/types";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 
 type ViewMode = "cockpit" | "headless";
@@ -8,7 +8,6 @@ interface Props {
   status: TorcsControlStatus | null;
   streamState: LiveStreamState;
   latestSnapshot: LiveLapSnapshot | null;
-  latestLap: LiveLapStats | null;
 }
 
 export function TorcsRaceFrame({
@@ -16,7 +15,6 @@ export function TorcsRaceFrame({
   status,
   streamState,
   latestSnapshot,
-  latestLap,
 }: Props) {
   if (viewMode === "headless") {
     const active = status?.state === "active" || status?.state === "connecting";
@@ -41,33 +39,14 @@ export function TorcsRaceFrame({
     );
   }
 
-  const overlay = frameOverlay(streamState, latestSnapshot, latestLap);
-
   return (
     <section className="relative rounded-card border border-border bg-black shadow-card">
-      {/* Phase 2.7 v4 — wrapper-clip pattern. Preserved verbatim from the
-          previous TorcsControlPanel (audit §20 don't #5). Two problems v3
-          left open:
-            1. vnc_lite.html hardcodes a "Connected (unencrypted) to <host>"
-               status bar + Send CtrlAltDel button at the top of <body>.
-               No URL param hides it — that's the entire UI surface of
-               vnc_lite. The iframe is :6080 and the parent is :8000 →
-               different origin → SOP blocks us from injecting CSS into
-               the iframe contentDocument.
-            2. ?scale=true preserves the Xvfb 16:9 aspect ratio. With a
-               fixed-height iframe at a narrow layout column, the canvas
-               fits-to-width and ends up letterboxed top+bot by ~210px each.
-          Both fixed by clipping at the outer wrapper:
-            - aspect-video on the wrapper = 16:9 box that matches Xvfb,
-              so no letterboxing math goes wrong.
-            - overflow-hidden hides anything outside.
-            - iframe is absolutely positioned, pulled up 36px and grown
-              taller by the same amount; the status bar slides off the
-              top of the clip region. Bottom is unchanged.
-          Fullscreen button still works (requestFullscreen on the iframe
-          element fills the screen; the negative top offset becomes
-          irrelevant and the bar reappears, which is fine — fullscreen is
-          a "read the HUD now" escape hatch, not the primary display). */}
+      {/* Phase 2.7 v4 — wrapper-clip pattern.
+          vnc_lite.html hardcodes a status bar at the top of <body> that we
+          cannot hide via URL params (different origin → SOP). We clip it by
+          giving the outer wrapper `aspect-video` (matches Xvfb 16:9) and
+          `overflow-hidden`, then absolutely position the iframe pulled up
+          36px so the bar slides off the top of the clip region. */}
       <div className="relative w-full aspect-video overflow-hidden bg-black">
         <iframe
           id="torcs-iframe"
@@ -78,42 +57,16 @@ export function TorcsRaceFrame({
         />
       </div>
 
+      {/* Live-sector overlay — only shown during an open lap so it never
+          competes with the TORCS on-screen menus at race end. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-start p-3">
-        <div className="max-w-sm rounded-md border border-border/80 bg-bg/85 px-3 py-2 text-xs text-muted backdrop-blur-sm">
-          {overlay}
-        </div>
+        {latestSnapshot && streamState.kind !== "ended" && (
+          <div className="max-w-sm rounded-md border border-border/80 bg-bg/85 px-3 py-2 text-xs text-muted backdrop-blur-sm">
+            {`Live telemetry — Sector ${latestSnapshot.sector ?? "—"}, Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`}
+          </div>
+        )}
       </div>
     </section>
   );
-}
-
-function frameOverlay(
-  streamState: LiveStreamState,
-  latestSnapshot: LiveLapSnapshot | null,
-  latestLap: LiveLapStats | null,
-): string {
-  // Never show a live-progress overlay after the race has ended.
-  if (latestSnapshot && streamState.kind !== "ended") {
-    const sector = latestSnapshot.sector ?? "—";
-    return `Live telemetry updating in Sector ${sector}. Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`;
-  }
-  switch (streamState.kind) {
-    case "idle":
-      return "Race frame ready. Start a 3D cockpit run to attach live timing and energy signals.";
-    case "connecting":
-      return latestLap
-        ? `Waiting for the next lap event. Last completed lap: L${latestLap.lap}.`
-        : "Connected to the cockpit session. Waiting for the first completed lap.";
-    case "connected":
-      return latestLap
-        ? `Live telemetry attached. Latest completed lap: L${latestLap.lap}.`
-        : "Telemetry stream connected. Lap-level data will appear after the first completed lap.";
-    case "no_telemetry":
-      return streamState.message;
-    case "error":
-      return "Telemetry stream interrupted. The cockpit will keep polling control status while the stream reconnects.";
-    case "ended":
-      return "Race ended. Post-lap analysis is available in the session debrief.";
-  }
 }
 

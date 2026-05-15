@@ -1,13 +1,15 @@
 import type { LiveLapSnapshot, LiveLapStats } from "@/api/types";
+import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { deriveLiveSignal } from "@/lib/cockpitTelemetry";
 
 interface Props {
   latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
   previousLap: LiveLapStats | null;
+  streamState: LiveStreamState;
 }
 
-export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap }: Props) {
+export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap, streamState }: Props) {
   const signal = deriveLiveSignal(latestLap, previousLap);
 
   // Snapshot values take priority during an open lap.
@@ -26,6 +28,8 @@ export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap }: Pro
       : signal?.pressureTone === "success"
       ? "bg-success"
       : "bg-accent";
+
+  const statusLine = streamStatusLine(streamState);
 
   return (
     <section className="rounded-card border border-border bg-surface p-4">
@@ -66,9 +70,35 @@ export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap }: Pro
         <Metric label="NET" value={net != null ? `${net.toFixed(2)} MJ` : "—"} />
         <Metric label="BALANCE" value={balanceLabel ?? "waiting"} />
         {!isLive && <Metric label="PRESSURE" value={signal ? signal.pressureLabel : "review pending"} />}
+        {statusLine && (
+          <div className="pt-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+              Status
+            </div>
+            <div className="mt-0.5 text-xs text-muted leading-snug">{statusLine}</div>
+          </div>
+        )}
       </div>
     </section>
   );
+}
+
+/** One-line stream status shown at the bottom of the rail, replacing the frame overlay. */
+function streamStatusLine(state: LiveStreamState): string | null {
+  switch (state.kind) {
+    case "idle":
+      return "Ready. Start a race to stream live data.";
+    case "connecting":
+      return "Connecting to telemetry stream…";
+    case "connected":
+      return "Telemetry stream live.";
+    case "no_telemetry":
+      return state.message;
+    case "error":
+      return "Stream interrupted. Reconnecting…";
+    case "ended":
+      return "Race ended. Post-lap analysis available in the session debrief.";
+  }
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
