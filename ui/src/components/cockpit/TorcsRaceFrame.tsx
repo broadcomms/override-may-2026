@@ -1,4 +1,4 @@
-import type { LiveLapStats, TorcsControlStatus } from "@/api/types";
+import type { LiveLapSnapshot, LiveLapStats, TorcsControlStatus } from "@/api/types";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 
 type ViewMode = "cockpit" | "headless";
@@ -7,6 +7,7 @@ interface Props {
   viewMode: ViewMode;
   status: TorcsControlStatus | null;
   streamState: LiveStreamState;
+  latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
 }
 
@@ -14,6 +15,7 @@ export function TorcsRaceFrame({
   viewMode,
   status,
   streamState,
+  latestSnapshot,
   latestLap,
 }: Props) {
   if (viewMode === "headless") {
@@ -39,7 +41,7 @@ export function TorcsRaceFrame({
     );
   }
 
-  const overlay = frameOverlay(streamState, latestLap);
+  const overlay = frameOverlay(streamState, latestSnapshot, latestLap);
 
   return (
     <section className="relative rounded-card border border-border bg-black shadow-card">
@@ -85,7 +87,15 @@ export function TorcsRaceFrame({
   );
 }
 
-function frameOverlay(streamState: LiveStreamState, latestLap: LiveLapStats | null): string {
+function frameOverlay(
+  streamState: LiveStreamState,
+  latestSnapshot: LiveLapSnapshot | null,
+  latestLap: LiveLapStats | null,
+): string {
+  if (latestSnapshot) {
+    const sector = latestSnapshot.sector ?? "—";
+    return `Live telemetry updating in Sector ${sector}. Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`;
+  }
   switch (streamState.kind) {
     case "idle":
       return "Race frame ready. Start a 3D cockpit run to attach live timing and energy signals.";
@@ -105,3 +115,4 @@ function frameOverlay(streamState: LiveStreamState, latestLap: LiveLapStats | nu
       return "Race ended. Post-lap analysis is available in the session debrief.";
   }
 }
+

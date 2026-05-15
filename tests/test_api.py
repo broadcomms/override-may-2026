@@ -1623,6 +1623,183 @@ def test_stream_emits_lap_events_then_race_ended_on_stall(tmp_path, monkeypatch)
     # Don't pin the exact count; just confirm at least one lap event fired.
 
 
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Snapshot SSE events — in-progress lap at ~4 Hz
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _sse_in_progress_only(ticks: int = 25) -> bytes:
+    """JSONL with a single partial (in-progress) lap — no wraparound yet."""
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / 50
+    lines: list[str] = []
+    for tick_i in range(ticks):
+        dist = (tick_i / 50) * track_length
+        lines.append(json.dumps({
+            "curLapTime": [tick_i * dt],
+            "distFromStart": [dist],
+            "speedX": [55.0],
+            "accel": [0.8],
+            "brake": [0.0],
+            "fuel": [89.0],
+        }))
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def test_snapshot_emits_before_first_completed_lap(tmp_path, monkeypatch):
+    """A JSONL with only in-progress (no wraparound) ticks must produce a
+    snapshot event before any lap event, and no lap event at all."""
+    import api.main as main_mod
+    import asyncio as _asyncio
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "partial.jsonl").write_bytes(_sse_in_progress_only(ticks=25))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "partial"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    orig_sleep = _asyncio.sleep
+    async def _fast_sleep(s): await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _fast_sleep)
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        assert r.status_code == 200
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                # Collect connected + first snapshot, then stop.
+                if ev.get("event") == "snapshot":
+                    break
+
+    kinds = [e["event"] for e in events]
+    assert kinds[0] == "connected"
+    assert "snapshot" in kinds, f"Expected snapshot event, got {kinds}"
+    assert "lap" not in kinds, f"No lap should have been emitted yet, got {kinds}"
+
+    snap = next(e for e in events if e["event"] == "snapshot")
+    assert "snapshot" in snap, "snapshot event must have nested 'snapshot' key"
+    assert snap["snapshot"]["lap"] == 1
+    assert 0.0 < snap["snapshot"]["lap_progress_pct"] < 100.0
+
+
+def test_snapshot_emits_during_in_progress_lap(tmp_path, monkeypatch):
+    """JSONL with 1 complete lap + partial second lap → snapshot shows lap=2."""
+    import api.main as main_mod
+    import asyncio as _asyncio
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    # n_laps=2 means lap 1 fully closed + lap 2 in-progress (no closing wraparound)
+    (telem / "two.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "two"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    orig_sleep = _asyncio.sleep
+    async def _fast_sleep(s): await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _fast_sleep)
+
+    snap_events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                if ev.get("event") == "snapshot":
+                    snap_events.append(ev)
+                    break  # one snapshot is enough to verify
+
+    assert snap_events, "Expected at least one snapshot event"
+    snap = snap_events[0]["snapshot"]
+    assert snap["lap"] == 2, f"Snapshot should be for lap 2 (in-progress), got {snap['lap']}"
+    assert 0.0 < snap["lap_progress_pct"] <= 100.0
+    assert 0.0 <= snap["soc_estimate"] <= 1.0
+    assert snap["balance_label"] in ("spending", "recovering", "balanced")
+
+
+def test_snapshot_deduplication_skips_identical_state(tmp_path, monkeypatch):
+    """A static (non-updating) JSONL file should produce only one snapshot
+    per unique signature, not a flood on every poll cycle."""
+    import api.main as main_mod
+    import asyncio as _asyncio
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "static.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "static"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    poll_count = 0
+    orig_sleep = _asyncio.sleep
+    async def _counting_sleep(s):
+        nonlocal poll_count
+        poll_count += 1
+        await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _counting_sleep)
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                if ev.get("event") == "race_ended":
+                    break
+
+    snapshots = [e for e in events if e.get("event") == "snapshot"]
+    # Static file → distinct snapshots should be << poll_count (dedup working).
+    # Allow up to 2 unique snapshots (initial read + race-end poll) but never O(polls).
+    assert len(snapshots) <= 2, (
+        f"Deduplication should limit snapshots on a static file; got {len(snapshots)} "
+        f"over {poll_count} polls"
+    )
+
+
+def test_race_ended_still_fires_after_snapshots(tmp_path, monkeypatch):
+    """The stream must still emit race_ended as the final event even when
+    snapshot events have been flowing before the stall threshold fires."""
+    import api.main as main_mod
+    import asyncio as _asyncio
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "full.jsonl").write_bytes(_sse_jsonl_payload(n_laps=3))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "full"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    orig_sleep = _asyncio.sleep
+    async def _fast_sleep(s): await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _fast_sleep)
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                if ev.get("event") == "race_ended":
+                    break
+
+    kinds = [e["event"] for e in events]
+    assert "snapshot" in kinds, f"Expected snapshot events before race_ended, got {kinds}"
+    assert kinds[-1] == "race_ended", f"Expected race_ended as final event, got {kinds}"
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /api/sessions/{id}/what-if  (FR-8)
 # ──────────────────────────────────────────────────────────────────────────────

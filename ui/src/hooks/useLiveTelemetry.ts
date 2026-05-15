@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/api/client";
-import type { LiveLapStats, LiveStreamEvent } from "@/api/types";
+import type { LiveLapSnapshot, LiveLapStats, LiveStreamEvent } from "@/api/types";
 
 export type LiveStreamState =
   | { kind: "idle" }
@@ -32,18 +32,21 @@ export function useLiveTelemetry(
   }: UseLiveTelemetryOptions = {},
 ) {
   const [laps, setLaps] = useState<LiveLapStats[]>([]);
+  const [latestSnapshot, setLatestSnapshot] = useState<LiveLapSnapshot | null>(null);
   const [streamState, setStreamState] = useState<LiveStreamState>({ kind: "idle" });
   const [raceEnded, setRaceEnded] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
       setLaps([]);
+      setLatestSnapshot(null);
       setStreamState({ kind: "idle" });
       setRaceEnded(false);
       return;
     }
 
     setLaps([]);
+    setLatestSnapshot(null);
     setStreamState({ kind: "connecting" });
     setRaceEnded(false);
 
@@ -75,6 +78,10 @@ export function useLiveTelemetry(
       switch (ev.event) {
         case "connected":
           setStreamState({ kind: "connected", status: ev.status });
+          break;
+        case "snapshot":
+          // Snapshot updates never clear completed laps — they coexist.
+          setLatestSnapshot(ev.snapshot);
           break;
         case "lap":
           setLaps((prev) => {
@@ -122,6 +129,7 @@ export function useLiveTelemetry(
     laps,
     streamState,
     latestLap: laps.length > 0 ? laps[laps.length - 1] : null,
+    latestSnapshot,
     raceEnded,
   };
 }

@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 
-import type { LiveLapStats, Recommendation } from "@/api/types";
+import type { LiveLapSnapshot, LiveLapStats, Recommendation } from "@/api/types";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { deriveLiveSignal } from "@/lib/cockpitTelemetry";
 
 interface Props {
   sessionId: string | null;
+  latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
   previousLap: LiveLapStats | null;
   streamState: LiveStreamState;
@@ -16,6 +17,7 @@ interface Props {
 
 export function LiveStrategyInsight({
   sessionId,
+  latestSnapshot,
   latestLap,
   previousLap,
   streamState,
@@ -41,12 +43,13 @@ export function LiveStrategyInsight({
       {mode === "engineer" ? (
         <EngineerBody
           sessionId={sessionId}
+          latestSnapshot={latestSnapshot}
           streamState={streamState}
           signal={signal}
           recommendation={recommendation ?? null}
         />
       ) : (
-        <FanBody signal={signal} streamState={streamState} />
+        <FanBody latestSnapshot={latestSnapshot} signal={signal} streamState={streamState} />
       )}
     </section>
   );
@@ -54,11 +57,13 @@ export function LiveStrategyInsight({
 
 function EngineerBody({
   sessionId,
+  latestSnapshot,
   streamState,
   signal,
   recommendation,
 }: {
   sessionId: string | null;
+  latestSnapshot: LiveLapSnapshot | null;
   streamState: LiveStreamState;
   signal: ReturnType<typeof deriveLiveSignal>;
   recommendation: Recommendation | null;
@@ -73,6 +78,31 @@ function EngineerBody({
         <p className="text-sm text-muted">
           Validation and Guardian review are attached to the completed recommendation.
         </p>
+      </div>
+    );
+  }
+
+  // Snapshot-based live signal: deterministic balance label, clearly labelled.
+  if (latestSnapshot) {
+    return (
+      <div className="space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-accent">
+          Live signal: {latestSnapshot.balance_label}
+        </div>
+        <p className="text-lg text-text">
+          {snapshotEngineerDetail(latestSnapshot)}
+        </p>
+        <p className="text-sm text-muted">
+          Deterministic live signal — Guardian review pending. Full Granite safety review appears after analysis completes.
+        </p>
+        {sessionId && streamState.kind === "ended" && (
+          <Link
+            to={`/session/${encodeURIComponent(sessionId)}`}
+            className="inline-flex rounded-pill border border-border px-3 py-1.5 text-sm text-accent transition-colors hover:text-text"
+          >
+            Open session debrief
+          </Link>
+        )}
       </div>
     );
   }
@@ -106,12 +136,28 @@ function EngineerBody({
 }
 
 function FanBody({
+  latestSnapshot,
   signal,
   streamState,
 }: {
+  latestSnapshot: LiveLapSnapshot | null;
   signal: ReturnType<typeof deriveLiveSignal>;
   streamState: LiveStreamState;
 }) {
+  if (latestSnapshot) {
+    return (
+      <div className="space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-accent">
+          Live signal
+        </div>
+        <p className="text-lg text-text">{snapshotFanSummary(latestSnapshot)}</p>
+        <p className="text-sm text-muted">
+          Post-lap analysis can upgrade this with a grounded engineer recommendation after the review completes.
+        </p>
+      </div>
+    );
+  }
+
   if (!signal) {
     return (
       <p className="text-sm text-muted">
@@ -165,4 +211,31 @@ function WaitingBody({
       )}
     </div>
   );
+}
+
+/** Deterministic engineer detail for an in-progress lap snapshot. */
+function snapshotEngineerDetail(snap: LiveLapSnapshot): string {
+  const soc = Math.round(snap.soc_estimate * 100);
+  const net = (snap.harvest_mj - snap.deploy_mj).toFixed(2);
+  switch (snap.balance_label) {
+    case "spending":
+      return `Battery at ${soc}%. Net energy this lap: ${net} MJ. Deploy rate exceeds harvest — energy balance trending negative.`;
+    case "recovering":
+      return `Battery at ${soc}%. Net energy this lap: +${net} MJ. Harvest exceeds deploy — energy balance trending positive.`;
+    case "balanced":
+      return `Battery at ${soc}%. Net energy this lap: ${net} MJ. Harvest and deploy are closely matched — energy balance stable.`;
+  }
+}
+
+/** Deterministic fan summary for an in-progress lap snapshot. */
+function snapshotFanSummary(snap: LiveLapSnapshot): string {
+  const soc = Math.round(snap.soc_estimate * 100);
+  switch (snap.balance_label) {
+    case "spending":
+      return `Battery is at ${soc}% and the car is using more energy than it's recovering. The hybrid system is working hard this lap.`;
+    case "recovering":
+      return `Battery is at ${soc}% and climbing. The car is harvesting more energy than it's using — a good sign heading into the next stint.`;
+    case "balanced":
+      return `Battery is at ${soc}% and holding steady. Energy in and out are evenly matched right now.`;
+  }
 }

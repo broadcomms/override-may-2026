@@ -44,7 +44,7 @@ export function CockpitPage() {
     if (status?.session_id) setSessionId(status.session_id);
   }, [status?.session_id]);
 
-  const { laps: liveLaps, latestLap, streamState } = useLiveTelemetry(sessionId, {
+  const { laps: liveLaps, latestLap, latestSnapshot, streamState } = useLiveTelemetry(sessionId, {
     retryNoTelemetry: true,
   });
   const previousLap = useMemo(
@@ -130,6 +130,7 @@ export function CockpitPage() {
       <div className="grid gap-4 xl:grid-cols-[210px_minmax(0,1fr)_240px]">
         <div className="order-2 xl:order-1">
           <CockpitTimingRail
+            latestSnapshot={latestSnapshot}
             latestLap={latestLap}
             streamState={streamState}
             targetLaps={laps}
@@ -142,18 +143,20 @@ export function CockpitPage() {
             viewMode={viewMode}
             status={status}
             streamState={streamState}
+            latestSnapshot={latestSnapshot}
             latestLap={latestLap}
           />
         </div>
 
         <div className="order-3 xl:order-3">
-          <HybridEnergyRail latestLap={latestLap} previousLap={previousLap} />
+          <HybridEnergyRail latestSnapshot={latestSnapshot} latestLap={latestLap} previousLap={previousLap} />
         </div>
       </div>
 
       <LapEnergyTimeline laps={liveLaps} />
       <LiveStrategyInsight
         sessionId={sessionId}
+        latestSnapshot={latestSnapshot}
         latestLap={latestLap}
         previousLap={previousLap}
         streamState={streamState}

@@ -1,8 +1,9 @@
-import type { LiveLapStats, TorcsRaceState } from "@/api/types";
+import type { LiveLapSnapshot, LiveLapStats, TorcsRaceState } from "@/api/types";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { formatTorcsStateShort } from "@/lib/cockpitTelemetry";
 
 interface Props {
+  latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
   streamState: LiveStreamState;
   targetLaps: number;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function CockpitTimingRail({
+  latestSnapshot,
   latestLap,
   streamState,
   targetLaps,
@@ -22,31 +24,49 @@ export function CockpitTimingRail({
       </header>
       <div className="space-y-3">
         <Metric
-          label="CLOSED LAP"
-          value={latestLap ? `${latestLap.lap}/${targetLaps}` : `0/${targetLaps}`}
+          label="CURRENT LAP"
+          value={
+            latestSnapshot
+              ? `${latestSnapshot.lap}/${targetLaps}`
+              : latestLap
+              ? `${latestLap.lap + 1}/${targetLaps}`
+              : `1/${targetLaps}`
+          }
           prominent
         />
         <Metric
-          label="TIME"
-          value={latestLap ? `${latestLap.lap_time_s.toFixed(3)}s` : "waiting"}
+          label="CURRENT TIME"
+          value={latestSnapshot ? `${latestSnapshot.lap_time_s.toFixed(2)}s` : "waiting"}
         />
         <Metric
-          label="AVG"
-          value={latestLap ? `${latestLap.avg_speed_kmh.toFixed(0)} km/h` : "—"}
+          label="LIVE SPEED"
+          value={latestSnapshot ? `${latestSnapshot.speed_kmh.toFixed(0)} km/h` : "—"}
         />
         <Metric
-          label="MAX"
-          value={latestLap ? `${latestLap.max_speed_kmh.toFixed(0)} km/h` : "—"}
+          label="LIVE AVG"
+          value={latestSnapshot ? `${latestSnapshot.avg_speed_kmh.toFixed(0)} km/h` : "—"}
         />
         <Metric
           label="FUEL"
           value={
-            latestLap?.fuel_used_kg != null
-              ? `${latestLap.fuel_used_kg.toFixed(2)} kg`
+            latestSnapshot?.fuel_kg != null
+              ? `${latestSnapshot.fuel_kg.toFixed(1)} kg`
+              : latestLap?.fuel_used_kg != null
+              ? `${latestLap.fuel_used_kg.toFixed(2)} kg used`
               : "n/a"
           }
         />
         <Metric label="STATE" value={stateValue(streamState, raceState)} />
+        {latestLap && (
+          <div className="pt-1 border-t border-border/40">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted/70">
+              Closed lap
+            </div>
+            <div className="mt-0.5 font-mono text-xs tabular-nums text-muted">
+              L{latestLap.lap} · {latestLap.lap_time_s.toFixed(3)}s · {latestLap.avg_speed_kmh.toFixed(0)} km/h avg
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -320,6 +320,49 @@ class LiveLapStats(BaseModel):
     )
 
 
+class LiveLapSnapshot(BaseModel):
+    """In-progress lap state emitted by the SSE stream at ~4 Hz.
+
+    Derived from raw TORCS JSONL ticks for the current (not-yet-closed) lap.
+    All energy values use the same ``analysis.torcs_energy`` constants as
+    ``LiveLapStats`` so live and final numbers stay consistent. SoC is always
+    ``soc_source="derived"`` — it walks prior completed laps + the current
+    partial segment to estimate the running state of charge.
+
+    ``balance_label`` is a deterministic live signal from the current-lap
+    harvest/deploy accumulation only. It is NOT a Granite or Guardian result.
+    """
+
+    lap: int = Field(ge=1, description="Current in-progress lap number, 1-indexed.")
+    lap_time_s: float = Field(ge=0, description="Elapsed time in the current lap.")
+    speed_kmh: float = Field(ge=0, description="Latest instantaneous speed, km/h.")
+    avg_speed_kmh: float = Field(ge=0, description="Running average speed this lap, km/h.")
+    max_speed_kmh: float = Field(ge=0, description="Running max speed this lap, km/h.")
+    dist_from_start_m: float = Field(ge=0, description="Latest car position on track, metres.")
+    lap_progress_pct: float = Field(
+        ge=0, le=100,
+        description="0..100 estimate from distance vs observed track length.",
+    )
+    sector: Optional[Literal[1, 2, 3]] = Field(
+        default=None, description="Approximate sector from distance thirds.",
+    )
+    throttle_frac: Optional[float] = Field(default=None, ge=0, le=1)
+    brake_frac: Optional[float] = Field(default=None, ge=0, le=1)
+    steer_frac: Optional[float] = Field(default=None, description="Steering, normalised −1..1.")
+    gear: Optional[int] = Field(default=None)
+    fuel_kg: Optional[float] = Field(default=None, description="Latest absolute fuel reading, kg.")
+    fuel_used_kg: Optional[float] = Field(
+        default=None, description="Fuel delta since current lap start, kg.",
+    )
+    harvest_mj: float = Field(ge=0, description="Running current-lap harvest, MJ.")
+    deploy_mj: float = Field(ge=0, description="Running current-lap deploy, MJ.")
+    soc_estimate: float = Field(ge=0, le=1, description="Running SoC estimate (derived).")
+    soc_source: Literal["derived"] = Field(default="derived")
+    balance_label: Literal["spending", "recovering", "balanced"] = Field(
+        description="Deterministic live signal from current-lap net energy.",
+    )
+
+
 class VersionResponse(BaseModel):
     build: str
     git_sha: Optional[str]
@@ -860,7 +903,7 @@ def create_app() -> FastAPI:
         ``{"event":"no_telemetry"}`` and close.
         """
         STALL_SECONDS_THRESHOLD = 10.0
-        POLL_INTERVAL_S = 1.0
+        POLL_INTERVAL_S = 0.25  # 4 Hz — drives snapshot cadence
         TELEMETRY_FILE_WAIT_SECONDS = 60.0
         TELEMETRY_FILE_POLL_INTERVAL_S = 0.5
 
@@ -917,6 +960,7 @@ def create_app() -> FastAPI:
                 emitted_laps = 0
                 last_mtime: Optional[float] = None
                 stall_started: Optional[float] = None
+                last_snapshot_sig: Optional[str] = None
 
                 while True:
                     if await request.is_disconnected():
@@ -941,6 +985,15 @@ def create_app() -> FastAPI:
                         # Yield control between lap emits so a multi-lap
                         # catch-up doesn't block the disconnect check.
                         await asyncio.sleep(0)
+
+                    # Emit a snapshot for the current in-progress lap.
+                    # Deduplicated by signature so static files don't spam the client.
+                    snapshot = _aggregate_live_snapshot(observations)
+                    if snapshot is not None:
+                        sig = _snapshot_sig(snapshot)
+                        if sig != last_snapshot_sig:
+                            yield _sse({"event": "snapshot", "snapshot": snapshot.model_dump()})
+                            last_snapshot_sig = sig
 
                     # File-stall race-end heuristic
                     now = time.monotonic()
@@ -1701,6 +1754,216 @@ def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLap
         deploy_mj=round(deploy_mj, 4),
         soc_end=round(soc, 6),
         fuel_used_kg=fuel_used,
+    )
+
+
+def _aggregate_live_snapshot(observations: list[dict]) -> Optional[LiveLapSnapshot]:
+    """Compute a LiveLapSnapshot for the current in-progress lap.
+
+    Mirrors the segmentation and energy math used by ``_aggregate_lap`` so
+    live and completed-lap numbers stay consistent. The last segment in the
+    observations is always the current in-progress lap (whether it has seen
+    a few ticks or many). Completed laps are those that end in a wraparound.
+
+    Returns None when there are no valid observations or when the current
+    segment is empty after partial-start skip logic.
+    """
+    from analysis.torcs_energy import (
+        BATTERY_CAPACITY_MJ,
+        DEPLOY_KJ_PER_FULL_THROTTLE_SECOND,
+        HARVEST_KJ_PER_BRAKE_SECOND,
+        SOC_INITIAL,
+        THROTTLE_DEPLOY_THRESHOLD,
+    )
+
+    if not observations:
+        return None
+
+    def _scalar(o: dict, k: str) -> Optional[float]:
+        v = o.get(k)
+        if isinstance(v, list) and v:
+            v = v[0]
+        return float(v) if isinstance(v, (int, float)) else None
+
+    # Segment observations into laps by wraparound (same logic as _aggregate_lap).
+    laps: list[list[dict]] = [[]]
+    prev_dist: Optional[float] = None
+    for obs in observations:
+        raw = obs.get("distFromStart")
+        if isinstance(raw, list) and raw:
+            raw = raw[0]
+        if not isinstance(raw, (int, float)):
+            continue
+        dist = float(raw)
+        if prev_dist is not None and dist < prev_dist * 0.5 and prev_dist > 100.0:
+            laps.append([])
+        laps[-1].append(obs)
+        prev_dist = dist
+
+    # Skip the partial first segment when the operator joined mid-lap.
+    if _first_segment_is_partial(observations) and laps:
+        laps = laps[1:]
+    if not laps:
+        return None
+
+    # The last segment is always the current in-progress lap.
+    current_seg = laps[-1]
+    if not current_seg:
+        return None
+
+    current_lap_num = len(laps)  # 1-indexed; completed so far is len(laps)-1
+
+    # Current lap time (from curLapTime of the latest tick)
+    lap_time_s = max(0.0, _scalar(current_seg[-1], "curLapTime") or 0.0)
+
+    # Speed stats (TORCS speedX is m/s → km/h)
+    speeds_kmh = [
+        v * 3.6 for v in (_scalar(o, "speedX") for o in current_seg) if v is not None
+    ]
+    speed_kmh = speeds_kmh[-1] if speeds_kmh else 0.0
+    avg_speed_kmh = sum(speeds_kmh) / len(speeds_kmh) if speeds_kmh else 0.0
+    max_speed_kmh = max(speeds_kmh) if speeds_kmh else 0.0
+
+    # Position
+    dist_from_start_m = _scalar(current_seg[-1], "distFromStart") or 0.0
+
+    # Track length estimate: max dist seen across *completed* segments (those
+    # bounded by a wraparound). When there are no completed segments yet (very
+    # start of race) fall back to 3000 m so progress % stays meaningful.
+    completed_segs = laps[:-1]  # exclude the in-progress tail
+    if completed_segs:
+        all_completed_dists = [
+            _scalar(o, "distFromStart")
+            for seg in completed_segs
+            for o in seg
+        ]
+        valid_completed_dists = [d for d in all_completed_dists if d is not None]
+        track_length_est = max(valid_completed_dists) if valid_completed_dists else 3000.0
+    else:
+        track_length_est = 3000.0
+
+    lap_progress_pct = (
+        min(100.0, dist_from_start_m / track_length_est * 100.0)
+        if track_length_est > 0
+        else 0.0
+    )
+
+    # Sector from distance thirds (approximate, acceptable for live HUD)
+    if lap_progress_pct <= 33.3:
+        sector: Optional[Literal[1, 2, 3]] = 1
+    elif lap_progress_pct <= 66.6:
+        sector = 2
+    else:
+        sector = 3
+
+    # Latest driver inputs from the most recent tick
+    last_obs = current_seg[-1]
+    throttle_frac = _scalar(last_obs, "accel")
+    brake_frac = _scalar(last_obs, "brake")
+    steer_frac = _scalar(last_obs, "steer")
+    raw_gear = _scalar(last_obs, "gear")
+    gear: Optional[int] = int(raw_gear) if raw_gear is not None else None
+    fuel_kg = _scalar(last_obs, "fuel")
+
+    fuel_first = _scalar(current_seg[0], "fuel")
+    fuel_last = _scalar(current_seg[-1], "fuel")
+    fuel_used_kg: Optional[float] = None
+    if fuel_first is not None and fuel_last is not None and fuel_last <= fuel_first:
+        fuel_used_kg = round(fuel_first - fuel_last, 4)
+
+    # Energy integration for the current partial lap segment
+    brake_s = 0.0
+    throttle_s = 0.0
+    for i, obs in enumerate(current_seg):
+        prev_t = _scalar(current_seg[i - 1], "curLapTime") if i > 0 else None
+        cur_t = _scalar(obs, "curLapTime")
+        dt = (
+            (cur_t - prev_t)
+            if (prev_t is not None and cur_t is not None and cur_t > prev_t)
+            else 0.02
+        )
+        brake = _scalar(obs, "brake") or 0.0
+        accel = _scalar(obs, "accel") or 0.0
+        if brake > 0.05:
+            brake_s += dt
+        if accel * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
+            throttle_s += dt
+
+    harvest_mj = (HARVEST_KJ_PER_BRAKE_SECOND * brake_s) / 1000.0
+    deploy_mj = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * throttle_s) / 1000.0
+
+    # SoC: walk all completed laps, then add the current partial lap's delta.
+    soc = SOC_INITIAL
+    for seg in laps[:-1]:  # all but the current in-progress segment
+        b_s = 0.0
+        t_s = 0.0
+        for j, obs in enumerate(seg):
+            prev_t = _scalar(seg[j - 1], "curLapTime") if j > 0 else None
+            cur_t = _scalar(obs, "curLapTime")
+            dt = (
+                (cur_t - prev_t)
+                if (prev_t is not None and cur_t is not None and cur_t > prev_t)
+                else 0.02
+            )
+            br = _scalar(obs, "brake") or 0.0
+            ac = _scalar(obs, "accel") or 0.0
+            if br > 0.05:
+                b_s += dt
+            if ac * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
+                t_s += dt
+        h = (HARVEST_KJ_PER_BRAKE_SECOND * b_s) / 1000.0
+        d = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * t_s) / 1000.0
+        soc = max(0.0, min(1.0, soc + (h - d) / BATTERY_CAPACITY_MJ))
+
+    soc_estimate = max(0.0, min(1.0, soc + (harvest_mj - deploy_mj) / BATTERY_CAPACITY_MJ))
+
+    # Deterministic balance label from current-lap net energy
+    net = harvest_mj - deploy_mj
+    if net > 0.1:
+        balance_label: Literal["spending", "recovering", "balanced"] = "recovering"
+    elif net < -0.1:
+        balance_label = "spending"
+    else:
+        balance_label = "balanced"
+
+    return LiveLapSnapshot(
+        lap=current_lap_num,
+        lap_time_s=round(lap_time_s, 2),
+        speed_kmh=round(speed_kmh, 1),
+        avg_speed_kmh=round(avg_speed_kmh, 1),
+        max_speed_kmh=round(max_speed_kmh, 1),
+        dist_from_start_m=round(dist_from_start_m, 0),
+        lap_progress_pct=round(lap_progress_pct, 1),
+        sector=sector,
+        throttle_frac=round(throttle_frac, 3) if throttle_frac is not None else None,
+        brake_frac=round(brake_frac, 3) if brake_frac is not None else None,
+        steer_frac=round(steer_frac, 3) if steer_frac is not None else None,
+        gear=gear,
+        fuel_kg=round(fuel_kg, 2) if fuel_kg is not None else None,
+        fuel_used_kg=fuel_used_kg,
+        harvest_mj=round(harvest_mj, 4),
+        deploy_mj=round(deploy_mj, 4),
+        soc_estimate=round(soc_estimate, 6),
+        soc_source="derived",
+        balance_label=balance_label,
+    )
+
+
+def _snapshot_sig(snap: LiveLapSnapshot) -> str:
+    """Compact signature for deduplicating snapshot emits per connection.
+
+    Built from rounded key fields so minor floating-point jitter in a static
+    file doesn't trigger spurious emits. The SSE generator caches the last
+    emitted signature and skips re-emission when the value hasn't changed.
+    """
+    return (
+        f"{snap.lap}:"
+        f"{round(snap.lap_time_s, 1)}:"
+        f"{round(snap.speed_kmh, 0)}:"
+        f"{round(snap.harvest_mj, 3)}:"
+        f"{round(snap.deploy_mj, 3)}:"
+        f"{round(snap.soc_estimate, 4)}:"
+        f"{round(snap.dist_from_start_m, -1)}"
     )
 
 
