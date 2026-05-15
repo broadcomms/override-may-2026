@@ -682,6 +682,7 @@
       }
     ],
     "forecast": {
+      "horizon_laps": 5,
       "point": [
         0.446,
         0.433,
