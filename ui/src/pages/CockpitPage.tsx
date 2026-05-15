@@ -102,7 +102,7 @@ export function CockpitPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] space-y-4 px-4 pb-6">
+    <div className="min-h-[calc(100vh-8rem)] space-y-4 px-4 pt-6 pb-6">
       <CockpitCommandStrip
         status={status}
         sessionId={sessionId}
