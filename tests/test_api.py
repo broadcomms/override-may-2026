@@ -1800,9 +1800,44 @@ def test_race_ended_still_fires_after_snapshots(tmp_path, monkeypatch):
     assert kinds[-1] == "race_ended", f"Expected race_ended as final event, got {kinds}"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# POST /api/sessions/{id}/what-if  (FR-8)
-# ──────────────────────────────────────────────────────────────────────────────
+def test_no_snapshot_emitted_after_race_ended(tmp_path, monkeypatch):
+    """race_ended must be the last event; no snapshot should follow it.
+    Guards against the stale-live-state bug where the cockpit could keep
+    rendering 'Live telemetry updating…' after the race is over."""
+    import api.main as main_mod
+    import asyncio as _asyncio
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "done.jsonl").write_bytes(_sse_jsonl_payload(n_laps=3))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "done"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    orig_sleep = _asyncio.sleep
+    async def _fast_sleep(s): await orig_sleep(min(s, 0.01))
+    monkeypatch.setattr(main_mod.asyncio, "sleep", _fast_sleep)
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                if ev.get("event") == "race_ended":
+                    break
+
+    kinds = [e["event"] for e in events]
+    assert kinds[-1] == "race_ended", f"Last event must be race_ended, got {kinds}"
+    # No snapshot may appear after race_ended (stream closes at that point).
+    race_ended_idx = next(i for i, k in enumerate(kinds) if k == "race_ended")
+    trailing = kinds[race_ended_idx + 1:]
+    assert not trailing, f"Events after race_ended: {trailing}"
+
+
+
 
 
 def test_what_if_happy_path_returns_perturbed_recommendations(tmp_path):

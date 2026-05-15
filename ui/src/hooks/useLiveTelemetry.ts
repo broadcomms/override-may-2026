@@ -110,6 +110,7 @@ export function useLiveTelemetry(
           break;
         case "race_ended":
           setRaceEnded(true);
+          setLatestSnapshot(null);  // demote live state — race is over
           setStreamState({ kind: "ended", reason: ev.reason ?? "completed" });
           onRaceEnded?.();
           break;

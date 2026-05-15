@@ -92,7 +92,8 @@ function frameOverlay(
   latestSnapshot: LiveLapSnapshot | null,
   latestLap: LiveLapStats | null,
 ): string {
-  if (latestSnapshot) {
+  // Never show a live-progress overlay after the race has ended.
+  if (latestSnapshot && streamState.kind !== "ended") {
     const sector = latestSnapshot.sector ?? "—";
     return `Live telemetry updating in Sector ${sector}. Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`;
   }
