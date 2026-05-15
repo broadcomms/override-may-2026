@@ -45,14 +45,20 @@ Phase 4  — Dense representation prototype: if lap-level fails broadly, show
            the fidelity delta.
 
 Confirmed results (run with .venv-ttm-eval: torch 2.10.0+cu128, tsfm_public):
-  PatchTST  : inference_succeeded=True, output_shape=[5, 5]
-  PatchTSMixer: inference_succeeded=False (mat shape mismatch at 1-patch input)
-  TTM-R1/R2 : inference_succeeded=False (prediction_length=5 override breaks
-              strict state_dict load; load with pred=96 and slice to fix)
+  PatchTST     : dummy forward pass succeeded, output_shape=[5, 5]
+  PatchTSMixer : forward pass failed (mat shape mismatch at 1-patch input)
+  TTM-R1/R2    : forward pass succeeded with checkpoint ctx=512, output=[5,1]
+                 (univariate; lap-level still analytically incompatible)
 
-Primary recommendation: PatchTST is OVERRIDE's best current candidate at
-lap-level.  Tick-level (~17 ticks/lap) would unlock TTM-R1/R2 once
-prediction_length loading is corrected.
+NOTE: all inference trials use synthetic random tensors, NOT real TORCS data.
+"inference_succeeded" means architectural compatibility only — it is NOT
+evidence of forecast quality.  forecasting_should_remain_disabled=True until
+MAE is measured on real OVERRIDE sessions.
+
+Best structural candidate for the next real-data MAE test: PatchTST
+  - lap-level compatible (2 patches from 30 laps)
+  - multivariate (5 channels)
+  - forward pass confirmed with synthetic data
 """
 
 from __future__ import annotations
@@ -600,9 +606,18 @@ def _build_recommendations(env: dict, models: list[dict]) -> dict:
     )
 
     # Primary recommendation
+    # NOTE: inference_succeeded here means a dummy forward pass completed —
+    # it does NOT prove the model produces meaningful forecasts on OVERRIDE data.
+    # Until MAE is evaluated on real TORCS sessions, phrasing must be cautious.
     if inference_succeeded:
+        inference_names = [m["name"] for m in inference_succeeded]
         primary = "evaluate_lap_level_candidate"
-        detail = f"Model(s) {[m['name'] for m in inference_succeeded]} succeeded in inference trial. Review MAE and interval width."
+        detail = (
+            f"Model(s) {inference_names} completed a forward pass with synthetic data. "
+            "This confirms architectural compatibility only — it does NOT prove forecast "
+            "quality on OVERRIDE session data. Next step: run MAE evaluation on real "
+            "TORCS sessions before treating any model as the production candidate."
+        )
     elif lap_compatible and best_lap_candidate:
         primary = "test_patchtst_or_patchtsmixer_lap_level"
         detail = (
@@ -625,7 +640,10 @@ def _build_recommendations(env: dict, models: list[dict]) -> dict:
         "best_lap_level_candidate": best_lap_candidate["name"] if best_lap_candidate else None,
         "primary_recommendation": primary,
         "primary_detail": detail,
-        "forecasting_should_remain_disabled": not bool(inference_succeeded),
+        # forecasting_should_remain_disabled is ALWAYS True until MAE on real
+        # OVERRIDE session data has been measured.  A successful dummy forward
+        # pass only proves architectural compatibility, not forecast quality.
+        "forecasting_should_remain_disabled": True,
         "tick_level_required_for_ttm": True,
         "tick_level_notes": (
             "TTM-R1/R2 (patch_length=64) require 64+ data points per context window. "
@@ -640,12 +658,11 @@ def _build_recommendations(env: dict, models: list[dict]) -> dict:
             "out-of-distribution use. Tick-level is still recommended."
         ),
         "next_steps": [
-            "Fix torch runtime (ncclDevCommDestroy symbol conflict) or use a clean venv",
-            "In a working env: run this script to confirm inference_succeeded",
-            "If PatchTST/PatchTSMixer succeed at lap-level, evaluate MAE vs linear-trend baseline",
-            "If MAE is poor, implement tick-level downsampling (~17 ticks/lap, 30 laps → 510 pts)",
-            "Re-run sweep with representation=tick-level to confirm fit",
-            "Only then reconsider live forecast threshold in production",
+            "Run MAE evaluation on real TORCS sessions using PatchTST at lap-level",
+            "Compare MAE to a linear-trend baseline to confirm the model adds value",
+            "If lap-level MAE is poor: implement tick-level downsampling (~17 ticks/lap × 30 laps ≈ 510 pts)",
+            "Re-run sweep at tick-level to confirm fit and re-measure MAE",
+            "Only after MAE beats baseline on real data: reconsider live forecast threshold",
         ],
     }
 
@@ -733,7 +750,10 @@ def _print_model(m: dict) -> None:
     # Inference trial
     trial = m["inference_trial"]
     if trial.get("inference_succeeded"):
-        print(f"  [INFERENCE]  ✓ SUCCEEDED  output shape={trial.get('output_shape')}")
+        note = trial.get("note", "")
+        suffix = f"  [{note}]" if note else ""
+        print(f"  [INFERENCE]  ✓ SYNTHETIC FORWARD PASS OK  output shape={trial.get('output_shape')}{suffix}")
+        print(f"    ⚠  synthetic random input only — does NOT prove forecast quality on real data")
     else:
         blocker = trial.get("blocker", "not_attempted")
         detail = trial.get("detail", "")
@@ -777,12 +797,11 @@ def _print_recommendations(rec: dict) -> None:
     print()
     print("  PRODUCT DECISION")
     print("  " + "-" * 60)
-    if rec["forecasting_should_remain_disabled"]:
-        print("    → Keep live forecasting disabled.")
-        print("    → Keep current demo fixture path intact.")
-        print("    → Do not lower production threshold until inference_succeeded=true.")
-    else:
-        print(f"    → {rec['primary_detail']}")
+    print("    → Live forecasting remains disabled.")
+    print("    → Synthetic forward pass success is NOT sufficient to enable forecasting.")
+    print("    → Do not lower production threshold until MAE on real OVERRIDE sessions")
+    print("       has been measured and shown to beat a linear-trend baseline.")
+    print(f"    → Best structural candidate for next real-data test: {rec.get('best_lap_level_candidate', 'patchtst')}")
     print()
     print("=" * _W)
 

@@ -286,18 +286,17 @@
     ],
     "best_lap_level_candidate": "patchtst",
     "primary_recommendation": "evaluate_lap_level_candidate",
-    "primary_detail": "Model(s) ['ttm-r1', 'ttm-r2', 'patchtst'] succeeded in inference trial. Review MAE and interval width.",
-    "forecasting_should_remain_disabled": false,
+    "primary_detail": "Model(s) ['ttm-r1', 'ttm-r2', 'patchtst'] completed a forward pass with synthetic data. This confirms architectural compatibility only \u2014 it does NOT prove forecast quality on OVERRIDE session data. Next step: run MAE evaluation on real TORCS sessions before treating any model as the production candidate.",
+    "forecasting_should_remain_disabled": true,
     "tick_level_required_for_ttm": true,
     "tick_level_notes": "TTM-R1/R2 (patch_length=64) require 64+ data points per context window. At lap granularity OVERRIDE tops out at 30 laps \u2014 always insufficient. Downsampling to 17 ticks/lap \u00d7 30 laps = 510 \u2248 context_length=512 would unlock TTM-R1/R2 with high time-resolution energy signals.",
     "patchtst_patchtsmixer_notes": "PatchTST (patch=12) and PatchTSMixer (patch=16) can technically form 2 and 1 patches respectively from 30 laps. But the model was trained on 512\u00f712=42 or 512\u00f716=32 patches; operating with 1\u20132 patches is severe out-of-distribution use. Tick-level is still recommended.",
     "next_steps": [
-      "Fix torch runtime (ncclDevCommDestroy symbol conflict) or use a clean venv",
-      "In a working env: run this script to confirm inference_succeeded",
-      "If PatchTST/PatchTSMixer succeed at lap-level, evaluate MAE vs linear-trend baseline",
-      "If MAE is poor, implement tick-level downsampling (~17 ticks/lap, 30 laps \u2192 510 pts)",
-      "Re-run sweep with representation=tick-level to confirm fit",
-      "Only then reconsider live forecast threshold in production"
+      "Run MAE evaluation on real TORCS sessions using PatchTST at lap-level",
+      "Compare MAE to a linear-trend baseline to confirm the model adds value",
+      "If lap-level MAE is poor: implement tick-level downsampling (~17 ticks/lap \u00d7 30 laps \u2248 510 pts)",
+      "Re-run sweep at tick-level to confirm fit and re-measure MAE",
+      "Only after MAE beats baseline on real data: reconsider live forecast threshold"
     ]
   }
 }
