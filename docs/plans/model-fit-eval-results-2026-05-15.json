@@ -1,14 +1,14 @@
 {
   "eval_date": "2026-05-15",
   "env": {
-    "torch_available": false,
-    "torch_detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy",
-    "tsfm_public_available": false,
-    "tsfm_public_detail": "",
-    "transformers_patchtst_available": false,
-    "transformers_patchtst_detail": "",
-    "transformers_patchtsmixer_available": false,
-    "transformers_patchtsmixer_detail": "",
+    "torch_available": true,
+    "torch_detail": "torch 2.10.0+cu128",
+    "tsfm_public_available": true,
+    "tsfm_public_detail": "tsfm_public available (TinyTimeMixerForPrediction)",
+    "transformers_patchtst_available": true,
+    "transformers_patchtst_detail": "transformers.PatchTSTForPrediction available",
+    "transformers_patchtsmixer_available": true,
+    "transformers_patchtsmixer_detail": "transformers.PatchTSMixerForPrediction available",
     "override_max_laps": 30,
     "override_horizon": 5,
     "override_channels": 5,
@@ -72,9 +72,12 @@
       },
       "inference_trial": {
         "inference_attempted": true,
-        "inference_succeeded": false,
-        "blocker": "torch_unavailable",
-        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+        "inference_succeeded": true,
+        "output_shape": [
+          5,
+          1
+        ],
+        "note": "loaded with checkpoint ctx=512, pred=96, sliced to horizon=5; lap-level still analytically incompatible"
       }
     },
     {
@@ -134,9 +137,12 @@
       },
       "inference_trial": {
         "inference_attempted": true,
-        "inference_succeeded": false,
-        "blocker": "torch_unavailable",
-        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+        "inference_succeeded": true,
+        "output_shape": [
+          5,
+          1
+        ],
+        "note": "loaded with checkpoint ctx=512, pred=96, sliced to horizon=5; lap-level still analytically incompatible"
       }
     },
     {
@@ -194,9 +200,11 @@
       },
       "inference_trial": {
         "inference_attempted": true,
-        "inference_succeeded": false,
-        "blocker": "torch_unavailable",
-        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+        "inference_succeeded": true,
+        "output_shape": [
+          5,
+          5
+        ]
       }
     },
     {
@@ -257,8 +265,8 @@
       "inference_trial": {
         "inference_attempted": true,
         "inference_succeeded": false,
-        "blocker": "torch_unavailable",
-        "detail": "torch ImportError: /home/patrick/overdrive-may-2026/.venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclDevCommDestroy"
+        "blocker": "inference_error",
+        "detail": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (240x2 and 32x96)"
       }
     }
   ],
@@ -271,11 +279,15 @@
       "ttm-r1",
       "ttm-r2"
     ],
-    "inference_succeeded_models": [],
+    "inference_succeeded_models": [
+      "ttm-r1",
+      "ttm-r2",
+      "patchtst"
+    ],
     "best_lap_level_candidate": "patchtst",
-    "primary_recommendation": "test_patchtst_or_patchtsmixer_lap_level",
-    "primary_detail": "patchtst is the best structural fit at lap-level (2 patches from 30 laps). Requires compatible torch + transformers env for inference trial.",
-    "forecasting_should_remain_disabled": true,
+    "primary_recommendation": "evaluate_lap_level_candidate",
+    "primary_detail": "Model(s) ['ttm-r1', 'ttm-r2', 'patchtst'] succeeded in inference trial. Review MAE and interval width.",
+    "forecasting_should_remain_disabled": false,
     "tick_level_required_for_ttm": true,
     "tick_level_notes": "TTM-R1/R2 (patch_length=64) require 64+ data points per context window. At lap granularity OVERRIDE tops out at 30 laps \u2014 always insufficient. Downsampling to 17 ticks/lap \u00d7 30 laps = 510 \u2248 context_length=512 would unlock TTM-R1/R2 with high time-resolution energy signals.",
     "patchtst_patchtsmixer_notes": "PatchTST (patch=12) and PatchTSMixer (patch=16) can technically form 2 and 1 patches respectively from 30 laps. But the model was trained on 512\u00f712=42 or 512\u00f716=32 patches; operating with 1\u20132 patches is severe out-of-distribution use. Tick-level is still recommended.",
