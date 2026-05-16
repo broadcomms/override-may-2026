@@ -454,9 +454,22 @@ async def _reset_torcs_gui_after_stop() -> None:
     Env vars (read on every call — no daemon restart needed):
       OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
       OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop
+      OVERRIDE_KIOSK_MODE=1           required — SIGTERM is skipped in non-kiosk
+                                      mode (no supervisor means no auto-restart)
     """
     if os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") == "0":
         logger.info("gui-reset: disabled via OVERRIDE_TORCS_GUI_RESET=0")
+        return
+
+    # SIGTERM only makes sense in kiosk mode: the supervisor (torcs-kiosk-loop.sh)
+    # catches the exit and relaunches TORCS cleanly in ~2-3 s.  In non-kiosk /
+    # operator mode there is no supervisor, so killing TORCS just leaves the bare
+    # XFCE desktop exposed — worse than doing nothing.
+    if os.environ.get("OVERRIDE_KIOSK_MODE", "0") != "1":
+        logger.info(
+            "gui-reset: skipping — not in kiosk mode (OVERRIDE_KIOSK_MODE != 1); "
+            "TORCS remains live in pause state"
+        )
         return
 
     settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
