@@ -154,7 +154,21 @@ StartupNotify=false
 DESKTOP_EOF
 chmod +x /root/Desktop/launch-torcs.desktop
 
-# ── Fix 5 — Kiosk desktop surface (opt-in via OVERRIDE_KIOSK_MODE=1) ─────────
+# ── Fix 4.5 — OVERRIDE branded car livery for car1-trb1 ──────────────────────
+# The SCR server driver (scr_server.xml) uses car1-trb1 for all race slots.
+# If assets/brand/car1-trb1.rgb is mounted at /opt/override-brand/, copy it
+# over the stock texture so the TORCS 3D view shows the OVERRIDE livery.
+#
+# Applies unconditionally (both kiosk and operator modes) whenever the brand
+# volume is mounted.  Idempotent: cp overwrites same bytes on repeated starts.
+LIVERY_SRC=/opt/override-brand/car1-trb1.rgb
+LIVERY_DST=/usr/local/torcs/share/games/torcs/cars/car1-trb1/car1-trb1.rgb
+if [ -f "$LIVERY_SRC" ]; then
+    cp "$LIVERY_SRC" "$LIVERY_DST"
+    echo "[init] OVERRIDE livery applied: car1-trb1.rgb → $LIVERY_DST"
+else
+    echo "[init] no brand livery found at $LIVERY_SRC — stock car texture unchanged"
+fi
 # Transforms the XFCE desktop from a generic remote desktop into a minimal
 # race-focused appliance surface. Only activates when OVERRIDE_KIOSK_MODE=1.
 #
