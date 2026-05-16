@@ -89,8 +89,10 @@ KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 # Post-stop GUI reset env vars (3D/manual-launch mode only).
 # Read inside _reset_torcs_gui_after_stop() so changes take effect without
 # restarting the daemon.
-#   OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
-#   OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop before acting
+#   OVERRIDE_TORCS_GUI_RESET=0          disable entirely (default: enabled)
+#   OVERRIDE_TORCS_GUI_SETTLE_S=1.0     seconds to wait after SCR stop
+#   OVERRIDE_TORCS_GUI_RESET_KEYS       colon-separated xte key names
+#                                       (default: Escape:Down:Return)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -437,64 +439,58 @@ async def _reset_torcs_gui_after_stop() -> None:
     None).  After the SCR client disconnects, TORCS stays mid-race; without
     this the operator would need a manual second action to settle the simulator.
 
-    Strategy — SIGTERM torcs-bin:
+    Strategy — xte key injection:
     ─────────────────────────────
-    xte (xautomation) sends keys to whichever X window currently has keyboard
-    focus.  In practice the operator has just clicked a button in the OVERRIDE
-    UI, so focus is in the browser/noVNC frame — not the TORCS window.  xte
-    has no window-targeting capability and xdotool is not in the lab image, so
-    focus-independent key injection is not available.
+    After SCR stops, TORCS enters its Race Stopped menu.  We send a short
+    key sequence (default: Escape → Down → Return) to select Abandon Race
+    and return TORCS to a stable main-menu state.
 
-    The reliable alternative is to send SIGTERM to torcs-bin.  TORCS exits
-    cleanly; the kiosk supervisor (Fix 5 in torcs_container_init.sh) catches
-    the exit and relaunches in ~2-3 s.  In non-kiosk mode (no supervisor) the
-    operator gets a clean exit and relaunches manually — still better than a
-    stray file-manager window.
+    Guard: we confirm torcs-bin is alive via pgrep before sending any keys.
+    This prevents stray keystrokes landing on the XFCE desktop or another
+    window if TORCS has already exited or crashed before Stop race was called.
 
     Env vars (read on every call — no daemon restart needed):
-      OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
-      OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop
-      OVERRIDE_KIOSK_MODE=1           required — SIGTERM is skipped in non-kiosk
-                                      mode (no supervisor means no auto-restart)
+      OVERRIDE_TORCS_GUI_RESET=0          disable entirely (default: enabled)
+      OVERRIDE_TORCS_GUI_SETTLE_S=1.0     seconds to wait after SCR stop
+      OVERRIDE_TORCS_GUI_RESET_KEYS       colon-separated X key names sent via
+                                          xte (default: Escape:Down:Return).
+                                          Each token becomes xte 'key <token>'.
     """
     if os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") == "0":
         logger.info("gui-reset: disabled via OVERRIDE_TORCS_GUI_RESET=0")
         return
 
-    # SIGTERM only makes sense in kiosk mode: the supervisor (torcs-kiosk-loop.sh)
-    # catches the exit and relaunches TORCS cleanly in ~2-3 s.  In non-kiosk /
-    # operator mode there is no supervisor, so killing TORCS just leaves the bare
-    # XFCE desktop exposed — worse than doing nothing.
-    if os.environ.get("OVERRIDE_KIOSK_MODE", "0") != "1":
-        logger.info(
-            "gui-reset: skipping — not in kiosk mode (OVERRIDE_KIOSK_MODE != 1); "
-            "TORCS remains live in pause state"
-        )
-        return
-
     settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "") or "1.0")
     await asyncio.sleep(settle_s)
 
-    # Guard: confirm torcs-bin is still running before acting.
+    # Guard: confirm torcs-bin is still running before injecting keys.
+    # Without this guard, keys would land on whichever X window currently has
+    # focus — potentially the XFCE desktop or another application.
     check = subprocess.run(
         ["pgrep", "-f", "torcs-bin"], capture_output=True, text=True
     )
     if check.returncode != 0:
-        logger.info("gui-reset: no torcs-bin found; nothing to reset")
+        logger.info("gui-reset: no torcs-bin found; skipping key injection")
         return
 
-    pids = check.stdout.strip().split()
-    for raw_pid in pids:
-        try:
-            subprocess.run(["kill", "-TERM", raw_pid.strip()], check=False, capture_output=True)
-        except OSError as exc:
-            logger.warning("gui-reset: SIGTERM pid=%s failed: %s", raw_pid.strip(), exc)
-
-    logger.info(
-        "gui-reset: sent SIGTERM to torcs-bin pid(s) %s; "
-        "kiosk supervisor will relaunch",
-        pids,
+    raw_keys = (
+        os.environ.get("OVERRIDE_TORCS_GUI_RESET_KEYS", "") or "Escape:Down:Return"
     )
+    key_seq = [k.strip() for k in raw_keys.split(":") if k.strip()]
+
+    xte_env = {**os.environ, "DISPLAY": ":1"}
+    xte_cmds: list[str] = []
+    for key_name in key_seq:
+        xte_cmds.append(f"key {key_name}")
+        xte_cmds.append("usleep 150000")
+
+    try:
+        subprocess.run(["xte"] + xte_cmds, capture_output=True, env=xte_env)
+    except FileNotFoundError:
+        logger.warning("gui-reset: xte not found — install xautomation in the container")
+        return
+
+    logger.info("gui-reset: sent key sequence [%s] to TORCS", ", ".join(key_seq))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
