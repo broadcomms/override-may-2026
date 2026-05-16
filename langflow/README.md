@@ -18,14 +18,14 @@ breaks across versions, so we don't hand-author it.
 
 ## 1. Quickstart — compose mode (recommended, ~5 min)
 
-The fastest path is `podman compose --profile langflow up`. It builds a
+The fastest documented path is `podman-compose up override langflow`. It builds a
 Langflow image (langflow 1.9.2 + OVERRIDE's runtime deps), bind-mounts
 `core/`, `ingest/`, `analysis/`, `guardian/`, `prompts/`, and the components
 themselves at `/workspace/...`, and reads watsonx credentials from `.env`.
 
 ```bash
 cp .env.example .env          # fill WATSONX_API_KEY + WATSONX_PROJECT_ID
-podman compose --profile langflow up
+podman-compose up override langflow
 ```
 
 First build is ~3–5 min (`Dockerfile.langflow` layers `requirements.txt`
@@ -35,8 +35,8 @@ up after a Langflow UI reload, no rebuild needed.
 
 Langflow opens at http://localhost:7860. Skip to §3 (assemble the canvas).
 
-> Pair it with another profile if needed:
-> `podman compose --profile langflow --profile torcs up` brings up the
+> Service selection is explicit. Pair it with TORCS using
+> `podman-compose up override torcs langflow`, which brings up the
 > live TORCS lab alongside the canvas (handy if you want the canvas's
 > File Input node to pick up a freshly-driven JSONL capture from the
 > shared `torcs-telemetry` volume — files live in `/app/data/telemetry/`

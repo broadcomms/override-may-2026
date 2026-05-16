@@ -27,7 +27,7 @@ Migrate Granite Instruct and Granite Guardian to **watsonx.ai cloud serving**. T
 ### Positive
 
 - Inference is fast enough to meet the 30 s end-to-end pipeline budget; reasoning per zone returns in low seconds.
-- No 12 GB local model download in the Quickstart — judges can `podman compose up` and immediately use the system once their `.env` has watsonx credentials.
+- No 12 GB local model download in the Quickstart — judges can `podman-compose up` and immediately use the system once their `.env` has watsonx credentials.
 - Granite versions are managed by IBM and pinned by model ID in `models.json` and `.env`.
 - Aligns with the IBM SkillsBuild challenge's emphasis on IBM technologies — watsonx.ai is the canonical IBM serving stack.
 

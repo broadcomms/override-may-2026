@@ -144,28 +144,33 @@ The hosted URL is **ephemeral** — fronted by a Cloudflare Tunnel from a local 
 
 If the URL is offline, fall through to the local-clone path below — the demo is identical.
 
-### Run with Podman compose (recommended)
+### Run with podman-compose (recommended)
 
-The shipping shape. One image, three modes — pick whichever fits the moment.
+Prerequisite: install Podman and the separate `podman-compose` package before using this path. In this repo's tested WSL environment, `podman compose` is not the supported default.
+
+The shipping shape. One image, explicit service selection, and copy/paste commands that match the path verified in this repo environment.
 
 ```bash
 git clone <repository-url> && cd overdrive-may-2026
 cp .env.example .env       # then fill WATSONX_API_KEY + WATSONX_PROJECT_ID
 
 # Mode 1 — OVERRIDE alone (fast; default; fixture-driven demo path)
-podman compose up                                  # → UI + API at http://localhost:8000
+podman-compose up                                  # → UI + API at http://localhost:8000
 
 # Mode 2 — OVERRIDE + live TORCS lab (drive in a browser; ~10 GB first pull, 10–15 min)
-podman compose --profile torcs up                  # adds noVNC at :6080, Ollama at :11434
+podman-compose up override torcs                   # adds noVNC at :6080, Ollama at :11434
 
 # Mode 3 — OVERRIDE + Jaeger (for trace capture)
-podman compose --profile observability up          # adds Jaeger UI at :16686
+podman-compose up override jaeger                  # adds Jaeger UI at :16686
 
 # Mode 4 — OVERRIDE + Langflow design canvas (visual mirror of the pipeline)
-podman compose --profile langflow up               # adds Langflow at :7860
+podman-compose up override langflow                # adds Langflow at :7860
+
+# Full stack — OVERRIDE + TORCS + Jaeger + Langflow
+podman-compose up override torcs jaeger langflow
 ```
 
-The image is multi-stage (Node 20 alpine → Python 3.12 slim) and serves both the API and the built UI from `:8000`. TORCS, Jaeger, and Langflow are profile-gated, so the default `podman compose up` doesn't pull the 10 GB lab image or build the Langflow image. Profile flags combine: `podman compose --profile torcs --profile observability --profile langflow up` brings up the whole stack. Docker compose works too if that's what's installed (`docker compose up`) — the file is V2-compatible and uses no Podman-only features.
+The image is multi-stage (Node 20 alpine → Python 3.12 slim) and serves both the API and the built UI from `:8000`. Service selection is explicit: `podman-compose up torcs` starts only the TORCS lab, so include `override` whenever you want the app and an auxiliary service together. In this repo's tested WSL path, `podman-compose` is the supported operator contract; `podman compose` is environment-dependent and is not the default documented path here.
 
 ### Run locally (for hacking on the code)
 
@@ -230,7 +235,7 @@ The canvas mirrors the production pipeline as 9 visual nodes — useful for step
 | `torcs_baseline.jsonl` (~5.4 MB) | Lab Task 1 — defaults (`TARGET_SPEED=100`) | In-budget reference run; median harvest ≈ 3.8 MJ/lap, all laps under the 8.5 MJ cap |
 | `torcs_modified.jsonl` (~6.7 MB) | Lab Task 3 — aggressive (`TARGET_SPEED=150`) | Over-cap demo; median harvest ≈ 9.3 MJ/lap, fires the `over-harvest` zone detector |
 
-Both run through `ingest/torcs_parser.py` (calibrated against real captures — see the regression test in `tests/test_torcs_parser.py`). Drop either onto the upload page or — if running `podman compose --profile torcs up` — drive the live lab in noVNC at `:6080` and the UI's "Live TORCS detected" banner surfaces fresh captures via `POST /api/sessions/torcs-live` for one-click ingest. `RaceYourCode/gym_torcs/*` is committed, so the live path works on a fresh clone with no manual unzip step.
+Both run through `ingest/torcs_parser.py` (calibrated against real captures — see the regression test in `tests/test_torcs_parser.py`). Drop either onto the upload page or — if running `podman-compose up override torcs` — drive the live lab in noVNC at `:6080` and the UI's "Live TORCS detected" banner surfaces fresh captures via `POST /api/sessions/torcs-live` for one-click ingest. `RaceYourCode/gym_torcs/*` is committed, so the live path works on a fresh clone with no manual unzip step.
 
 `data/regs/` ships with the FIA 2026 Technical Regulations (Section C, Issue 18) and pre-built Docling-extracted chunks (`extracted_chunks.sample.json`, 384 chunks across 112 unique sections). The system parses the 8.5 MJ harvest cap directly from the regulation text — never hardcoded.
 

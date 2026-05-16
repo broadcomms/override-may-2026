@@ -64,7 +64,7 @@ timeout and refuses to boot the app on failure:
 
 > *"OVERRIDE_LLM_RUNTIME=ollama but Ollama at 'http://torcs:11434' is not
 > reachable: ConnectError: ... . Either bring up the TORCS lab container
-> (`podman compose --profile torcs up` or `./scripts/run_torcs_lab.sh`), or
+> (`podman-compose up override torcs` or `./scripts/run_torcs_lab.sh`), or
 > point OVERRIDE_OLLAMA_BASE_URL at a reachable ollama instance, or set
 > OVERRIDE_LLM_RUNTIME=watsonx (default)."*
 
@@ -76,7 +76,7 @@ misconfiguration at the front door.
 
 After unit tests pass, the manual gate runs against a real `ollama serve`:
 
-1. `podman compose --profile torcs up` (or `./scripts/run_torcs_lab.sh`)
+1. `podman-compose up override torcs` (or `./scripts/run_torcs_lab.sh`)
 2. `OVERRIDE_LLM_RUNTIME=ollama OVERRIDE_OLLAMA_BASE_URL=http://localhost:11434 \
     .venv/bin/uvicorn api.main:app --port 8000`
 3. POST `data/samples/torcs_baseline.jsonl` to `/api/sessions` with `source=torcs`

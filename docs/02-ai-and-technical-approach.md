@@ -209,7 +209,7 @@ Optional polish: ContextForge for an MCP-gateway Jaeger trace screenshot. Direct
 
 OVERRIDE is built to run end-to-end on a clean machine without bespoke setup:
 
-- **One-command install.** `podman compose up` (Docker compose works equivalently) starts the FastAPI runtime and serves the built UI bundle as static files from `:8000`. Granite reasoning calls go to watsonx.ai using credentials from `.env`. The README's Quickstart is the contract.
+- **One-command install.** `podman-compose up` starts the FastAPI runtime and serves the built UI bundle as static files from `:8000`. When TORCS, Jaeger, or Langflow are needed, the supported commands are `podman-compose up override torcs`, `podman-compose up override jaeger`, and `podman-compose up override langflow`. Granite reasoning calls go to watsonx.ai using credentials from `.env`. The README's Quickstart is the contract.
 - **Pinned versions.** `requirements.txt` pins Python deps; `models.json` records the watsonx model IDs, region, project-ID env var, and TTM-R2 HuggingFace revision. Locked at gate G-1 before any reasoning code is written.
 - **Public data only.** Sample replays in `data/samples/` come from the IBM TORCS Learning Lab simulator and FastF1 historical sessions. The FIA regulation PDF is fetched via `scripts/download_regulations.py` — never committed.
 - **Deterministic outputs.** LLM temperature pinned. End-to-end QA on roadmap P3.7 verifies the same input produces the same output across runs on 5 TORCS + 2 FastF1 replays.

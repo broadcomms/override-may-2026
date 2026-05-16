@@ -111,7 +111,7 @@ internal compose network.
 - The torcs container's first boot is ~30 s slower (pip install of
   fastapi + uvicorn). Subsequent restarts re-install but Python's
   cached wheels make it fast.
-- `podman compose ps` will show a `health: unhealthy` for the torcs
+- `podman-compose ps` will show a `health: unhealthy` for the torcs
   service for ~90 s after startup while noVNC is still coming up.
   Expected — `start_period: 90s` in the compose healthcheck.
 - Phase 5 final-lock walks include a step to rotate `TORCS_CONTROL_SECRET`

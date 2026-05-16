@@ -186,7 +186,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 | **Latency** | Median `POST /api/sessions` response ≤ 30 s on a laptop with a healthy watsonx.ai connection. p95 ≤ 60 s. Stage budget in [`04-api.md` §5](./04-api.md#5-pipeline-timing-budget). |
 | **Determinism** | Same input → same output across runs (LLM temperature pinned). End-to-end QA verifies this on 5 TORCS + 2 FastF1 replays. |
 | **Reliability** | Pipeline runs end-to-end **without TTM**. Forecasting enhances; never gates. Pipeline runs end-to-end **even if Pass 2 is loosened** to a lower threshold — Pass 1 always functions. |
-| **Portability** | One-command setup: `podman compose up` (Docker compose works equivalently — the compose file is V2-compatible and uses no Podman-only features). Verified on a clean machine before submission. No GPU required — Granite reasoning happens on watsonx.ai. The clean machine only needs a network connection and a working `.env`. |
+| **Portability** | One-command setup: `podman-compose up` for OVERRIDE alone. Auxiliary services use explicit service selection (`podman-compose up override torcs`, `podman-compose up override jaeger`, `podman-compose up override langflow`). Verified on a clean machine before submission. No GPU required — Granite reasoning happens on watsonx.ai. The clean machine only needs a network connection and a working `.env`. |
 | **Accessibility** | WCAG 2.1 AA. Per FR-9.3. |
 | **Observability** | Per FR-10. JSON logs, request IDs, no PII, no stack traces in prod responses. |
 | **Security** | No auth in v1 (single-user, replay-first). Inputs validated at the upload boundary. Secrets only in `.env` (gitignored). Pinned dependency versions. Detail in `05-security.md`. |
@@ -215,7 +215,7 @@ OVERRIDE is **not**:
 
 - **Channel.** Public GitHub repository under `<username>-override-may-2026`, Apache 2.0.
 - **Submission surface.** BeMyApp project page on the IBM SkillsBuild Challenge platform with banner, logo, summary, video, and repo link.
-- **Demo path.** `podman compose up` → drop a sample replay (shipped under `data/samples/`) → land on the debrief view.
+- **Demo path.** `podman-compose up` → drop a sample replay (shipped under `data/samples/`) → land on the debrief view.
 - **Models.** watsonx.ai-served Granite Instruct (`ibm/granite-4-h-small`) + Granite Guardian (`ibm/granite-guardian-3-8b`), pinned with project ID and region in `models.json`. TTM-R2 stays local from HuggingFace. Docling runs locally.
 - **Data.** No live data, no broadcast video, no licensed feeds. Sample replays from TORCS and FastF1; FIA PDFs fetched via `scripts/download_regulations.py` (PDFs are *not* committed).
 

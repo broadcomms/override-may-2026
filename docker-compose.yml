@@ -1,8 +1,9 @@
 # OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002)
 #
-# Four services, three profiles, one shared volume. Modes:
+# Four services, three profiles in the compose spec, one shared volume.
+# Supported operator commands in this repo's tested WSL environment:
 #
-#   podman compose up                                # Mode 1: OVERRIDE alone
+#   podman-compose up                                # Mode 1: OVERRIDE alone
 #     → only the override service. Fast (~10 s boot). Fixture-driven demo.
 #       The demo video uses this mode against fixture-mode UI; the live
 #       hosted demo URL is fronted by a Cloudflare Tunnel from the local
@@ -10,7 +11,7 @@
 #       docs/07-deployment.md for the deployment posture. (The original
 #       v6 §3.7 Hetzner CX32 VM plan was replaced post-pre-flight.)
 #
-#   podman compose --profile torcs up                # Mode 2: + live TORCS
+#   podman-compose up override torcs                 # Mode 2: + live TORCS
 #     → override + torcs. The torcs service is the IBM SkillsBuild lab
 #       container; first-time pull is ~10 GB and 10–15 min (acceptable per
 #       v6 locked decision). Once cached, subsequent runs are fast.
@@ -19,20 +20,21 @@
 #       torcs-telemetry volume to /app/data/telemetry/ inside override —
 #       reachable via POST /api/sessions/torcs-live for live ingest.
 #
-#   podman compose --profile observability up        # Mode 3: + Jaeger
+#   podman-compose up override jaeger                # Mode 3: + Jaeger
 #     → override + jaeger. Set OVERRIDE_TRACING=otlp in .env to wire OTel
 #       export to http://jaeger:4317. Trace UI at :16686.
 #
-#   podman compose --profile langflow up             # Mode 4: + Langflow canvas
+#   podman-compose up override langflow              # Mode 4: + Langflow canvas
 #     → override + langflow. Visual design layer at :7860, custom components
 #       in langflow/override_components/ pre-loaded. First-time build of the
 #       langflow image is ~3–5 min (langflow base + OVERRIDE deps); subsequent
 #       starts are fast. Pure documentation surface — does NOT replace the
 #       FastAPI runtime. See langflow/README.md and docs/04-langflow-canvas.md.
 #
-# Profiles MUST be listed combinable: `podman compose --profile torcs
-# --profile observability --profile langflow up` brings the whole stack —
-# useful for the T-24h clean-machine walkthrough.
+#   podman-compose up override torcs jaeger langflow
+#     → all services together. The compose spec still uses profiles
+#       internally, but the supported operator path is explicit service
+#       selection.
 #
 # No top-level `version:` key (gotcha #6 — deprecated in Compose V2).
 
@@ -58,10 +60,10 @@ services:
       # OTLP target when OVERRIDE_TRACING=otlp; resolves to the jaeger
       # service only when the observability profile is up.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-      # Phase 2 control plane — only resolves when --profile torcs is up.
+      # Phase 2 control plane — only resolves when the torcs service is up.
       # The override proxy endpoints fail gracefully (503) with a "control
       # daemon unreachable" message when the torcs service isn't running,
-      # so the default profile remains unaffected.
+      # so the default OVERRIDE-only run remains unaffected.
       TORCS_CONTROL_URL: http://torcs:7000
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
     volumes:
@@ -83,8 +85,9 @@ services:
   # ───────────────────────────────────────────────────────────────────────
   # torcs — IBM SkillsBuild lab container (profile: torcs)
   # ───────────────────────────────────────────────────────────────────────
-  # Note: image is large (~10 GB). Profile-gating means the default
-  # `podman compose up` does NOT pull it. README documents the trade-off.
+  # Note: image is large (~10 GB). Because this service is profile-gated,
+  # the default `podman-compose up` does NOT pull it. README documents the
+  # trade-off.
   torcs:
     image: docker.io/johnsloe/torcs-competition:amd64
     container_name: torcs
@@ -106,11 +109,11 @@ services:
     # fixed-function GL path (seen 2026-05-13).
     #
     # Local-only convenience: this only matters on the WSL2 host that
-    # records the demo video / runs the local-dev TORCS profile.
+    # records the demo video / runs the local-dev TORCS service.
     # - On a non-WSL2 host (real Linux server, cloud VM) /dev/dxg does
-    #   not exist and `podman compose --profile torcs up` will fail to
+    #   not exist and `podman-compose up override torcs` will fail to
     #   start the service. The public-facing Cloudflare-fronted demo
-    #   does NOT enable --profile torcs, so this binding never matters
+    #   does NOT bring up the torcs service, so this binding never matters
     #   for the hosted path. If you ever stand up TORCS on a real Linux
     #   GPU host, swap `/dev/dxg` for `/dev/dri` and drop the WSL volume
     #   mounts below.
@@ -202,7 +205,7 @@ services:
       # /health is unauthenticated by design — used by compose to confirm
       # the control daemon is reachable. Failed healthcheck doesn't kill
       # the container (start.sh is still running in the background and
-      # serves noVNC at :6080); it just surfaces in `podman compose ps`.
+      # serves noVNC at :6080); it just surfaces in `podman-compose ps`.
       test: ["CMD-SHELL", "curl -fsS http://localhost:7000/health || exit 1"]
       interval: 30s
       timeout: 5s
@@ -280,7 +283,7 @@ services:
 volumes:
   torcs-telemetry:
   # Langflow's own state directory (saved flows, prefs). Named so it
-  # survives `podman compose down` without `-v`; cleared explicitly via
+  # survives `podman-compose down` without `-v`; cleared explicitly via
   # `podman volume rm overdrive-may-2026_langflow-data` if needed.
   langflow-data:
 

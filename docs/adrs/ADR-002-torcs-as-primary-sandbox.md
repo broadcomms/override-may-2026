@@ -19,7 +19,7 @@ Neither source provides ground-truth 2026 hybrid telemetry — that data does no
 Concretely:
 - `RaceYourCode/gym_torcs/torcs_jm_par.py` is the lab's baseline AI driver, used here unchanged structurally — only an env-gated 3-line telemetry logger added at `parse_server_str` to emit per-tick JSONL when `OVERRIDE_LOG_TELEMETRY` is set.
 - Pre-captured `data/samples/torcs_*.json` replays serve as the canonical demo fixtures; the YouTube submission video plays these via fixture-mode (`?fixture=1`) for determinism.
-- The Podman compose stack profile-gates the TORCS lab container (`profiles: [torcs]`) alongside the OVERRIDE service; judges who want to drive live can `podman compose --profile torcs up` and the `POST /api/sessions/torcs-live` endpoint ingests the JSONL the logger writes to the shared `torcs-telemetry` volume.
+- The compose stack keeps the TORCS lab container in the `torcs` service (`profiles: [torcs]`) alongside the OVERRIDE service; judges who want to drive live can run `podman-compose up override torcs`, and the `POST /api/sessions/torcs-live` endpoint ingests the JSONL the logger writes to the shared `torcs-telemetry` volume.
 
 ## Why TORCS over FastF1 for the primary story
 
