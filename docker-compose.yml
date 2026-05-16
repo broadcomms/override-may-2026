@@ -124,6 +124,11 @@ services:
       # ADR-004 documents why this is shared-secret over the override-net
       # rather than mTLS or Podman-socket-based control.
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
+      # Kiosk desktop surface — when "1", the init script suppresses XFCE
+      # panels, hides desktop file icons, applies a branded backdrop, and
+      # auto-launches TORCS on session start. Leave at "0" (default) for
+      # the normal full desktop with the manual launcher icon.
+      OVERRIDE_KIOSK_MODE: ${OVERRIDE_KIOSK_MODE:-0}
       # WSL2 GPU passthrough — tells Mesa where the WSL-provided GL stack
       # lives (libd3d12.so + libDXCore etc.). Inert on non-WSL2 hosts
       # because /usr/lib/wsl/lib won't be bind-mounted there.
@@ -172,6 +177,12 @@ services:
       # the container never writes to these paths.
       - /usr/lib/wsl:/usr/lib/wsl:ro
       - /mnt/wslg:/mnt/wslg
+      # OVERRIDE brand assets — mounted read-only for kiosk backdrop.
+      # When OVERRIDE_KIOSK_MODE=1 and this path exists inside the
+      # container, the init script uses logo-on-dark.png as the desktop
+      # wallpaper. Safe to mount even when kiosk mode is off (read-only,
+      # and the init script only reads it when the flag is set).
+      - ./assets/brand:/opt/override-brand:ro,Z
     # Entrypoint override chains to the image's real Cmd
     # (/usr/local/bin/start.sh — pinned via `podman inspect` per
     # the prior plan-file lifecycle artifact). When TORCS_CONTROL_SECRET

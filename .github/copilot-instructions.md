@@ -36,6 +36,9 @@ cd ui && npm run build
 
 # Re-extract regulation chunks from PDFs in data/regs/
 .venv/bin/python scripts/build_chunks.py
+
+# Render architecture diagram
+npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png
 ```
 
 ---
@@ -57,15 +60,32 @@ ingest/ (TORCS JSONL or FastF1 → LapFeatures)
 
 `api/main.py` (FastAPI) wraps `run_pipeline` and also serves the built React UI from `ui/dist` via StaticFiles. `api/storage.py` handles atomic session persistence.
 
-**LLM runtime split.** Granite Instruct (`ibm/granite-4-h-small`), Granite Guardian (`ibm/granite-guardian-3-8b`), and Granite Embedding (`ibm/granite-embedding-278m-multilingual`) all call **IBM watsonx.ai (US-South)** via the chat API `/ml/v1/text/chat`. The legacy `/ml/v1/text/generation` endpoint is deprecated — do not use it. Model IDs and project binding are pinned in `models.json`. TTM-R2 and Docling run locally.
+**LLM runtime split.** Granite Instruct (`ibm/granite-4-h-small`) and Granite Guardian (`ibm/granite-guardian-3-8b`) use `/ml/v1/text/chat`. Granite Embedding (`ibm/granite-embedding-278m-multilingual`) uses `/ml/v1/text/embeddings`. The legacy `/ml/v1/text/generation` endpoint is deprecated — do not use it. Model IDs and project binding are pinned in `models.json`. TTM-R2 and Docling run locally.
 
-**LLM abstraction.** `core/llm_clients/` implements the `WatsonxChatClient` Protocol. Set `OVERRIDE_LLM_RUNTIME=ollama` to swap in `ollama.py` for local dev without watsonx credentials.
+**LLM abstraction.** `core/llm_clients/` implements the `WatsonxChatClient` Protocol. All LLM clients are **injected** — tests pass fakes; production passes the real impls. Set `OVERRIDE_LLM_RUNTIME=ollama` to swap in `ollama.py` for local dev without watsonx credentials.
+
+**Langflow.** Lives in a separate venv (`.venv-langflow`, Python <3.12 constraint). It is the design/demo layer; FastAPI is the production runtime.
 
 **Two-pass safety.** Pass 1 (deterministic, no LLM) always runs before Pass 2 (Guardian BYOC scoring). Both results are surfaced in the UI.
+
+**Observability.** `api/observability.py` wraps OpenTelemetry. Off by default; set `OVERRIDE_TRACING=otlp` to enable and view traces in Jaeger.
 
 ---
 
 ## Key Conventions
+
+### Testing patterns
+- LLM clients are injected via Protocol — tests pass fake/stub implementations, never hit the network
+- Synthetic `LapFeatures` fixtures are built inline in each test file (see `_lap()` helper pattern in `test_pipeline.py`)
+- Captured JSON fixtures in `tests/fixtures/` (`engineer_happy_demo.json`, `fan_mode_demo.json`, etc.) are used for round-trip schema validation
+- `@pytest.mark.network` gates any test that calls live watsonx or FastF1 endpoints
+
+### Key environment variables
+- `WATSONX_PROJECT_ID`, `WATSONX_API_KEY` — required for production; see `.env.example`
+- `OVERRIDE_LLM_RUNTIME=ollama` — swaps all LLM calls to local Ollama (no watsonx credentials needed)
+- `OVERRIDE_TRACING=otlp` — enables OpenTelemetry tracing to Jaeger
+- `OVERRIDE_UI_ORIGIN` — CORS allowed origin (default: dev frontend)
+- `MAX_SESSION_LAPS` — truncation cap per FR-1.3 (default: 120)
 
 ### Intentional stub — do not "fix"
 `core/forecasting.py` is a docstring-only stub. TTM-R2 is deferred to v1.1. The pipeline runs end-to-end without it — sessions with <30 laps skip the forecast and lower reported confidence.
