@@ -86,17 +86,13 @@ SCR_PORT_POLL_INTERVAL_S = float(os.environ.get("OVERRIDE_TORCS_POLL_INTERVAL_S"
 TERMINATE_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_TERMINATE_GRACE_S", "5"))
 KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 
-# Post-stop GUI reset (3D/manual-launch mode only).
-# After the SCR client disconnects, TORCS stays in race state — the operator
-# would otherwise need to press ESC manually and navigate the pause menu.
-# This settles the GUI back to a stable non-race state automatically.
-#   OVERRIDE_TORCS_GUI_RESET=0      disable entirely
+# Post-stop GUI reset env vars (3D/manual-launch mode only).
+# Read inside _reset_torcs_gui_after_stop() so changes take effect without
+# restarting the daemon.
+#   OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
 #   OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop before sending keys
 #   OVERRIDE_TORCS_GUI_RESET_KEYS   colon-separated xte key names; default navigates
 #                                   Escape → open pause menu, Down → Abandon Race, Return
-GUI_RESET_ENABLED = os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") != "0"
-GUI_RESET_SETTLE_S = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
-GUI_RESET_KEYS = os.environ.get("OVERRIDE_TORCS_GUI_RESET_KEYS", "Escape:Down:Return")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -444,34 +440,50 @@ async def _reset_torcs_gui_after_stop() -> None:
     the operator would otherwise need to press ESC and navigate the pause menu
     manually.
 
-    Default flow:
-      wait GUI_RESET_SETTLE_S   — let SCR disconnect propagate
-      Escape                    — open the in-race pause menu
-      Down                      — move from Restart Race → Abandon Race
-      Return                    — confirm
+    Env vars are read on every call — no daemon restart needed to change them:
+      OVERRIDE_TORCS_GUI_RESET=0          disable entirely (default: enabled)
+      OVERRIDE_TORCS_GUI_SETTLE_S=1.0     initial settle delay in seconds
+      OVERRIDE_TORCS_GUI_RESET_KEYS=...   colon-separated xte key names
 
-    This matches the observed TORCS pause-menu layout:
-      [0] Restart Race  ← default focus after Escape
-      [1] Abandon Race  ← one Down from here
+    Default key sequence:
+      Escape  → open the in-race pause menu
+      Down    → move from Restart Race (default focus) to Abandon Race
+      Return  → confirm
+
+    Observed TORCS pause-menu layout (Escape from in-race):
+      [0] Restart Race  ← default focus
+      [1] Abandon Race  ← one Down
       [2] Resume Race
       [3] Quit Game
 
-    Adjust via env vars if the menu focus in your TORCS version differs:
-      OVERRIDE_TORCS_GUI_RESET_KEYS=<key>:<key>:...  (colon-separated xte names)
-      OVERRIDE_TORCS_GUI_SETTLE_S=<float>            (initial settle delay, default 1.0)
-      OVERRIDE_TORCS_GUI_RESET=0                     (disable entirely)
-
-    Uses xte (xautomation package) — already present in the SkillsBuild lab
-    image (confirmed in hands-on-labs Dockerfile).  If xte is missing or
-    fails, a warning is logged and the daemon continues normally.
+    Uses xte (xautomation, present in the SkillsBuild lab image).  Graceful
+    degradation: if xte is missing or returns non-zero, a warning is logged
+    and the daemon continues normally.
     """
-    if not GUI_RESET_ENABLED:
+    # Read env vars fresh on every call so operators can tune without restart.
+    if os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") == "0":
         logger.info("gui-reset: disabled via OVERRIDE_TORCS_GUI_RESET=0")
         return
 
-    await asyncio.sleep(GUI_RESET_SETTLE_S)
+    settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
+    raw_keys = os.environ.get("OVERRIDE_TORCS_GUI_RESET_KEYS", "Escape:Down:Return")
 
-    keys = [k.strip() for k in GUI_RESET_KEYS.split(":") if k.strip()]
+    await asyncio.sleep(settle_s)
+
+    # Guard: only inject keys if TORCS is actually still running.  In manual-
+    # launch mode the operator may have closed TORCS already, or TORCS may
+    # have crashed before Stop was clicked.  Sending keys to whatever window
+    # happens to have focus on :1 in that case produces unexpected side effects.
+    check = subprocess.run(
+        ["pgrep", "-f", "torcs-bin"], capture_output=True, text=True
+    )
+    if check.returncode != 0:
+        logger.info(
+            "gui-reset: no torcs-bin found on %s; skipping key injection", TORCS_DISPLAY
+        )
+        return
+
+    keys = [k.strip() for k in raw_keys.split(":") if k.strip()]
     if not keys:
         logger.warning("gui-reset: OVERRIDE_TORCS_GUI_RESET_KEYS is empty; nothing to send")
         return
