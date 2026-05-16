@@ -270,8 +270,18 @@ BACKOFF_SLEEP=15 # seconds to wait after crash-loop is detected
 RESTART_SLEEP=2  # normal exit restart delay
 
 # Initial delay: let XFCE compositor fully initialise before the
-# first GL context opens. Mirrors the old autostart sleep 2.
+# first GL context opens.
 sleep 2
+
+# Disable X screen blanking so the display never fades to grey during
+# idle periods (e.g. between TORCS restarts or on a paused race).
+# xset s off     — turns off the screen-saver timer entirely
+# xset s noblank — belt-and-suspenders: no blank even if timer fires
+# xset -dpms     — harmless on Xvfb (DPMS unavailable) but correct
+#                  on any real display that may be mapped to this X server
+DISPLAY=:1 xset s off
+DISPLAY=:1 xset s noblank
+DISPLAY=:1 xset -dpms
 
 fast_exits=0
 while true; do
