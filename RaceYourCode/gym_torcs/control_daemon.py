@@ -90,9 +90,7 @@ KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 # Read inside _reset_torcs_gui_after_stop() so changes take effect without
 # restarting the daemon.
 #   OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
-#   OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop before sending keys
-#   OVERRIDE_TORCS_GUI_RESET_KEYS   colon-separated xte key names; default navigates
-#                                   Escape → open pause menu, Down → Abandon Race, Return
+#   OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop before acting
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -432,97 +430,58 @@ async def _terminate_proc(proc: Optional[subprocess.Popen], label: str) -> Optio
 
 
 async def _reset_torcs_gui_after_stop() -> None:
-    """Drive the TORCS GUI back to a stable post-race menu state after a stop.
+    """Reset the TORCS surface after a 3D-mode stop.
 
     Called fire-and-forget (asyncio.create_task) from control_stop() when the
     daemon did NOT own TORCS (3D cockpit / manual-launch mode — torcs_proc is
-    None).  After the SCR client disconnects, TORCS typically stays mid-race;
-    the operator would otherwise need to press ESC and navigate the pause menu
-    manually.
+    None).  After the SCR client disconnects, TORCS stays mid-race; without
+    this the operator would need a manual second action to settle the simulator.
 
-    Env vars are read on every call — no daemon restart needed to change them:
-      OVERRIDE_TORCS_GUI_RESET=0          disable entirely (default: enabled)
-      OVERRIDE_TORCS_GUI_SETTLE_S=1.0     initial settle delay in seconds
-      OVERRIDE_TORCS_GUI_RESET_KEYS=...   colon-separated xte key names
+    Strategy — SIGTERM torcs-bin:
+    ─────────────────────────────
+    xte (xautomation) sends keys to whichever X window currently has keyboard
+    focus.  In practice the operator has just clicked a button in the OVERRIDE
+    UI, so focus is in the browser/noVNC frame — not the TORCS window.  xte
+    has no window-targeting capability and xdotool is not in the lab image, so
+    focus-independent key injection is not available.
 
-    Default key sequence:
-      Escape  → open the in-race pause menu
-      Down    → move from Restart Race (default focus) to Abandon Race
-      Return  → confirm
+    The reliable alternative is to send SIGTERM to torcs-bin.  TORCS exits
+    cleanly; the kiosk supervisor (Fix 5 in torcs_container_init.sh) catches
+    the exit and relaunches in ~2-3 s.  In non-kiosk mode (no supervisor) the
+    operator gets a clean exit and relaunches manually — still better than a
+    stray file-manager window.
 
-    Observed TORCS pause-menu layout (Escape from in-race):
-      [0] Restart Race  ← default focus
-      [1] Abandon Race  ← one Down
-      [2] Resume Race
-      [3] Quit Game
-
-    Uses xte (xautomation, present in the SkillsBuild lab image).  Graceful
-    degradation: if xte is missing or returns non-zero, a warning is logged
-    and the daemon continues normally.
+    Env vars (read on every call — no daemon restart needed):
+      OVERRIDE_TORCS_GUI_RESET=0      disable entirely (default: enabled)
+      OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop
     """
-    # Read env vars fresh on every call so operators can tune without restart.
     if os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") == "0":
         logger.info("gui-reset: disabled via OVERRIDE_TORCS_GUI_RESET=0")
         return
 
     settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
-    raw_keys = os.environ.get("OVERRIDE_TORCS_GUI_RESET_KEYS", "Escape:Down:Return")
-
     await asyncio.sleep(settle_s)
 
-    # Guard: only inject keys if TORCS is actually still running.  In manual-
-    # launch mode the operator may have closed TORCS already, or TORCS may
-    # have crashed before Stop was clicked.  Sending keys to whatever window
-    # happens to have focus on :1 in that case produces unexpected side effects.
+    # Guard: confirm torcs-bin is still running before acting.
     check = subprocess.run(
         ["pgrep", "-f", "torcs-bin"], capture_output=True, text=True
     )
     if check.returncode != 0:
-        logger.info(
-            "gui-reset: no torcs-bin found on %s; skipping key injection", TORCS_DISPLAY
-        )
+        logger.info("gui-reset: no torcs-bin found; nothing to reset")
         return
 
-    keys = [k.strip() for k in raw_keys.split(":") if k.strip()]
-    if not keys:
-        logger.warning("gui-reset: OVERRIDE_TORCS_GUI_RESET_KEYS is empty; nothing to send")
-        return
+    pids = check.stdout.strip().split()
+    for raw_pid in pids:
+        try:
+            subprocess.run(["kill", "-TERM", raw_pid.strip()], check=False, capture_output=True)
+        except OSError as exc:
+            logger.warning("gui-reset: SIGTERM pid=%s failed: %s", raw_pid.strip(), exc)
 
-    # Build a single xte call: interleave key events with 150 ms delays.
-    # xte accepts multiple action strings as positional arguments, e.g.:
-    #   xte 'key Escape' 'usleep 150000' 'key Down' 'usleep 150000' 'key Return'
-    env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
-    xte_args = ["xte"]
-    for i, key in enumerate(keys):
-        xte_args.append(f"key {key}")
-        if i < len(keys) - 1:
-            xte_args.append("usleep 150000")  # 150 ms between keys
-
-    try:
-        result = subprocess.run(
-            xte_args,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=len(keys) * 0.5 + 2.0,
-        )
-        if result.returncode != 0:
-            logger.warning(
-                "gui-reset: xte failed (rc=%d): %s",
-                result.returncode,
-                result.stderr.strip(),
-            )
-        else:
-            logger.info(
-                "gui-reset: sent key sequence %s on DISPLAY=%s", keys, TORCS_DISPLAY
-            )
-    except FileNotFoundError:
-        logger.warning(
-            "gui-reset: xte not found; skipping GUI reset "
-            "(install xautomation in the TORCS image)"
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning("gui-reset: xte timed out sending key sequence")
+    logger.info(
+        "gui-reset: sent SIGTERM to torcs-bin pid(s) %s; "
+        "kiosk supervisor will relaunch",
+        pids,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
