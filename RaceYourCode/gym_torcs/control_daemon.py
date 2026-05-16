@@ -472,7 +472,7 @@ async def _reset_torcs_gui_after_stop() -> None:
         )
         return
 
-    settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
+    settle_s = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "") or "1.0")
     await asyncio.sleep(settle_s)
 
     # Guard: confirm torcs-bin is still running before acting.

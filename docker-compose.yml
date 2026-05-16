@@ -129,6 +129,12 @@ services:
       # auto-launches TORCS on session start. Leave at "0" (default) for
       # the normal full desktop with the manual launcher icon.
       OVERRIDE_KIOSK_MODE: ${OVERRIDE_KIOSK_MODE:-0}
+      # Stop-race GUI reset (control_daemon.py) — after Stop race the
+      # daemon sends SIGTERM to torcs-bin so the kiosk supervisor can
+      # relaunch TORCS cleanly. Only active when OVERRIDE_KIOSK_MODE=1.
+      # Set OVERRIDE_TORCS_GUI_RESET=0 to disable entirely.
+      OVERRIDE_TORCS_GUI_RESET: ${OVERRIDE_TORCS_GUI_RESET:-1}
+      OVERRIDE_TORCS_GUI_SETTLE_S: ${OVERRIDE_TORCS_GUI_SETTLE_S:-1.0}
       # WSL2 GPU passthrough — tells Mesa where the WSL-provided GL stack
       # lives (libd3d12.so + libDXCore etc.). Inert on non-WSL2 hosts
       # because /usr/lib/wsl/lib won't be bind-mounted there.
