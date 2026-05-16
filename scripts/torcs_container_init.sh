@@ -169,6 +169,30 @@ if [ -f "$LIVERY_SRC" ]; then
 else
     echo "[init] no brand livery found at $LIVERY_SRC — stock car texture unchanged"
 fi
+
+# ── Fix 4.6 — OVERRIDE branded TORCS menu splash assets ─────────────────────
+# TORCS menu and setup flows reference square `data/img/splash-*.png` assets
+# from XML (quick race, practice, options, results, quit, etc.). When a
+# branded override set is mounted at /opt/override-brand/torcs-menu/, copy the
+# matching splash files over the stock versions so the visible menu layer feels
+# product-owned without touching TORCS source or menu logic.
+MENU_SRC_DIR=/opt/override-brand/torcs-menu
+MENU_DST_DIR=/usr/local/torcs/share/games/torcs/data/img
+if [ -d "$MENU_SRC_DIR" ]; then
+    copied_menu_assets=0
+    for src in "$MENU_SRC_DIR"/splash-*.png; do
+        [ -e "$src" ] || continue
+        cp "$src" "$MENU_DST_DIR/$(basename "$src")"
+        copied_menu_assets=$((copied_menu_assets + 1))
+    done
+    if [ "$copied_menu_assets" -gt 0 ]; then
+        echo "[init] OVERRIDE menu splash assets applied: ${copied_menu_assets} file(s) → $MENU_DST_DIR"
+    else
+        echo "[init] menu override dir present at $MENU_SRC_DIR but no splash-*.png assets found"
+    fi
+else
+    echo "[init] no branded TORCS menu assets found at $MENU_SRC_DIR — stock menu splashes unchanged"
+fi
 # Transforms the XFCE desktop from a generic remote desktop into a minimal
 # race-focused appliance surface. Only activates when OVERRIDE_KIOSK_MODE=1.
 #
@@ -222,8 +246,19 @@ PANEL_EOF
     # matching OVERRIDE's dark navy (#111827 ≈ 0.067, 0.094, 0.153).
     # When logo-on-dark.png is mounted, image-style=5 (zoomed fill) activates
     # so the branding fills the Xvfb surface behind the TORCS window.
-    BRAND_IMAGE=/opt/override-brand/logo-on-dark.png
-    if [ -f "$BRAND_IMAGE" ]; then
+    #
+    # We stage the mounted image into a local wallpaper path first instead of
+    # pointing XFCE at the bind mount directly. This makes the branded backdrop
+    # survive the session off a stable, read-local path that is definitely
+    # present by the time xfdesktop reads its config.
+    BRAND_IMAGE_MOUNT=/opt/override-brand/logo-on-dark.png
+    BRAND_IMAGE_STAGED=/usr/local/share/backgrounds/override-kiosk.png
+    BRAND_IMAGE=""
+    if [ -f "$BRAND_IMAGE_MOUNT" ]; then
+        mkdir -p /usr/local/share/backgrounds
+        cp "$BRAND_IMAGE_MOUNT" "$BRAND_IMAGE_STAGED"
+        chmod 0644 "$BRAND_IMAGE_STAGED"
+        BRAND_IMAGE="$BRAND_IMAGE_STAGED"
         BACKDROP_IMAGE_STYLE=5
         BACKDROP_IMAGE_LINE="          <property name=\"last-image\" type=\"string\" value=\"${BRAND_IMAGE}\"/>"
     else
@@ -371,7 +406,7 @@ XFWM4_EOF
 
     echo "[init] hard-kiosk surface configured — panels suppressed, icons hidden, supervisor installed, decorations stripped"
     if [ -f "$BRAND_IMAGE" ]; then
-        echo "[init] kiosk backdrop: branded image (${BRAND_IMAGE})"
+        echo "[init] kiosk backdrop: branded image staged from ${BRAND_IMAGE_MOUNT} to ${BRAND_IMAGE}"
     else
         echo "[init] kiosk backdrop: solid OVERRIDE navy (#111827) — mount assets/brand/ for branded image"
     fi
@@ -493,7 +528,7 @@ DISPLAY=:1 xhost +SI:localuser:root 2>/dev/null \
 # Force-overwrite each container start (not idempotent-conditional)
 # because the previous wrong-values file may be sitting on disk from
 # the prior commit; we want the corrected screen.xml to land cleanly.
-echo "[init] writing /root/.torcs/config/screen.xml (fullscreen=yes, 1280x720, bpp=32, gamma=1.5)"
+echo "[init] writing /root/.torcs/config/screen.xml (fullscreen=yes, 1280x720, bpp=32, gamma=1.5, OVERRIDE menu theme)"
 mkdir -p /root/.torcs/config
 cat > /root/.torcs/config/screen.xml <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -512,6 +547,152 @@ cat > /root/.torcs/config/screen.xml <<'EOF'
     <attstr name="maximum color depth" val="yes"/>
     <attstr name="fullscreen" in="yes,no" val="yes"/>
     <attnum name="gamma" val="1.5"/>
+  </section>
+
+  <section name="Menu Font">
+    <attstr name="name" val="b5.glf"/>
+    <attnum name="size big" val="16"/>
+    <attnum name="size large" val="12"/>
+    <attnum name="size medium" val="9"/>
+    <attnum name="size small" val="7"/>
+  </section>
+
+  <section name="Console Font">
+    <attstr name="name" val="b7.glf"/>
+    <attnum name="size big" val="14"/>
+    <attnum name="size large" val="10"/>
+    <attnum name="size medium" val="6"/>
+    <attnum name="size small" val="5"/>
+  </section>
+
+  <section name="Digital Font">
+    <attstr name="name" val="digital.glf"/>
+    <attnum name="size big" val="6"/>
+  </section>
+
+  <section name="Menu Colors">
+    <section name="colors">
+      <section name="background">
+        <attnum name="red" val="0.02"/>
+        <attnum name="green" val="0.05"/>
+        <attnum name="blue" val="0.13"/>
+        <attnum name="alpha" val="0.08"/>
+      </section>
+      <section name="title">
+        <attnum name="red" val="0.95"/>
+        <attnum name="green" val="0.97"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="background focused button">
+        <attnum name="red" val="0.10"/>
+        <attnum name="green" val="0.16"/>
+        <attnum name="blue" val="0.36"/>
+        <attnum name="alpha" val="0.85"/>
+      </section>
+      <section name="background pushed button">
+        <attnum name="red" val="0.16"/>
+        <attnum name="green" val="0.26"/>
+        <attnum name="blue" val="0.55"/>
+        <attnum name="alpha" val="0.95"/>
+      </section>
+      <section name="background enabled button">
+        <attnum name="red" val="0.05"/>
+        <attnum name="green" val="0.09"/>
+        <attnum name="blue" val="0.22"/>
+        <attnum name="alpha" val="0.80"/>
+      </section>
+      <section name="background disabled button">
+        <attnum name="red" val="0.05"/>
+        <attnum name="green" val="0.06"/>
+        <attnum name="blue" val="0.10"/>
+        <attnum name="alpha" val="0.50"/>
+      </section>
+      <section name="focused button">
+        <attnum name="red" val="1.0"/>
+        <attnum name="green" val="1.0"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="pushed button">
+        <attnum name="red" val="1.0"/>
+        <attnum name="green" val="1.0"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="enabled button">
+        <attnum name="red" val="0.93"/>
+        <attnum name="green" val="0.96"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="disabled button">
+        <attnum name="red" val="0.48"/>
+        <attnum name="green" val="0.54"/>
+        <attnum name="blue" val="0.64"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="background scroll list">
+        <attnum name="red" val="0.01"/>
+        <attnum name="green" val="0.03"/>
+        <attnum name="blue" val="0.10"/>
+        <attnum name="alpha" val="0.65"/>
+      </section>
+      <section name="scroll list">
+        <attnum name="red" val="0.93"/>
+        <attnum name="green" val="0.96"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="background selected scroll list">
+        <attnum name="red" val="0.11"/>
+        <attnum name="green" val="0.18"/>
+        <attnum name="blue" val="0.40"/>
+        <attnum name="alpha" val="0.95"/>
+      </section>
+      <section name="selected scroll list">
+        <attnum name="red" val="1.0"/>
+        <attnum name="green" val="1.0"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="label">
+        <attnum name="red" val="0.95"/>
+        <attnum name="green" val="0.97"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="tip">
+        <attnum name="red" val="0.76"/>
+        <attnum name="green" val="0.84"/>
+        <attnum name="blue" val="0.98"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="mouse 1">
+        <attnum name="red" val="0.35"/>
+        <attnum name="green" val="0.58"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="mouse 2">
+        <attnum name="red" val="0.09"/>
+        <attnum name="green" val="0.15"/>
+        <attnum name="blue" val="0.35"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="help key">
+        <attnum name="red" val="1.0"/>
+        <attnum name="green" val="0.72"/>
+        <attnum name="blue" val="0.20"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+      <section name="help description">
+        <attnum name="red" val="0.70"/>
+        <attnum name="green" val="0.84"/>
+        <attnum name="blue" val="1.0"/>
+        <attnum name="alpha" val="1.0"/>
+      </section>
+    </section>
   </section>
 </params>
 EOF

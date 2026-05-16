@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { CockpitCommandStrip } from "@/components/cockpit/CockpitCommandStrip";
 import { CockpitTimingRail } from "@/components/cockpit/CockpitTimingRail";
@@ -84,24 +84,18 @@ export function CockpitPage() {
     }
   }, [stopRace]);
 
-  const operationalNote =
-    error ??
-    notice ??
-    status?.last_error ??
-    // During the normal boot window (daemon never yet reachable) show calm
-    // connecting copy instead of the detail string, which would otherwise
-    // contain the raw URL + exception from the failed connection attempt.
-    (status?.starting
-      ? "Connecting to TORCS — control daemon is still warming up. The 3D surface may already be live in the frame below."
-      : status?.detail && !status.reachable
-        ? status.detail
-        : null) ??
-    (viewMode === "cockpit" &&
-    status?.enabled &&
-    status?.reachable &&
-    status.state === "idle"
-      ? "TORCS is live. Start a race to begin streaming telemetry."
-      : null);
+  const surfaceNotice = useMemo(
+    () =>
+      getSurfaceNotice({
+        error,
+        notice,
+        status,
+        viewMode,
+        sessionId,
+        streamState: streamState.kind,
+      }),
+    [error, notice, status, viewMode, sessionId, streamState.kind],
+  );
 
   if (!torcsSurface) {
     return <Navigate to="/upload" replace />;
@@ -127,10 +121,34 @@ export function CockpitPage() {
         busy={busy}
       />
 
-      {operationalNote && (
-        <div className="rounded-card border border-border bg-surface px-4 py-3 text-sm text-muted">
-          {operationalNote}
-        </div>
+      {surfaceNotice && (
+        <section
+          className={`rounded-card border px-4 py-4 ${
+            surfaceNotice.tone === "warning"
+              ? "border-warning/40 bg-warning/10"
+              : surfaceNotice.tone === "accent"
+                ? "border-accent/30 bg-accent/10"
+                : "border-border bg-surface"
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
+                {surfaceNotice.eyebrow}
+              </div>
+              <h2 className="text-base font-semibold text-text">{surfaceNotice.title}</h2>
+              <p className="max-w-3xl text-sm text-muted">{surfaceNotice.body}</p>
+            </div>
+            {surfaceNotice.sessionLink && (
+              <Link
+                to={`/session/${encodeURIComponent(surfaceNotice.sessionLink)}`}
+                className="inline-flex rounded-pill border border-border px-3 py-1.5 text-sm text-accent transition-colors hover:text-text"
+              >
+                Open session debrief
+              </Link>
+            )}
+          </div>
+        </section>
       )}
 
       <div className="grid gap-4 xl:grid-cols-[210px_minmax(0,1fr)_240px]">
@@ -168,4 +186,137 @@ export function CockpitPage() {
       />
     </div>
   );
+}
+
+interface SurfaceNoticeModel {
+  eyebrow: string;
+  title: string;
+  body: string;
+  tone: "neutral" | "accent" | "warning";
+  sessionLink: string | null;
+}
+
+function getSurfaceNotice({
+  error,
+  notice,
+  status,
+  viewMode,
+  sessionId,
+  streamState,
+}: {
+  error: string | null;
+  notice: string | null;
+  status: ReturnType<typeof useTorcsControl>["status"];
+  viewMode: "cockpit" | "headless";
+  sessionId: string | null;
+  streamState: "idle" | "connecting" | "connected" | "no_telemetry" | "error" | "ended";
+}): SurfaceNoticeModel | null {
+  if (error) {
+    return {
+      eyebrow: "OVERRIDE attention",
+      title: "The cockpit needs a quick operator check.",
+      body: error,
+      tone: "warning",
+      sessionLink: null,
+    };
+  }
+
+  if (notice) {
+    return {
+      eyebrow: "OVERRIDE update",
+      title:
+        streamState === "ended"
+          ? "Race complete. The finished run is ready for review."
+          : "The cockpit state changed successfully.",
+      body: notice,
+      tone: streamState === "ended" ? "accent" : "neutral",
+      sessionLink: streamState === "ended" ? sessionId : null,
+    };
+  }
+
+  if (status?.last_error) {
+    return {
+      eyebrow: "OVERRIDE attention",
+      title: "TORCS reported an error on the last run.",
+      body: status.last_error,
+      tone: "warning",
+      sessionLink: sessionId,
+    };
+  }
+
+  if (status?.starting) {
+    return {
+      eyebrow: "OVERRIDE cockpit",
+      title: "The branded simulator surface is warming up.",
+      body: "Control services are still attaching. The TORCS display may already be visible below while OVERRIDE finishes bringing telemetry and race controls online.",
+      tone: "neutral",
+      sessionLink: null,
+    };
+  }
+
+  if (status?.detail && !status.reachable) {
+    return {
+      eyebrow: "OVERRIDE attention",
+      title: "TORCS is not reachable from the control plane yet.",
+      body: status.detail,
+      tone: "warning",
+      sessionLink: null,
+    };
+  }
+
+  if (streamState === "ended") {
+    return {
+      eyebrow: "OVERRIDE debrief ready",
+      title: "Race complete. OVERRIDE is holding the simulator at a calm review state.",
+      body: "Use the finished session debrief for the full engineer readout, or start another branded TORCS run when you want a fresh comparison.",
+      tone: "accent",
+      sessionLink: sessionId,
+    };
+  }
+
+  if (status?.state === "cleanup" || status?.state === "stopping") {
+    return {
+      eyebrow: "OVERRIDE reset",
+      title: "The simulator is returning to standby.",
+      body: "OVERRIDE is finishing the stop-race sequence and guiding TORCS back to a stable menu state for the next run.",
+      tone: "neutral",
+      sessionLink: sessionId,
+    };
+  }
+
+  if (status?.state === "active" || status?.state === "connecting" || status?.state === "waiting_scr") {
+    return {
+      eyebrow: viewMode === "headless" ? "OVERRIDE live capture" : "OVERRIDE live cockpit",
+      title:
+        streamState === "connected"
+          ? "Race live. OVERRIDE is tracking the run in real time."
+          : "Race live. Waiting for the first closed lap to unlock richer guidance.",
+      body:
+        viewMode === "headless"
+          ? "The simulator is running without the 3D cockpit frame, but telemetry, timing, and hybrid energy tracking remain live below."
+          : "Keep the simulator in view while OVERRIDE watches for the first closed lap, then upgrades the cockpit with stronger energy signals and debrief-ready context.",
+      tone: "accent",
+      sessionLink: null,
+    };
+  }
+
+  if (
+    viewMode === "cockpit" &&
+    status?.enabled &&
+    status?.reachable &&
+    status.state === "idle"
+  ) {
+    return {
+      eyebrow: "OVERRIDE cockpit ready",
+      title: "The branded TORCS surface is standing by for the next run.",
+      body:
+        sessionId != null
+          ? "The previous session is still available for review. Start another race when you want fresh telemetry, or open the finished debrief to compare outcomes."
+          : "Start a race to begin streaming telemetry. OVERRIDE will keep the simulator visible while the cockpit layers timing, hybrid energy, and post-lap guidance around it.",
+      tone: "accent",
+      sessionLink: sessionId,
+    };
+  }
+
+  return null;
 }

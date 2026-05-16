@@ -62,11 +62,13 @@ ingest/ (TORCS JSONL or FastF1 → LapFeatures)
 
 **LLM runtime split.** Granite Instruct (`ibm/granite-4-h-small`) and Granite Guardian (`ibm/granite-guardian-3-8b`) use `/ml/v1/text/chat`. Granite Embedding (`ibm/granite-embedding-278m-multilingual`) uses `/ml/v1/text/embeddings`. The legacy `/ml/v1/text/generation` endpoint is deprecated — do not use it. Model IDs and project binding are pinned in `models.json`. TTM-R2 and Docling run locally.
 
-**LLM abstraction.** `core/llm_clients/` implements the `WatsonxChatClient` Protocol. All LLM clients are **injected** — tests pass fakes; production passes the real impls. Set `OVERRIDE_LLM_RUNTIME=ollama` to swap in `ollama.py` for local dev without watsonx credentials.
+**LLM abstraction.** `core/llm_clients/` implements the `WatsonxChatClient` Protocol. All LLM clients are **injected** — tests pass fakes; production passes the real impls. Set `OVERRIDE_LLM_RUNTIME=ollama` to swap in `ollama.py` for local dev without watsonx credentials. Note: ollama mode covers chat only; Guardian (Pass-2) and Embedding stay watsonx-only — `WATSONX_API_KEY` is still required.
 
 **Langflow.** Lives in a separate venv (`.venv-langflow`, Python <3.12 constraint). It is the design/demo layer; FastAPI is the production runtime.
 
 **Two-pass safety.** Pass 1 (deterministic, no LLM) always runs before Pass 2 (Guardian BYOC scoring). Both results are surfaced in the UI.
+
+**TORCS control plane (ADR-004).** `POST /api/sessions/torcs-live` ingests live TORCS telemetry from the lab container. `GET /api/torcs-status` reports daemon liveness. The daemon binds inside the TORCS container on `:7000` (no host port mapping); authenticated via `TORCS_CONTROL_SECRET`. When unset, the TORCS container falls back to legacy foreground start (backward-compatible). The GUI-reset sequence (`OVERRIDE_TORCS_GUI_RESET`) auto-advances TORCS to "Abandon Race" after a Stop, via xte key injection — guarded by `OVERRIDE_KIOSK_MODE=1`.
 
 **Observability.** `api/observability.py` wraps OpenTelemetry. Off by default; set `OVERRIDE_TRACING=otlp` to enable and view traces in Jaeger.
 
@@ -82,10 +84,14 @@ ingest/ (TORCS JSONL or FastF1 → LapFeatures)
 
 ### Key environment variables
 - `WATSONX_PROJECT_ID`, `WATSONX_API_KEY` — required for production; see `.env.example`
-- `OVERRIDE_LLM_RUNTIME=ollama` — swaps all LLM calls to local Ollama (no watsonx credentials needed)
+- `OVERRIDE_LLM_RUNTIME=ollama` — routes chat to local Ollama; `WATSONX_API_KEY` still required (Guardian + Embedding stay watsonx-only)
+- `OVERRIDE_OLLAMA_BASE_URL`, `OVERRIDE_OLLAMA_MODEL` — Ollama endpoint (default: `http://torcs:11434`, `granite4:350m`)
 - `OVERRIDE_TRACING=otlp` — enables OpenTelemetry tracing to Jaeger
 - `OVERRIDE_UI_ORIGIN` — CORS allowed origin (default: dev frontend)
 - `MAX_SESSION_LAPS` — truncation cap per FR-1.3 (default: 120)
+- `TORCS_CONTROL_SECRET` — shared secret for OVERRIDE → TORCS daemon calls (ADR-004); leave unset to disable control plane
+- `OVERRIDE_KIOSK_MODE=1` — activates locked-down kiosk desktop in TORCS container (suppress panels, auto-launch TORCS)
+- `OVERRIDE_TORCS_GUI_RESET` — auto-advance TORCS to "Abandon Race" after Stop via xte (default: `1`; requires kiosk mode)
 
 ### Intentional stub — do not "fix"
 `core/forecasting.py` is a docstring-only stub. TTM-R2 is deferred to v1.1. The pipeline runs end-to-end without it — sessions with <30 laps skip the forecast and lower reported confidence.
