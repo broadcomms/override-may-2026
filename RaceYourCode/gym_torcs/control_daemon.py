@@ -86,6 +86,18 @@ SCR_PORT_POLL_INTERVAL_S = float(os.environ.get("OVERRIDE_TORCS_POLL_INTERVAL_S"
 TERMINATE_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_TERMINATE_GRACE_S", "5"))
 KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 
+# Post-stop GUI reset (3D/manual-launch mode only).
+# After the SCR client disconnects, TORCS stays in race state — the operator
+# would otherwise need to press ESC manually and navigate the pause menu.
+# This settles the GUI back to a stable non-race state automatically.
+#   OVERRIDE_TORCS_GUI_RESET=0      disable entirely
+#   OVERRIDE_TORCS_GUI_SETTLE_S=1.0 seconds to wait after SCR stop before sending keys
+#   OVERRIDE_TORCS_GUI_RESET_KEYS   colon-separated xte key names; default navigates
+#                                   Escape → open pause menu, Down → Abandon Race, Return
+GUI_RESET_ENABLED = os.environ.get("OVERRIDE_TORCS_GUI_RESET", "1") != "0"
+GUI_RESET_SETTLE_S = float(os.environ.get("OVERRIDE_TORCS_GUI_SETTLE_S", "1.0"))
+GUI_RESET_KEYS = os.environ.get("OVERRIDE_TORCS_GUI_RESET_KEYS", "Escape:Down:Return")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # State machine
@@ -421,6 +433,84 @@ async def _terminate_proc(proc: Optional[subprocess.Popen], label: str) -> Optio
         except (asyncio.TimeoutError, OSError):
             logger.error("SIGKILL %s pid=%s did not reap", label, proc.pid)
             return -9
+
+
+async def _reset_torcs_gui_after_stop() -> None:
+    """Drive the TORCS GUI back to a stable post-race menu state after a stop.
+
+    Called fire-and-forget (asyncio.create_task) from control_stop() when the
+    daemon did NOT own TORCS (3D cockpit / manual-launch mode — torcs_proc is
+    None).  After the SCR client disconnects, TORCS typically stays mid-race;
+    the operator would otherwise need to press ESC and navigate the pause menu
+    manually.
+
+    Default flow:
+      wait GUI_RESET_SETTLE_S   — let SCR disconnect propagate
+      Escape                    — open the in-race pause menu
+      Down                      — move from Restart Race → Abandon Race
+      Return                    — confirm
+
+    This matches the observed TORCS pause-menu layout:
+      [0] Restart Race  ← default focus after Escape
+      [1] Abandon Race  ← one Down from here
+      [2] Resume Race
+      [3] Quit Game
+
+    Adjust via env vars if the menu focus in your TORCS version differs:
+      OVERRIDE_TORCS_GUI_RESET_KEYS=<key>:<key>:...  (colon-separated xte names)
+      OVERRIDE_TORCS_GUI_SETTLE_S=<float>            (initial settle delay, default 1.0)
+      OVERRIDE_TORCS_GUI_RESET=0                     (disable entirely)
+
+    Uses xte (xautomation package) — already present in the SkillsBuild lab
+    image (confirmed in hands-on-labs Dockerfile).  If xte is missing or
+    fails, a warning is logged and the daemon continues normally.
+    """
+    if not GUI_RESET_ENABLED:
+        logger.info("gui-reset: disabled via OVERRIDE_TORCS_GUI_RESET=0")
+        return
+
+    await asyncio.sleep(GUI_RESET_SETTLE_S)
+
+    keys = [k.strip() for k in GUI_RESET_KEYS.split(":") if k.strip()]
+    if not keys:
+        logger.warning("gui-reset: OVERRIDE_TORCS_GUI_RESET_KEYS is empty; nothing to send")
+        return
+
+    # Build a single xte call: interleave key events with 150 ms delays.
+    # xte accepts multiple action strings as positional arguments, e.g.:
+    #   xte 'key Escape' 'usleep 150000' 'key Down' 'usleep 150000' 'key Return'
+    env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
+    xte_args = ["xte"]
+    for i, key in enumerate(keys):
+        xte_args.append(f"key {key}")
+        if i < len(keys) - 1:
+            xte_args.append("usleep 150000")  # 150 ms between keys
+
+    try:
+        result = subprocess.run(
+            xte_args,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=len(keys) * 0.5 + 2.0,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "gui-reset: xte failed (rc=%d): %s",
+                result.returncode,
+                result.stderr.strip(),
+            )
+        else:
+            logger.info(
+                "gui-reset: sent key sequence %s on DISPLAY=%s", keys, TORCS_DISPLAY
+            )
+    except FileNotFoundError:
+        logger.warning(
+            "gui-reset: xte not found; skipping GUI reset "
+            "(install xautomation in the TORCS image)"
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("gui-reset: xte timed out sending key sequence")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -766,6 +856,9 @@ async def control_stop() -> StopResponse:
             pass
 
         sid = _race.session_id
+        # In 3D/manual-launch mode torcs_proc is None — we didn't own TORCS,
+        # it's the live GUI surface.  Capture before the handles are cleared.
+        gui_mode = _race.torcs_proc is None
         scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
         torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
 
@@ -778,6 +871,12 @@ async def control_stop() -> StopResponse:
         # Reset transient handles so /control/status reads cleanly
         _race.scr_proc = None
         _race.torcs_proc = None
+
+        # In 3D mode the TORCS GUI stays running after stop; drive it back to
+        # a stable menu state so the operator doesn't need a manual ESC.
+        # Fire-and-forget: response returns immediately; keys land ~1 s later.
+        if gui_mode:
+            asyncio.create_task(_reset_torcs_gui_after_stop())
 
         return StopResponse(
             status="stopped",
