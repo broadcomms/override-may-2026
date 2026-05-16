@@ -97,6 +97,21 @@ pkill -f "code.*install-extension" 2>/dev/null || true
 sed -i 's|Xvfb :1 -screen 0 1920x1080x24 &|Xvfb :1 -screen 0 1280x720x24+32 -ac +extension RENDER +extension GLX \&|' \
     /usr/local/bin/start.sh
 
+# ── Fix 3.5 — x11vnc SIGSEGV in initialize_xfixes() ─────────────────────────
+# x11vnc crashes with signal 11 (SIGSEGV) during initialize_xfixes() when
+# TORCS or xfwm4 compositor is active. The xfixes extension provides
+# cursor-shape notifications; without it x11vnc falls back to polling, which
+# is fine for a kiosk or lab session (no precision cursor tracking needed).
+#
+# Adding -noxfixes disables the xfixes code path entirely, bypassing the
+# crash. No user-visible degradation: cursor still renders, display still
+# updates. The patch is unconditional — the crash reproducibly kills x11vnc
+# regardless of OVERRIDE_KIOSK_MODE.
+#
+# Idempotent: sed won't match a line already containing -noxfixes.
+sed -i 's|x11vnc -display :1 -nopw -listen 0\.0\.0\.0 -xkb -forever -shared|x11vnc -display :1 -nopw -listen 0.0.0.0 -xkb -forever -shared -noxfixes|' \
+    /usr/local/bin/start.sh
+
 # ── Fix 4 — Desktop launcher for TORCS GUI (one-click in noVNC) ─────────────
 # The noVNC desktop ships with only File System + Home icons by default.
 # Launching TORCS in GUI mode (which is what renders the 3D in-noVNC, since
