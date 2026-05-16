@@ -880,18 +880,22 @@ def test_control_status_reports_disabled_when_secret_unset(tmp_path, monkeypatch
     body = r.json()
     assert body == {
         "enabled": False, "reachable": False, "active": False,
-        "state": None,                                 # Phase 2.5 — daemon state surfaced
+        "starting": False,                                 # not in boot window when disabled
+        "state": None,                                     # Phase 2.5 — daemon state surfaced
         "session_id": None,
-        "last_error": None,                            # Phase 2.5 — graceful vs failure distinguisher
+        "last_error": None,                                # Phase 2.5 — graceful vs failure distinguisher
         "last_exit_code": None,
         "detail": "TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
     }
 
 
 def test_control_status_reports_unreachable_when_daemon_down(tmp_path, monkeypatch):
-    """Secret set, daemon unreachable → enabled=True, reachable=False.
+    """Secret set, daemon unreachable, daemon never previously reachable →
+    enabled=True, reachable=False, starting=True (normal boot window).
     Same UI semantics as disabled but a different `detail` string so
     operators can debug."""
+    import api.main as main_mod
+    monkeypatch.setattr(main_mod, "_torcs_daemon_ever_reachable", False)
     monkeypatch.setenv("TORCS_CONTROL_URL", "http://nope.invalid:7000")
     monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
     client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
@@ -901,7 +905,8 @@ def test_control_status_reports_unreachable_when_daemon_down(tmp_path, monkeypat
     assert body["enabled"] is True
     assert body["reachable"] is False
     assert body["active"] is False
-    assert "daemon" in (body["detail"] or "").lower() or "reach" in (body["detail"] or "").lower()
+    assert body["starting"] is True   # boot window — calming copy, not a failure
+    assert "start" in (body["detail"] or "").lower() or "warm" in (body["detail"] or "").lower()
 
 
 def test_control_status_proxies_active_state(tmp_path, monkeypatch):

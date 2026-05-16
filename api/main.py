@@ -283,6 +283,7 @@ class TorcsControlPlaneStatus(BaseModel):
     """
     enabled: bool = Field(description="True when TORCS_CONTROL_URL + SECRET are both set on the override service.")
     reachable: bool = Field(description="True when the daemon's /health responded 200.")
+    starting: bool = Field(default=False, description="True when unreachable but the daemon has never yet responded in this process lifetime — normal boot window, not a failure.")
     active: bool = Field(default=False, description="True when state == 'active' (compat field for old clients).")
     state: Optional[str] = Field(default=None, description="Daemon-side race state: idle | launching | waiting_scr | connecting | active | stopping | cleanup.")
     session_id: Optional[str] = None
@@ -1045,7 +1046,13 @@ def create_app() -> FastAPI:
         configured and reachable. The UI calls this on /upload to decide
         whether to render the Start/Stop race buttons. Always returns 200
         so the UI can branch on `enabled` + `reachable` without 404 noise.
+
+        `starting=True` means the daemon has never yet responded in this
+        process lifetime — normal boot window. `starting=False` + `reachable=False`
+        means the daemon was reachable before and has become unreachable —
+        surface that as a genuine failure with stronger copy.
         """
+        global _torcs_daemon_ever_reachable
         url, secret = _torcs_control_config()
         if url is None or secret is None:
             return TorcsControlPlaneStatus(
@@ -1055,19 +1062,31 @@ def create_app() -> FastAPI:
             )
         try:
             status_code, body = await _call_torcs_daemon("GET", "/control/status", timeout=3.0)
-        except HTTPException as e:
-            # _call_torcs_daemon raises HTTPException only for unreachable;
-            # surface as reachable=False so the UI hides the buttons rather
-            # than showing an angry error banner.
-            detail = "Control daemon not reachable yet — torcs container may still be booting."
-            if hasattr(e, "detail") and isinstance(e.detail, dict):
-                detail = e.detail.get("detail", detail) or detail
-            return TorcsControlPlaneStatus(enabled=True, reachable=False, detail=detail)
+        except HTTPException:
+            # Daemon is unreachable. Distinguish expected boot from genuine failure.
+            if not _torcs_daemon_ever_reachable:
+                # Normal boot window: daemon hasn't responded yet in this process.
+                # Don't surface the raw URL + exception string — it looks like a crash.
+                return TorcsControlPlaneStatus(
+                    enabled=True,
+                    reachable=False,
+                    starting=True,
+                    detail="Control daemon is starting — TORCS container is still warming up.",
+                )
+            else:
+                # Daemon was reachable before and is now down — genuine problem.
+                return TorcsControlPlaneStatus(
+                    enabled=True,
+                    reachable=False,
+                    starting=False,
+                    detail="Control daemon became unreachable. Check that the torcs container is still running.",
+                )
         if status_code != 200:
             return TorcsControlPlaneStatus(
                 enabled=True, reachable=False,
                 detail=f"Daemon returned HTTP {status_code}",
             )
+        _torcs_daemon_ever_reachable = True
         return TorcsControlPlaneStatus(
             enabled=True,
             reachable=True,
@@ -1475,6 +1494,13 @@ def _torcs_control_config() -> tuple[Optional[str], Optional[str]]:
     url = os.environ.get("TORCS_CONTROL_URL") or None
     secret = os.environ.get("TORCS_CONTROL_SECRET") or None
     return (url, secret)
+
+
+# Tracks whether the TORCS control daemon has *ever* successfully responded
+# in this process lifetime. False = normal boot window (no failure); True
+# means the daemon was up and then became unreachable, which is a genuine
+# problem worth surfacing with stronger copy. Reset to False on process restart.
+_torcs_daemon_ever_reachable: bool = False
 
 
 async def _call_torcs_daemon(

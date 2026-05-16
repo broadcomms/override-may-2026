@@ -591,7 +591,7 @@ export const api = {
     // hosted demo and fixture flows behave identically.
     if (resolveFixture(opts)) {
       return {
-        enabled: false, reachable: false, active: false, state: null,
+        enabled: false, reachable: false, starting: false, active: false, state: null,
         session_id: null, last_error: null, last_exit_code: null, detail: null,
       };
     }

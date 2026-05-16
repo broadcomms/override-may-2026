@@ -128,8 +128,9 @@ export function RaceControlCard() {
 
       {status.enabled && !status.reachable && (
         <p className="text-xs text-muted">
-          Daemon not reachable yet — torcs container is still booting (noVNC + uvicorn handshake
-          takes ~90 s on first run). {status.detail}
+          {status.starting
+            ? "Control daemon is warming up — TORCS container is still booting (noVNC + uvicorn handshake takes ~90 s on first run)."
+            : `Control daemon is unreachable. ${status.detail ?? "Check that the torcs container is still running."}`}
         </p>
       )}
 

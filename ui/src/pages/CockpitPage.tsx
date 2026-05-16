@@ -89,7 +89,14 @@ export function CockpitPage() {
     error ??
     notice ??
     status?.last_error ??
-    status?.detail ??
+    // During the normal boot window (daemon never yet reachable) show calm
+    // connecting copy instead of the detail string, which would otherwise
+    // contain the raw URL + exception from the failed connection attempt.
+    (status?.starting
+      ? "Connecting to TORCS — control daemon is still warming up. The 3D surface may already be live in the frame below."
+      : status?.detail && !status.reachable
+        ? status.detail
+        : null) ??
     (viewMode === "cockpit" &&
     status?.enabled &&
     status?.reachable &&

@@ -260,6 +260,7 @@ export type TorcsRaceState =
 export interface TorcsControlStatus {
   enabled: boolean;        // env configured on override?
   reachable: boolean;      // daemon /health responded?
+  starting: boolean;       // true = normal boot window (daemon never yet reachable); false = genuine failure if also !reachable
   active: boolean;         // (compat) state === "active"
   state: TorcsRaceState | null;
   session_id: string | null;
