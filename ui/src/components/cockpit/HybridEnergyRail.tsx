@@ -1,16 +1,18 @@
-import type { LiveLapSnapshot, LiveLapStats } from "@/api/types";
+import type { LiveLapSnapshot, LiveLapStats, TorcsControlStatus } from "@/api/types";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { deriveLiveSignal } from "@/lib/cockpitTelemetry";
 
 interface Props {
+  status: TorcsControlStatus | null;
   latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
   previousLap: LiveLapStats | null;
   streamState: LiveStreamState;
 }
 
-export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap, streamState }: Props) {
+export function HybridEnergyRail({ status, latestSnapshot, latestLap, previousLap, streamState }: Props) {
   const signal = deriveLiveSignal(latestLap, previousLap);
+  const raceBadge = getRaceBadge(status, streamState);
 
   // Snapshot values take priority during an open lap.
   const isLive = latestSnapshot != null;
@@ -69,6 +71,13 @@ export function HybridEnergyRail({ latestSnapshot, latestLap, previousLap, strea
         <Metric label={isLive ? "DEPLOY (lap)" : "DEPLOY"} value={deploy != null ? `${deploy.toFixed(2)} MJ` : "—"} />
         <Metric label="NET" value={net != null ? `${net.toFixed(2)} MJ` : "—"} />
         <Metric label="BALANCE" value={balanceLabel ?? "waiting"} />
+        {raceBadge && (
+          <div className="flex justify-end pt-1">
+            <span className={`rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.2em] ${raceBadge.tone}`}>
+              {raceBadge.label}
+            </span>
+          </div>
+        )}
         {!isLive && <Metric label="PRESSURE" value={signal ? signal.pressureLabel : "review pending"} />}
         {statusLine && (
           <div className="pt-1">
@@ -110,4 +119,53 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="mt-1 font-mono text-sm tabular-nums text-text">{value}</div>
     </div>
   );
+}
+
+function getRaceBadge(
+  status: TorcsControlStatus | null,
+  streamState: LiveStreamState,
+): { label: string; tone: string } | null {
+  if (streamState.kind === "ended") {
+    return {
+      label: "Debrief ready",
+      tone: "border-accent/40 bg-accent/10 text-accent",
+    };
+  }
+
+  if (status?.last_error || streamState.kind === "error") {
+    return {
+      label: "Needs review",
+      tone: "border-warning/40 bg-warning/10 text-warning",
+    };
+  }
+
+  if (status?.starting || status?.state === "launching" || status?.state === "waiting_scr") {
+    return {
+      label: "Staging run",
+      tone: "border-border/80 bg-bg/70 text-muted",
+    };
+  }
+
+  if (status?.state === "stopping" || status?.state === "cleanup") {
+    return {
+      label: "Closing run",
+      tone: "border-border/80 bg-bg/70 text-muted",
+    };
+  }
+
+  if (streamState.kind === "connected" || status?.state === "active") {
+    return {
+      label: status?.launch_mode === "headless_quickrace" ? "Headless live" : "Live race",
+      tone: "border-accent/40 bg-accent/10 text-accent",
+    };
+  }
+
+  if (status?.state === "idle") {
+    return {
+      label: "Standby",
+      tone: "border-border/80 bg-bg/70 text-muted",
+    };
+  }
+
+  return null;
 }

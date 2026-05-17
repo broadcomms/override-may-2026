@@ -151,7 +151,7 @@ export function CockpitPage() {
         </div>
 
         <div className="order-3 xl:order-3">
-          <HybridEnergyRail latestSnapshot={latestSnapshot} latestLap={latestLap} previousLap={previousLap} streamState={streamState} />
+          <HybridEnergyRail status={status} latestSnapshot={latestSnapshot} latestLap={latestLap} previousLap={previousLap} streamState={streamState} />
         </div>
       </div>
 
