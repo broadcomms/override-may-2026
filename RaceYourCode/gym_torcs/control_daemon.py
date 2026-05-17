@@ -645,12 +645,25 @@ TORCS_LAUNCH_LOG = "/tmp/torcs-launch.log"
 SCR_CLIENT_LOG = "/tmp/scr-client.log"
 
 
+# Upstream gym_torcs ships this exact sequence in autostart.sh to walk the
+# visible TORCS menu into a Practice server. We keep the same ordering here so
+# the kiosk-owned GUI path matches the lab's known-good launch contract.
+_VISIBLE_PRACTICE_KEY_SEQUENCE: tuple[tuple[str, float], ...] = (
+    ("Return", 0.3),
+    ("Return", 0.3),
+    ("Up", 0.3),
+    ("Up", 0.3),
+    ("Return", 0.3),
+    ("Return", 0.0),
+)
+
+
 def _send_visible_practice_launch_sequence() -> None:
-    """Drive the visible TORCS menu to Practice -> New Race.
+    """Drive the visible TORCS menu with the upstream Practice key sequence.
 
     The supported 3D product path is intentionally narrow: OVERRIDE patches
-    practice.xml, starts from the kiosk main menu, then sends three fixed
-    clicks into TORCS's 1280x800 fullscreen menu. This keeps the operator out
+    practice.xml, starts from the kiosk main menu, then replays the same
+    keystrokes shipped by gym_torcs/autostart.sh. This keeps the operator out
     of manual setup while avoiding the `torcs -r practice.xml` shortcut, which
     starts telemetry but does not reliably show the race in noVNC.
     """
@@ -660,7 +673,7 @@ def _send_visible_practice_launch_sequence() -> None:
 
 
 def _send_visible_practice_launch_sequence_xdotool() -> bool:
-    """Focus the TORCS window and click the supported Practice path."""
+    """Focus the TORCS window and send the upstream Practice keys."""
     env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
     try:
         search = subprocess.run(
@@ -696,16 +709,34 @@ def _send_visible_practice_launch_sequence_xdotool() -> bool:
         logger.warning("gui-launch: xdotool windowfocus failed: %s", focus.stderr.strip())
         return False
 
-    for x, y, delay_s in clicks:
-        click = subprocess.run(
-            ["xdotool", "mousemove", str(x), str(y), "click", "1"],
+    # On the XFCE/Xvfb kiosk surface the fullscreen TORCS client can still
+    # land at Y=24 under the window manager, which clips the bottom HUD even
+    # though the window itself is 1280x800. Force the client area flush to the
+    # display origin before we send the fixed click sequence.
+    try:
+        move = subprocess.run(
+            ["xdotool", "windowmove", window_id, "0", "0"],
             capture_output=True,
             text=True,
             env=env,
             timeout=3,
         )
-        if click.returncode != 0:
-            logger.warning("gui-launch: xdotool click failed: %s", click.stderr.strip())
+    except subprocess.TimeoutExpired:
+        return False
+    if move.returncode != 0:
+        logger.warning("gui-launch: xdotool windowmove failed: %s", move.stderr.strip())
+        return False
+
+    for key_name, delay_s in _VISIBLE_PRACTICE_KEY_SEQUENCE:
+        key = subprocess.run(
+            ["xdotool", "key", key_name],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=3,
+        )
+        if key.returncode != 0:
+            logger.warning("gui-launch: xdotool key failed: %s", key.stderr.strip())
             return False
         if delay_s > 0:
             time.sleep(delay_s)
@@ -715,25 +746,11 @@ def _send_visible_practice_launch_sequence_xdotool() -> bool:
 def _send_visible_practice_launch_sequence_xte() -> None:
     """Fallback launch bridge for images that only have xautomation."""
     xte_env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
-    xte_cmds = [
-        # Main menu: Race
-        "mousemove 640 174",
-        "mousedown 1",
-        "usleep 100000",
-        "mouseup 1",
-        "usleep 700000",
-        # Select Race: Practice
-        "mousemove 640 423",
-        "mousedown 1",
-        "usleep 100000",
-        "mouseup 1",
-        "usleep 700000",
-        # Practice: New Race
-        "mousemove 640 173",
-        "mousedown 1",
-        "usleep 100000",
-        "mouseup 1",
-    ]
+    xte_cmds: list[str] = []
+    for key_name, delay_s in _VISIBLE_PRACTICE_KEY_SEQUENCE:
+        xte_cmds.append(f"key {key_name}")
+        if delay_s > 0:
+            xte_cmds.append(f"usleep {int(delay_s * 1_000_000)}")
     try:
         result = subprocess.run(
             ["xte", "-x", TORCS_DISPLAY] + xte_cmds,

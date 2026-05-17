@@ -185,6 +185,81 @@ def test_control_start_cockpit_practice_uses_visible_gui_bridge(monkeypatch):
     assert daemon._race.scr_proc is scr_proc
 
 
+def test_visible_practice_xdotool_moves_window_to_origin_before_keys(monkeypatch):
+    calls: list[list[str]] = []
+
+    class Result:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, capture_output, text, env, timeout):
+        del capture_output, text, timeout
+        assert env["DISPLAY"] == daemon.TORCS_DISPLAY
+        calls.append(cmd)
+        if cmd[:3] == ["xdotool", "search", "--name"]:
+            return Result(stdout="25165826\n")
+        if cmd[:2] == ["xdotool", "windowfocus"]:
+            return Result()
+        if cmd[:2] == ["xdotool", "windowmove"]:
+            return Result()
+        if cmd[:2] == ["xdotool", "key"]:
+            return Result()
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(daemon.subprocess, "run", fake_run)
+
+    ok = daemon._send_visible_practice_launch_sequence_xdotool()
+
+    assert ok is True
+    assert ["xdotool", "windowmove", "25165826", "0", "0"] in calls
+    assert calls.index(["xdotool", "windowfocus", "25165826"]) < calls.index(
+        ["xdotool", "windowmove", "25165826", "0", "0"]
+    )
+    assert calls.index(["xdotool", "windowmove", "25165826", "0", "0"]) < calls.index(
+        ["xdotool", "key", "Return"]
+    )
+
+
+def test_visible_practice_xte_uses_upstream_keyboard_sequence(monkeypatch):
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(cmd, capture_output, text, env, timeout):
+        del capture_output, text, timeout
+        assert env["DISPLAY"] == daemon.TORCS_DISPLAY
+        calls.append(cmd)
+        return Result()
+
+    monkeypatch.setattr(daemon.subprocess, "run", fake_run)
+
+    daemon._send_visible_practice_launch_sequence_xte()
+
+    assert calls == [
+        [
+            "xte",
+            "-x",
+            daemon.TORCS_DISPLAY,
+            "key Return",
+            "usleep 300000",
+            "key Return",
+            "usleep 300000",
+            "key Up",
+            "usleep 300000",
+            "key Up",
+            "usleep 300000",
+            "key Return",
+            "usleep 300000",
+            "key Return",
+        ]
+    ]
+
+
 def test_control_status_keeps_active_when_wrapper_dies_but_managed_torcs_bin_lives(monkeypatch):
     monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
 
