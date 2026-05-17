@@ -59,7 +59,10 @@ def _verify_auth(authorization: Optional[str] = Header(default=None)) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     token = authorization[len("Bearer ") :]
-    if not secrets.compare_digest(token.encode(), CONTROL_SECRET.encode()):
+    # Read the secret at request time so that monkeypatch.setenv works in tests
+    # and so that secret rotation takes effect without a daemon restart.
+    secret = os.environ.get("TORCS_CONTROL_SECRET", "")
+    if not secret or not secrets.compare_digest(token.encode(), secret.encode()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
 

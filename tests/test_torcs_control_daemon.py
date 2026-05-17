@@ -99,6 +99,7 @@ def test_load_track_metadata_reads_attrs_and_assets(tmp_path, monkeypatch):
 
 
 def test_control_recover_resets_active_state(monkeypatch):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
     calls: list[str] = []
 
     async def fake_terminate_proc(_proc, label):
@@ -133,6 +134,7 @@ def test_control_recover_resets_active_state(monkeypatch):
 
 
 def test_control_start_cockpit_practice_launches_direct_practice_race(monkeypatch):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
     calls: list[str] = []
 
     class FakeProc:
