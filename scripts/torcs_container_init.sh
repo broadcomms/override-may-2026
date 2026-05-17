@@ -619,6 +619,29 @@ DISPLAY=:1 xhost +SI:localuser:root 2>/dev/null \
   || DISPLAY=:1 xhost + 2>/dev/null \
   || echo "[init] WARN: xhost grant failed — torcs may run text-mode only"
 
+# Phase 2.8 — GUI bridge dependency for OVERRIDE-owned Practice launch.
+# xautomation/xte is already present in the lab image, but fresh XFCE
+# sessions often leave TORCS without keyboard/mouse focus. xdotool gives the
+# daemon a narrow, deterministic way to focus the TORCS window before clicking
+# Race → Practice → New Race. Keep this non-fatal: the daemon still has an
+# xte fallback, but visible Practice launch is much more reliable with xdotool.
+if ! command -v xdotool >/dev/null 2>&1; then
+    echo "[init] installing xdotool for TORCS GUI launch bridge"
+    export DEBIAN_FRONTEND=noninteractive
+    if ! apt-get update -qq; then
+        # The lab image has a VS Code apt source whose key can expire/miss in
+        # WSL. Disable it inside this disposable container and retry against
+        # Ubuntu's repos; this mirrors the existing "skip VS Code install"
+        # posture above and avoids blocking the control daemon on an unrelated
+        # editor repository.
+        mv /etc/apt/sources.list.d/vscode.sources \
+           /etc/apt/sources.list.d/vscode.sources.disabled 2>/dev/null || true
+        apt-get update -qq || true
+    fi
+    apt-get install -y --no-install-recommends xdotool >/tmp/override-apt-xdotool.log 2>&1 \
+        || echo "[init] WARN: xdotool install failed — falling back to xte only"
+fi
+
 # Phase 2.7 — pre-seed TORCS screen.xml with fullscreen=yes so the GUI
 # race fills the entire Xvfb display (1920x1080) instead of opening a
 # small window inside the XFCE desktop.

@@ -28,6 +28,7 @@ export function CockpitPage() {
     status,
     busy,
     error,
+    startRace,
     stopRace,
     recover,
   } = useTorcsControl();
@@ -50,6 +51,22 @@ export function CockpitPage() {
     const el = document.getElementById("torcs-iframe");
     if (el && el.requestFullscreen) el.requestFullscreen();
   };
+
+  const onStartRace = useCallback(async () => {
+    try {
+      const response = await startRace({
+        launchMode: "cockpit_practice",
+        track: status?.track ?? undefined,
+        laps: status?.laps ?? undefined,
+      });
+      setSessionId(response.session_id);
+      setNotice(
+        `Visible Practice launch started on ${response.track} for ${response.laps} laps.`,
+      );
+    } catch (_error) {
+      setNotice(null);
+    }
+  }, [startRace, status?.laps, status?.track]);
 
   const onStopRace = useCallback(async () => {
     try {
@@ -105,6 +122,7 @@ export function CockpitPage() {
         status={status}
         sessionId={sessionId}
         currentLap={latestLap?.lap ?? 0}
+        onStartRace={onStartRace}
         onStopRace={onStopRace}
         onRecover={onRecover}
         onFullscreen={onFullscreen}
@@ -283,7 +301,7 @@ function getSurfaceNotice({
       body:
         headless
           ? "The simulator is running without the 3D cockpit frame, but telemetry, timing, and hybrid energy tracking remain live below."
-          : "Keep the simulator in view while OVERRIDE watches for the first closed lap, then upgrades the cockpit with stronger energy signals and debrief-ready context.",
+          : "Keep the TORCS Practice surface in view while OVERRIDE watches for the first closed lap, then upgrades the cockpit with stronger energy signals and debrief-ready context.",
       tone: "accent",
       sessionLink: null,
     };
@@ -292,7 +310,7 @@ function getSurfaceNotice({
   if (status?.enabled && status?.reachable && status.state === "idle") {
     return {
       eyebrow: "OVERRIDE cockpit ready",
-      title: "The simulator is standing by for the next configured Practice run.",
+      title: "The simulator is standing by for the next configured Practice surface run.",
       body:
         sessionId != null
           ? "The previous session is still available for review. Configure the next run from Upload, or open the finished debrief to compare outcomes."

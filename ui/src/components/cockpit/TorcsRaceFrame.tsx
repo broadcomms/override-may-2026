@@ -24,29 +24,40 @@ export function TorcsRaceFrame({
   const prevReachableRef = useRef<boolean | null>(null);
   const prevStartingRef = useRef<boolean | null>(null);
   const prevStateRef = useRef<TorcsControlStatus["state"]>(null);
+  const prevSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const reachable = status?.reachable ?? false;
     const starting = status?.starting ?? false;
     const state = status?.state ?? null;
+    const sessionId = status?.session_id ?? null;
 
     const wasReachable = prevReachableRef.current;
     const wasStarting = prevStartingRef.current;
     const wasState = prevStateRef.current;
+    const wasSessionId = prevSessionIdRef.current;
 
     const recoveredFromRestart =
       (wasReachable === false && reachable === true) ||
       (wasStarting === true && starting === false && reachable) ||
       ((wasState === "cleanup" || wasState === "stopping") && state === "idle" && reachable);
+    const switchedSessions =
+      sessionId !== null &&
+      wasSessionId !== null &&
+      sessionId !== wasSessionId;
+    const armedNewRun =
+      wasState === "idle" &&
+      (state === "launching" || state === "waiting_scr" || state === "connecting");
 
-    if (recoveredFromRestart) {
+    if (recoveredFromRestart || switchedSessions || armedNewRun) {
       setFrameEpoch((value) => value + 1);
     }
 
     prevReachableRef.current = reachable;
     prevStartingRef.current = starting;
     prevStateRef.current = state;
-  }, [status?.reachable, status?.starting, status?.state]);
+    prevSessionIdRef.current = sessionId;
+  }, [status?.reachable, status?.session_id, status?.starting, status?.state]);
 
   const frameUrl = useMemo(() => {
     if (!baseFrameUrl) return null;
@@ -83,10 +94,10 @@ export function TorcsRaceFrame({
         <div className="aspect-[8/5] w-full px-6 py-8 text-center">
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
-              3D cockpit unavailable
+              TORCS surface unavailable
             </span>
             <p className="max-w-xl text-sm text-muted">
-              The TORCS display origin is not configured for this host. Use Headless Capture or open the app from a deployment that exposes the TORCS noVNC surface.
+              The TORCS GUI surface is not configured for this host. Use Headless Capture or open the app from a deployment that exposes the TORCS noVNC surface.
             </p>
           </div>
         </div>

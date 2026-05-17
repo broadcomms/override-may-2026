@@ -98,6 +98,9 @@ SCR_PORT_POLL_INTERVAL_S = float(os.environ.get("OVERRIDE_TORCS_POLL_INTERVAL_S"
 TERMINATE_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_TERMINATE_GRACE_S", "5"))
 KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
 GUI_READY_TIMEOUT_S = float(os.environ.get("OVERRIDE_TORCS_GUI_READY_TIMEOUT_S", "20"))
+GUI_BRIDGE_SETTLE_S = float(os.environ.get("OVERRIDE_TORCS_GUI_BRIDGE_SETTLE_S", "4.0"))
+GUI_BRIDGE_RETRY_TIMEOUT_S = float(os.environ.get("OVERRIDE_TORCS_GUI_BRIDGE_RETRY_TIMEOUT_S", "8.0"))
+GUI_BRIDGE_MAX_ATTEMPTS = int(os.environ.get("OVERRIDE_TORCS_GUI_BRIDGE_MAX_ATTEMPTS", "3"))
 
 # Post-stop GUI reset env vars (3D/manual-launch mode only).
 # Read inside _reset_torcs_gui_after_stop() so changes take effect without
@@ -642,6 +645,186 @@ TORCS_LAUNCH_LOG = "/tmp/torcs-launch.log"
 SCR_CLIENT_LOG = "/tmp/scr-client.log"
 
 
+def _send_visible_practice_launch_sequence() -> None:
+    """Drive the visible TORCS menu to Practice -> New Race.
+
+    The supported 3D product path is intentionally narrow: OVERRIDE patches
+    practice.xml, starts from the kiosk main menu, then sends three fixed
+    clicks into TORCS's 1280x800 fullscreen menu. This keeps the operator out
+    of manual setup while avoiding the `torcs -r practice.xml` shortcut, which
+    starts telemetry but does not reliably show the race in noVNC.
+    """
+    if _send_visible_practice_launch_sequence_xdotool():
+        return
+    _send_visible_practice_launch_sequence_xte()
+
+
+def _send_visible_practice_launch_sequence_xdotool() -> bool:
+    """Focus the TORCS window and click the supported Practice path."""
+    env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
+    try:
+        search = subprocess.run(
+            ["xdotool", "search", "--name", "TORCS"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=3,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    window_id = next((line.strip() for line in search.stdout.splitlines() if line.strip()), "")
+    if search.returncode != 0 or not window_id:
+        logger.warning("gui-launch: xdotool could not find a TORCS window")
+        return False
+
+    clicks = [
+        (640, 174, 0.7),  # Main menu: Race
+        (640, 423, 0.7),  # Select Race: Practice
+        (640, 173, 0.0),  # Practice: New Race
+    ]
+    try:
+        focus = subprocess.run(
+            ["xdotool", "windowfocus", window_id],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=3,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    if focus.returncode != 0:
+        logger.warning("gui-launch: xdotool windowfocus failed: %s", focus.stderr.strip())
+        return False
+
+    for x, y, delay_s in clicks:
+        click = subprocess.run(
+            ["xdotool", "mousemove", str(x), str(y), "click", "1"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=3,
+        )
+        if click.returncode != 0:
+            logger.warning("gui-launch: xdotool click failed: %s", click.stderr.strip())
+            return False
+        if delay_s > 0:
+            time.sleep(delay_s)
+    return True
+
+
+def _send_visible_practice_launch_sequence_xte() -> None:
+    """Fallback launch bridge for images that only have xautomation."""
+    xte_env = {**os.environ, "DISPLAY": TORCS_DISPLAY}
+    xte_cmds = [
+        # Main menu: Race
+        "mousemove 640 174",
+        "mousedown 1",
+        "usleep 100000",
+        "mouseup 1",
+        "usleep 700000",
+        # Select Race: Practice
+        "mousemove 640 423",
+        "mousedown 1",
+        "usleep 100000",
+        "mouseup 1",
+        "usleep 700000",
+        # Practice: New Race
+        "mousemove 640 173",
+        "mousedown 1",
+        "usleep 100000",
+        "mouseup 1",
+    ]
+    try:
+        result = subprocess.run(
+            ["xte", "-x", TORCS_DISPLAY] + xte_cmds,
+            capture_output=True,
+            text=True,
+            env=xte_env,
+            timeout=8,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("xte is not installed in the TORCS container") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("TORCS GUI launch bridge timed out") from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            "TORCS GUI launch bridge failed: "
+            + (result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}")
+        )
+
+
+async def _launch_visible_practice(track: str, laps: int) -> None:
+    """Patch Practice config, reset to kiosk main menu, and launch visible race."""
+    _write_practice_config(track, laps)
+    # TORCS's visible Practice HUD/runtime can leak shared raceman defaults
+    # from quickrace.xml even when the menu title is Practice. Keep both
+    # owned race managers aligned so the on-screen lap target matches
+    # OVERRIDE's configured target.
+    _write_quickrace_config(track, laps)
+    _resume_kiosk_loop()
+    _restart_torcs_kiosk_surface()
+    _ensure_xfwm4()
+    if not await _wait_for_torcs_gui():
+        raise RuntimeError("TORCS did not return to the kiosk main menu before launch")
+    await asyncio.sleep(GUI_BRIDGE_SETTLE_S)
+    _pause_kiosk_loop()
+    _send_visible_practice_launch_sequence()
+
+
+async def _wait_for_visible_practice_scr() -> bool:
+    """Wait for SCR, retrying the GUI bridge if TORCS ignored an early click."""
+    attempts = max(1, GUI_BRIDGE_MAX_ATTEMPTS)
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            logger.info("gui-launch: retrying Practice -> New Race bridge (attempt %s/%s)", attempt, attempts)
+            _send_visible_practice_launch_sequence()
+        if await _wait_for_scr_port(None, GUI_BRIDGE_RETRY_TIMEOUT_S):
+            return True
+    return False
+
+
+def _managed_torcs_pattern_for_launch_mode(
+    launch_mode: Optional["LaunchMode"],
+) -> Optional[str]:
+    if launch_mode == "headless_quickrace":
+        return r"torcs-bin .* -r /root/.torcs/config/raceman/quickrace\.xml"
+    return None
+
+
+def _managed_torcs_bin_running(launch_mode: Optional["LaunchMode"]) -> bool:
+    pattern = _managed_torcs_pattern_for_launch_mode(launch_mode)
+    if pattern is None:
+        return False
+    result = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _kill_managed_torcs_for_mode(launch_mode: Optional["LaunchMode"]) -> Optional[int]:
+    pattern = _managed_torcs_pattern_for_launch_mode(launch_mode)
+    if pattern is None:
+        return None
+
+    before = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+    )
+    if before.returncode != 0 or not before.stdout.strip():
+        return None
+
+    subprocess.run(["pkill", "-9", "-f", pattern], check=False, capture_output=True)
+    after = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+    )
+    return 0 if after.returncode != 0 else -9
+
+
 def _launch_torcs(raceman_path: str) -> subprocess.Popen:
     """Spawn `torcs -r <xml>`. Output → LOG FILE, not PIPE.
 
@@ -908,6 +1091,11 @@ async def control_status() -> StatusResponse:
     if r.state in (RaceState.WAITING_SCR, RaceState.CONNECTING, RaceState.ACTIVE):
         torcs_dead = r.torcs_proc is not None and r.torcs_proc.poll() is not None
         scr_dead = r.scr_proc is not None and r.scr_proc.poll() is not None
+        if torcs_dead and _managed_torcs_bin_running(r.launch_mode):
+            logger.info(
+                "control_status: torcs wrapper exited but managed torcs-bin is still alive; keeping kiosk pause active"
+            )
+            torcs_dead = False
         if torcs_dead or scr_dead:
             torcs_code = r.torcs_proc.returncode if torcs_dead else None  # type: ignore[union-attr]
             scr_code = r.scr_proc.returncode if scr_dead else None        # type: ignore[union-attr]
@@ -931,6 +1119,8 @@ async def control_status() -> StatusResponse:
                 logger.warning("control_status: %s", r.last_error)
             if scr_code is not None:
                 r.last_exit_code = scr_code
+            if r.launch_mode == "cockpit_practice":
+                _restart_torcs_kiosk_surface()
             _resume_kiosk_loop()
             # Force-cleanup; direct assignment because some transition_to
             # moves would be illegal from the current state.
@@ -1102,53 +1292,27 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                 _race.transition_to(RaceState.CONNECTING)
             else:
                 try:
-                    raceman_path = _write_practice_config(req.track, req.laps)
+                    await _launch_visible_practice(req.track, req.laps)
                 except (FileNotFoundError, RuntimeError, OSError, ET.ParseError) as e:
                     _race.transition_to(RaceState.CLEANUP, error=f"practice config failed: {e}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Could not write practice.xml: {e}",
-                    )
-                try:
-                    _pause_kiosk_loop()
-                    _kill_stale_torcs()
-                except RuntimeError as e:
                     _resume_kiosk_loop()
-                    _race.transition_to(RaceState.CLEANUP, error=str(e))
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e),
+                        detail=f"Could not launch visible TORCS Practice run: {e}",
                     )
-                try:
-                    torcs_proc = _launch_torcs(raceman_path)
-                except (OSError, FileNotFoundError) as e:
-                    _resume_kiosk_loop()
-                    _race.transition_to(RaceState.CLEANUP, error=f"practice torcs spawn failed: {e}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Could not spawn TORCS Practice run: {e}",
-                    )
-                _race.torcs_proc = torcs_proc
                 _race.transition_to(RaceState.WAITING_SCR)
-                if not await _wait_for_scr_port(torcs_proc, LAUNCH_TIMEOUT_S):
-                    await _terminate_proc(torcs_proc, "torcs")
+                if not await _wait_for_visible_practice_scr():
                     _resume_kiosk_loop()
-                    log_tail = ""
-                    try:
-                        from pathlib import Path as _P
-                        log_text = _P(TORCS_LAUNCH_LOG).read_text(errors="replace")
-                        log_tail = log_text[-500:] if log_text else "(empty)"
-                    except OSError:
-                        log_tail = "(could not read log)"
+                    _restart_torcs_kiosk_surface()
                     _race.transition_to(
                         RaceState.CLEANUP,
-                        error=f"Practice launch did not bind UDP :{SCR_PORT}. Log tail: {log_tail}",
+                        error=f"Visible Practice launch did not bind UDP :{SCR_PORT}.",
                     )
                     raise HTTPException(
                         status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                         detail=(
-                            f"Practice launch did not bind UDP :{SCR_PORT} within {LAUNCH_TIMEOUT_S}s. "
-                            f"Last lines of {TORCS_LAUNCH_LOG}: {log_tail}"
+                            f"Visible Practice launch did not bind UDP :{SCR_PORT} "
+                            f"within {LAUNCH_TIMEOUT_S}s."
                         ),
                     )
                 _race.transition_to(RaceState.CONNECTING)
@@ -1159,8 +1323,11 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                     req.session_id, req.track, req.laps, req.telemetry_filename,
                 )
             except (OSError, FileNotFoundError) as e:
-                # Tear down torcs if we launched it
+                # Tear down torcs if we launched it; visible Practice uses
+                # the kiosk surface, so reset that window instead.
                 await _terminate_proc(torcs_proc, "torcs")
+                if launch_mode == "cockpit_practice":
+                    _restart_torcs_kiosk_surface()
                 _resume_kiosk_loop()
                 _race.transition_to(RaceState.CLEANUP, error=f"scr-client spawn failed: {e}")
                 raise HTTPException(
@@ -1226,11 +1393,18 @@ async def control_stop() -> StopResponse:
             pass
 
         sid = _race.session_id
-        # In 3D/manual-launch mode torcs_proc is None — we didn't own TORCS,
-        # it's the live GUI surface.  Capture before the handles are cleared.
-        gui_mode = _race.torcs_proc is None
+        # Visible Practice uses the kiosk-owned TORCS GUI. Capture before
+        # handles are cleared so Stop race can reset the simulator surface
+        # instead of leaving the race loop running behind the menu.
+        visible_practice_mode = _race.launch_mode == "cockpit_practice"
         scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
+        managed_torcs_exit = _kill_managed_torcs_for_mode(_race.launch_mode)
         torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
+        if managed_torcs_exit is not None:
+            torcs_exit = managed_torcs_exit
+        if visible_practice_mode:
+            _restart_torcs_kiosk_surface()
+            _ensure_xfwm4()
         _resume_kiosk_loop()
 
         _race.last_exit_code = scr_exit
@@ -1242,12 +1416,6 @@ async def control_stop() -> StopResponse:
         # Reset transient handles so /control/status reads cleanly
         _race.scr_proc = None
         _race.torcs_proc = None
-
-        # In 3D mode the TORCS GUI stays running after stop; drive it back to
-        # a stable menu state so the operator doesn't need a manual ESC.
-        # Fire-and-forget: response returns immediately; keys land ~1 s later.
-        if gui_mode:
-            asyncio.create_task(_reset_torcs_gui_after_stop())
 
         return StopResponse(
             status="stopped",
@@ -1268,7 +1436,10 @@ async def control_recover() -> RecoverResponse:
     async with _control_lock:
         sid = _race.session_id or None
         scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
+        managed_torcs_exit = _kill_managed_torcs_for_mode(_race.launch_mode)
         torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
+        if managed_torcs_exit is not None:
+            torcs_exit = managed_torcs_exit
         _resume_kiosk_loop()
         _restart_torcs_kiosk_surface()
 

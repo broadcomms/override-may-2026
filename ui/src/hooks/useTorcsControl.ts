@@ -150,16 +150,22 @@ export function useTorcsControl({
   const startRace = useCallback(
     async ({
       launchMode = "cockpit_practice",
+      track: trackOverride,
+      laps: lapsOverride,
     }: {
       launchMode?: TorcsLaunchMode;
+      track?: string;
+      laps?: number;
     } = {}): Promise<TorcsStartRaceResponse> => {
       setBusy(true);
       setError(null);
       try {
-        const trackName = track.charAt(0).toUpperCase() + track.slice(1);
+        const selectedTrack = trackOverride ?? track;
+        const selectedLaps = lapsOverride ?? laps;
+        const trackName = selectedTrack.charAt(0).toUpperCase() + selectedTrack.slice(1);
         const response = await api.startTorcsRace({
-          track,
-          laps,
+          track: selectedTrack,
+          laps: selectedLaps,
           track_name: trackName,
           launch_mode: launchMode,
           auto_launch_torcs: launchMode === "headless_quickrace",

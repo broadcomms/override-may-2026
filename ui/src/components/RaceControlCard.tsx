@@ -41,7 +41,7 @@ export function RaceControlCard() {
       setMessage(
         launchMode === "headless_quickrace"
           ? `Headless quickrace started on ${trackName} for ${resp.laps} laps. OVERRIDE is capturing telemetry without the 3D cockpit surface.`
-          : `Practice launch started on ${trackName} for ${resp.laps} laps. OVERRIDE is launching the configured Practice run directly on the 3D cockpit surface.`,
+          : `Visible Practice launch started on ${trackName} for ${resp.laps} laps. OVERRIDE is launching TORCS through the cockpit surface plus live telemetry.`,
       );
       navigate("/cockpit");
     } catch (_error) {
@@ -186,8 +186,8 @@ export function RaceControlCard() {
                 <div className="inline-flex w-full rounded-pill border border-border bg-surface p-0.5 text-sm">
                   <ModeButton
                     active={launchMode === "cockpit_practice"}
-                    label="3D Practice"
-                    description="GUI TORCS in kiosk mode"
+                    label="Visible Practice"
+                    description="3D TORCS cockpit surface"
                     onClick={() => setLaunchMode("cockpit_practice")}
                     disabled={startDisabled}
                   />
@@ -203,7 +203,7 @@ export function RaceControlCard() {
 
               <p className="text-xs text-muted">
                 {launchMode === "cockpit_practice"
-                  ? "OVERRIDE owns the supported 3D path here: a direct Practice launch with scr_server 1 plus the configured track and laps."
+                  ? "OVERRIDE owns the supported visible Practice path here: configured track/laps, scr_server 1, then TORCS launches the New Race from the cockpit surface."
                   : "Headless mode keeps the legacy quickrace-style capture path for faster batch runs and smoke checks."}
               </p>
 

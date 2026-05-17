@@ -133,9 +133,8 @@ def test_control_recover_resets_active_state(monkeypatch):
     assert daemon._race.session_id == ""
 
 
-def test_control_start_cockpit_practice_launches_direct_practice_race(monkeypatch):
+def test_control_start_cockpit_practice_uses_visible_gui_bridge(monkeypatch):
     monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
-    calls: list[str] = []
 
     class FakeProc:
         def __init__(self, pid: int):
@@ -145,17 +144,16 @@ def test_control_start_cockpit_practice_launches_direct_practice_race(monkeypatc
             return None
 
     async def fake_wait_for_scr_port(proc=None, timeout_s=daemon.LAUNCH_TIMEOUT_S):
-        assert proc is torcs_proc
+        assert proc is None
         return True
 
-    torcs_proc = FakeProc(111)
+    launch_calls: list[tuple[str, int]] = []
     scr_proc = FakeProc(222)
 
-    monkeypatch.setattr(daemon, "_write_practice_config", lambda track, laps: "/tmp/practice.xml")
-    monkeypatch.setattr(daemon, "_pause_kiosk_loop", lambda: calls.append("pause"))
-    monkeypatch.setattr(daemon, "_resume_kiosk_loop", lambda: calls.append("resume"))
-    monkeypatch.setattr(daemon, "_kill_stale_torcs", lambda: calls.append("kill"))
-    monkeypatch.setattr(daemon, "_launch_torcs", lambda raceman_path: torcs_proc)
+    async def fake_launch_visible_practice(track, laps):
+        launch_calls.append((track, laps))
+
+    monkeypatch.setattr(daemon, "_launch_visible_practice", fake_launch_visible_practice)
     monkeypatch.setattr(daemon, "_wait_for_scr_port", fake_wait_for_scr_port)
     monkeypatch.setattr(
         daemon,
@@ -179,9 +177,50 @@ def test_control_start_cockpit_practice_launches_direct_practice_race(monkeypatc
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["launch_mode"] == "cockpit_practice"
-    assert body["torcs_pid"] == 111
+    assert body["torcs_pid"] is None
     assert body["pid"] == 222
-    assert calls == ["pause", "kill"]
+    assert launch_calls == [("aalborg", 75)]
     assert daemon._race.state == daemon.RaceState.ACTIVE
-    assert daemon._race.torcs_proc is torcs_proc
+    assert daemon._race.torcs_proc is None
     assert daemon._race.scr_proc is scr_proc
+
+
+def test_control_status_keeps_active_when_wrapper_dies_but_managed_torcs_bin_lives(monkeypatch):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    class DeadProc:
+        pid = 111
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+    class LiveProc:
+        pid = 222
+
+        def poll(self):
+            return None
+
+    resume_calls: list[str] = []
+    monkeypatch.setattr(daemon, "_managed_torcs_bin_running", lambda launch_mode: True)
+    monkeypatch.setattr(daemon, "_resume_kiosk_loop", lambda: resume_calls.append("resume"))
+
+    daemon._race = daemon.ActiveRace(
+        session_id="s_torcs_live_keepalive",
+        state=daemon.RaceState.ACTIVE,
+        track="aalborg",
+        laps=75,
+        launch_mode="headless_quickrace",
+    )
+    daemon._race.torcs_proc = DeadProc()
+    daemon._race.scr_proc = LiveProc()
+
+    client = TestClient(daemon.app)
+    r = client.get("/control/status", headers=_auth_headers())
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "active"
+    assert body["active"] is True
+    assert daemon._race.state == daemon.RaceState.ACTIVE
+    assert resume_calls == []
