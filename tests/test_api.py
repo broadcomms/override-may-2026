@@ -1327,6 +1327,66 @@ def test_start_race_writes_stub_active_session(tmp_path, monkeypatch):
     assert sid in ids
 
 
+def test_start_race_reconciles_control_unreachable_when_daemon_reports_same_session(tmp_path, monkeypatch):
+    """Regression: if the start proxy times out after the daemon actually
+    launched the session, OVERRIDE should reconcile against control-status,
+    persist the stub session, and still return success."""
+    import httpx
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/control/start":
+            captured["body"] = json.loads(request.content)
+            raise httpx.ReadTimeout("start timed out", request=request)
+        if request.url.path == "/control/status":
+            return httpx.Response(200, json={
+                "active": True,
+                "state": "active",
+                "session_id": captured["body"]["session_id"],
+                "track": captured["body"]["track"],
+                "laps": captured["body"]["laps"],
+                "launch_mode": captured["body"]["launch_mode"],
+            })
+        raise AssertionError(f"unexpected daemon request: {request.method} {request.url}")
+
+    import api.main as main_mod
+
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx,
+        "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/torcs/start-race",
+        json={"track": "aalborg", "laps": 5, "track_name": "Aalborg", "notes": "reconcile test"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    sid = body["session_id"]
+    assert sid == captured["body"]["session_id"]
+    assert body["telemetry_dir"] == str(telem)
+    assert body["launch_mode"] == "cockpit_practice"
+    assert body["state"] == "active"
+
+    r2 = client.get(f"/api/sessions/{sid}")
+    assert r2.status_code == 200, r2.text
+    summary = r2.json()["summary"]
+    assert summary["status"] == "active"
+    assert summary["session_source"] == "torcs_live"
+    assert summary["telemetry_file"] == f"{sid}.jsonl"
+
+
 def test_torcs_live_updates_stub_session_when_run_id_matches(tmp_path, monkeypatch):
     """Phase 2 v1.0 enhancement — when torcs-live is called with a
     run_id matching the daemon's session_id prefix (s_torcs_live_...),
@@ -1636,6 +1696,38 @@ def test_stream_404_when_session_missing(tmp_path):
     r = client.get("/api/sessions/s_nonexistent_session/stream")
     assert r.status_code == 404
     assert r.json()["error_code"] == "NOT_FOUND"
+
+
+def test_stream_recovers_missing_torcs_live_session_when_capture_exists(tmp_path, monkeypatch):
+    """Regression: if a live TORCS capture exists on disk but the ACTIVE
+    stub session row is missing, the stream should backfill that row and
+    start streaming instead of 404ing."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    sid = "s_torcs_live_12345678_recover"
+    (telem / f"{sid}.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        assert r.status_code == 200
+        events: list[dict] = []
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                payload = json.loads(line[len("data: "):])
+                events.append(payload)
+                if payload.get("event") == "lap":
+                    break
+
+    assert events[0]["event"] == "connected"
+    assert any(event["event"] == "lap" for event in events)
+
+    summary = client.get(f"/api/sessions/{sid}").json()["summary"]
+    assert summary["session_id"] == sid
+    assert summary["status"] == "active"
+    assert summary["session_source"] == "torcs_live"
+    assert summary["telemetry_file"] == f"{sid}.jsonl"
 
 
 def test_stream_emits_no_telemetry_when_session_lacks_telemetry_file(tmp_path):

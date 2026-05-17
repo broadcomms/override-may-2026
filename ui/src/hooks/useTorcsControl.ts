@@ -114,6 +114,14 @@ export function useTorcsControl({
     try {
       const next = await api.torcsControlStatus();
       setStatus(next);
+      const nextState = next.state ?? (next.active ? "active" : null);
+      const recoveredState =
+        next.enabled &&
+        next.reachable &&
+        (isTorcsActiveState(nextState) || (nextState === "idle" && !next.last_error));
+      if (recoveredState) {
+        setError(null);
+      }
     } catch (_error) {
       // 200-always endpoint; thrown error means backend down — keep last state.
     }

@@ -925,6 +925,8 @@ def create_app() -> FastAPI:
 
         session = load_session(session_id)
         if session is None:
+            session = _recover_missing_torcs_live_session(session_id)
+        if session is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 error_code="NOT_FOUND",
@@ -1225,28 +1227,46 @@ def create_app() -> FastAPI:
         import secrets as _secrets
         session_id = f"s_torcs_live_{int(time.time())}_{_secrets.token_hex(4)}"
         telemetry_filename = f"{session_id}.jsonl"
+        started_at = datetime.now(timezone.utc)
         launch_mode = req.launch_mode
         if launch_mode is None:
             launch_mode = "headless_quickrace" if req.auto_launch_torcs else "cockpit_practice"
 
-        status_code, body = await _call_torcs_daemon(
-            "POST",
-            "/control/start",
-            json_body={
-                "session_id": session_id,
-                "track": req.track,
-                "laps": req.laps,
-                # Make the JSONL filename deterministic so the eventual
-                # torcs-live ingest's run_id matches the daemon-issued
-                # session_id 1:1.
-                "telemetry_filename": telemetry_filename,
-                "launch_mode": launch_mode,
-                "auto_launch_torcs": req.auto_launch_torcs,
-            },
-            # Launch + SCR-port poll can take up to ~20s on first run; give
-            # the daemon time to finish before this proxy call times out.
-            timeout=30.0,
-        )
+        try:
+            status_code, body = await _call_torcs_daemon(
+                "POST",
+                "/control/start",
+                json_body={
+                    "session_id": session_id,
+                    "track": req.track,
+                    "laps": req.laps,
+                    # Make the JSONL filename deterministic so the eventual
+                    # torcs-live ingest's run_id matches the daemon-issued
+                    # session_id 1:1.
+                    "telemetry_filename": telemetry_filename,
+                    "launch_mode": launch_mode,
+                    "auto_launch_torcs": req.auto_launch_torcs,
+                },
+                # Launch + SCR-port poll can take up to ~20s on first run; give
+                # the daemon time to finish before this proxy call times out.
+                timeout=30.0,
+            )
+        except HTTPException as exc:
+            if not _has_api_error_code(exc, "CONTROL_UNREACHABLE"):
+                raise
+            reconciled = await _reconcile_torcs_start_after_unreachable(
+                session_id=session_id,
+                telemetry_filename=telemetry_filename,
+                launch_mode=launch_mode,
+            )
+            if reconciled is None:
+                raise
+            status_code = status.HTTP_201_CREATED
+            body = reconciled
+            logger.warning(
+                "torcs_start_race: reconciled transient control error for %s via daemon status/telemetry",
+                session_id,
+            )
         if status_code == 409:
             raise api_error(
                 status_code=status.HTTP_409_CONFLICT,
@@ -1268,31 +1288,14 @@ def create_app() -> FastAPI:
         # Empty laps/recommendations — the eventual torcs-live POST
         # replaces them with real pipeline output via run_pipeline(session_id=...).
         try:
-            stub_summary = SessionSummary(
+            _ensure_torcs_live_stub_session(
                 session_id=session_id,
-                uploaded_at=datetime.now(timezone.utc),
-                source="torcs",
-                lap_count=0,
-                forecast_available=False,
-                zone_count=0,
-                track_id=f"torcs-live/{session_id}",
-                session_source=SessionSource.TORCS_LIVE,
-                status=SessionStatus.ACTIVE,
+                telemetry_filename=telemetry_filename,
                 track_name=req.track_name,
                 target_laps=req.laps,
-                started_at=datetime.now(timezone.utc),
-                completed_at=None,
-                telemetry_file=telemetry_filename,
-                note=req.notes,
+                notes=req.notes,
+                started_at=started_at,
             )
-            stub_session = Session(
-                summary=stub_summary,
-                laps=[],
-                forecast=None,
-                recommendations=[],
-                regulation_source=None,
-            )
-            save_session(stub_session)
         except Exception:
             # Stub-write failures shouldn't fail the race-start — the
             # daemon's gym_torcs is already running. Log and continue;
@@ -1604,6 +1607,8 @@ def _torcs_control_config() -> tuple[Optional[str], Optional[str]]:
 # problem worth surfacing with stronger copy. Reset to False on process restart.
 _torcs_daemon_ever_reachable: bool = False
 
+_TORCS_ACTIVE_STATES = {"launching", "waiting_scr", "connecting", "active"}
+
 
 async def _call_torcs_daemon(
     method: str,
@@ -1656,6 +1661,127 @@ async def _call_torcs_daemon(
     except (ValueError, json.JSONDecodeError):
         body = {"raw": resp.text[:500]}
     return resp.status_code, body
+
+
+def _has_api_error_code(exc: HTTPException, error_code: str) -> bool:
+    detail = exc.detail
+    return isinstance(detail, dict) and detail.get("error_code") == error_code
+
+
+def _build_torcs_live_stub_session(
+    *,
+    session_id: str,
+    telemetry_filename: str,
+    track_name: Optional[str],
+    target_laps: int,
+    notes: Optional[str],
+    started_at: datetime,
+) -> Session:
+    stub_summary = SessionSummary(
+        session_id=session_id,
+        uploaded_at=started_at,
+        source="torcs",
+        lap_count=0,
+        forecast_available=False,
+        zone_count=0,
+        track_id=f"torcs-live/{session_id}",
+        session_source=SessionSource.TORCS_LIVE,
+        status=SessionStatus.ACTIVE,
+        track_name=track_name,
+        target_laps=target_laps,
+        started_at=started_at,
+        completed_at=None,
+        telemetry_file=telemetry_filename,
+        note=notes,
+    )
+    return Session(
+        summary=stub_summary,
+        laps=[],
+        forecast=None,
+        recommendations=[],
+        regulation_source=None,
+    )
+
+
+def _ensure_torcs_live_stub_session(
+    *,
+    session_id: str,
+    telemetry_filename: str,
+    track_name: Optional[str],
+    target_laps: Optional[int],
+    notes: Optional[str],
+    started_at: datetime,
+) -> Session:
+    existing = load_session(session_id)
+    if existing is not None:
+        return existing
+    stub_session = _build_torcs_live_stub_session(
+        session_id=session_id,
+        telemetry_filename=telemetry_filename,
+        track_name=track_name,
+        target_laps=target_laps,
+        notes=notes,
+        started_at=started_at,
+    )
+    save_session(stub_session)
+    return stub_session
+
+
+def _recover_missing_torcs_live_session(session_id: str) -> Optional[Session]:
+    if not session_id.startswith("s_torcs_live_"):
+        return None
+
+    telemetry_filename = f"{session_id}.jsonl"
+    expected_capture = _telemetry_dir() / telemetry_filename
+    if not expected_capture.is_file():
+        return None
+
+    return _ensure_torcs_live_stub_session(
+        session_id=session_id,
+        telemetry_filename=telemetry_filename,
+        track_name=None,
+        target_laps=None,
+        notes=None,
+        started_at=datetime.now(timezone.utc),
+    )
+
+
+async def _reconcile_torcs_start_after_unreachable(
+    *,
+    session_id: str,
+    telemetry_filename: str,
+    launch_mode: str,
+    timeout_s: float = 8.0,
+    poll_interval_s: float = 0.5,
+) -> Optional[dict]:
+    deadline = time.monotonic() + timeout_s
+    expected_capture = _telemetry_dir() / telemetry_filename
+
+    while time.monotonic() < deadline:
+        try:
+            status_code, body = await _call_torcs_daemon("GET", "/control/status", timeout=5.0)
+        except HTTPException as exc:
+            if not _has_api_error_code(exc, "CONTROL_UNREACHABLE"):
+                raise
+        else:
+            if status_code == 200 and body.get("session_id") == session_id:
+                state = body.get("state")
+                if bool(body.get("active")) or state in _TORCS_ACTIVE_STATES:
+                    reconciled = dict(body)
+                    reconciled.setdefault("launch_mode", launch_mode)
+                    reconciled.setdefault("telemetry_dir", str(_telemetry_dir()))
+                    return reconciled
+
+        if expected_capture.is_file():
+            return {
+                "session_id": session_id,
+                "launch_mode": launch_mode,
+                "telemetry_dir": str(_telemetry_dir()),
+            }
+
+        await asyncio.sleep(poll_interval_s)
+
+    return None
 
 
 def _find_telemetry_file(session_id: str) -> Optional[Path]:
