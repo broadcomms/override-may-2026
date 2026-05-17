@@ -171,7 +171,7 @@ export function UploadPage() {
   return (
     <div className="max-w-6xl mx-auto px-6 pt-12 pb-12">
       <h1 className="sr-only">Upload a session replay</h1>
-      <div className={`grid gap-6 ${showRightPane ? "md:grid-cols-[3fr_2fr]" : ""}`}>
+      <div className={`grid gap-6 ${showRightPane ? "md:grid-cols-[2fr_3fr]" : ""}`}>
         <section aria-labelledby="begin-heading" className="space-y-4">
           <h2
             id="begin-heading"

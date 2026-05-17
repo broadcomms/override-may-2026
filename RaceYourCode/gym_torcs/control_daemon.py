@@ -529,12 +529,15 @@ def _kill_stale_torcs() -> None:
     a separate process. Only torcs-bin needs killing.
     """
     subprocess.run(["pkill", "-9", "-f", "torcs-bin"], check=False, capture_output=True)
-    time.sleep(0.5)
-    r = subprocess.run(["pgrep", "-f", "torcs-bin"], capture_output=True, text=True)
-    if r.returncode == 0 and r.stdout.strip():
-        raise RuntimeError(
-            f"Failed to kill stale torcs-bin; live PIDs: {r.stdout.strip()}"
-        )
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        r = subprocess.run(["pgrep", "-f", "torcs-bin"], capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip():
+            return
+        time.sleep(0.25)
+    raise RuntimeError(
+        f"Failed to kill stale torcs-bin; live PIDs: {r.stdout.strip()}"
+    )
 
 
 def _restart_torcs_kiosk_surface() -> None:
@@ -842,6 +845,28 @@ def _kill_managed_torcs_for_mode(launch_mode: Optional["LaunchMode"]) -> Optiona
     return 0 if after.returncode != 0 else -9
 
 
+async def _close_simulator_surface(
+    launch_mode: Optional["LaunchMode"],
+    torcs_proc: Optional[subprocess.Popen],
+) -> Optional[int]:
+    """Terminate TORCS and keep the kiosk paused until OVERRIDE starts again.
+
+    Upload owns the next-run launch flow, so stop and graceful race-end should
+    leave no interactive TORCS menu behind. Visible Practice uses the
+    kiosk-owned TORCS GUI, while headless mode uses a managed `torcs -r`
+    process; this helper closes either path and intentionally does not resume
+    the kiosk supervisor.
+    """
+    _pause_kiosk_loop()
+    torcs_exit = await _terminate_proc(torcs_proc, "torcs")
+    managed_torcs_exit = _kill_managed_torcs_for_mode(launch_mode)
+    if managed_torcs_exit is not None:
+        torcs_exit = managed_torcs_exit
+    if launch_mode == "cockpit_practice":
+        _kill_stale_torcs()
+    return torcs_exit
+
+
 def _launch_torcs(raceman_path: str) -> subprocess.Popen:
     """Spawn `torcs -r <xml>`. Output → LOG FILE, not PIPE.
 
@@ -1136,9 +1161,9 @@ async def control_status() -> StatusResponse:
                 logger.warning("control_status: %s", r.last_error)
             if scr_code is not None:
                 r.last_exit_code = scr_code
-            if r.launch_mode == "cockpit_practice":
-                _restart_torcs_kiosk_surface()
-            _resume_kiosk_loop()
+            torcs_exit = await _close_simulator_surface(r.launch_mode, r.torcs_proc)
+            if r.last_exit_code is None:
+                r.last_exit_code = torcs_exit
             # Force-cleanup; direct assignment because some transition_to
             # moves would be illegal from the current state.
             r.state = RaceState.CLEANUP
@@ -1410,19 +1435,8 @@ async def control_stop() -> StopResponse:
             pass
 
         sid = _race.session_id
-        # Visible Practice uses the kiosk-owned TORCS GUI. Capture before
-        # handles are cleared so Stop race can reset the simulator surface
-        # instead of leaving the race loop running behind the menu.
-        visible_practice_mode = _race.launch_mode == "cockpit_practice"
         scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
-        managed_torcs_exit = _kill_managed_torcs_for_mode(_race.launch_mode)
-        torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
-        if managed_torcs_exit is not None:
-            torcs_exit = managed_torcs_exit
-        if visible_practice_mode:
-            _restart_torcs_kiosk_surface()
-            _ensure_xfwm4()
-        _resume_kiosk_loop()
+        torcs_exit = await _close_simulator_surface(_race.launch_mode, _race.torcs_proc)
 
         _race.last_exit_code = scr_exit
         # CLEANUP → IDLE

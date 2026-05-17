@@ -23,7 +23,6 @@ export function RaceControlCard() {
     error,
     startRace,
     stopRace,
-    recover,
   } = useTorcsControl();
   const [launchMode, setLaunchMode] = useState<TorcsLaunchMode>("cockpit_practice");
   const [message, setMessage] = useState<string | null>(null);
@@ -54,22 +53,13 @@ export function RaceControlCard() {
       const resp = await stopRace();
       setMessage(
         resp.status === "stopped"
-          ? "Race stopped. OVERRIDE is returning the simulator to a calm standby state."
+          ? "Race stopped. OVERRIDE closed the simulator and kept the next run under Upload control."
           : "No active race was running.",
       );
     } catch (_error) {
       setMessage(null);
     }
   }, [stopRace]);
-
-  const onRecover = useCallback(async () => {
-    try {
-      await recover();
-      setMessage("Simulator reset complete. TORCS is back in a clean standby state.");
-    } catch (_error) {
-      setMessage(null);
-    }
-  }, [recover]);
 
   if (!hasTorcsSurface()) return null;
 
@@ -87,7 +77,6 @@ export function RaceControlCard() {
   const badge = labelForTorcsState(status.state ?? (status.active ? "active" : "idle"));
   const startDisabled = busy || (status.state !== null && status.state !== "idle");
   const stopEnabled = !busy && isTorcsActiveState(status.state ?? null);
-  const resetEnabled = !busy && status.enabled && status.reachable;
   const needsAttention = Boolean(status.last_error) || status.state === "cleanup";
 
   return (
@@ -124,12 +113,12 @@ export function RaceControlCard() {
           {(needsAttention || status.state === "stopping") && (
             <div className="mb-4 rounded-md border border-warning/35 bg-warning/10 px-3 py-2">
               <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-warning">
-                Recovery
+                Simulator status
               </div>
               <p className="mt-1 text-xs text-muted">
                 {status.last_error
                   ? status.last_error
-                  : "The simulator is not in a clean standby state. Reset it here instead of dropping to the shell."}
+                  : "OVERRIDE is finishing the previous shutdown. Start will re-enable once the simulator is fully closed."}
               </p>
             </div>
           )}
@@ -187,14 +176,14 @@ export function RaceControlCard() {
                   <ModeButton
                     active={launchMode === "cockpit_practice"}
                     label="Visible Practice"
-                    description="3D TORCS cockpit surface"
+                    description="3D TORCS race display"
                     onClick={() => setLaunchMode("cockpit_practice")}
                     disabled={startDisabled}
                   />
                   <ModeButton
                     active={launchMode === "headless_quickrace"}
-                    label="Headless"
-                    description="Fast capture without 3D"
+                    label="Headless Capture"
+                    description="Fast race without 3D"
                     onClick={() => setLaunchMode("headless_quickrace")}
                     disabled={startDisabled}
                   />
@@ -215,14 +204,6 @@ export function RaceControlCard() {
                   className="px-3 py-1.5 rounded-pill bg-accent text-bg text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Start race
-                </button>
-                <button
-                  type="button"
-                  onClick={onRecover}
-                  disabled={!resetEnabled}
-                  className="px-3 py-1.5 rounded-pill border border-border bg-surface text-sm hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Reset simulator
                 </button>
                 <button
                   type="button"

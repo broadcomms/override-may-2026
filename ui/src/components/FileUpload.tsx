@@ -65,10 +65,10 @@ export function FileUpload({ onFile, isUploading, error }: Props) {
           </div>
         ) : (
           <div className="text-sm text-text">
-            Drop a replay, or browse — <span className="font-mono text-muted">.json</span>{" "}
+            Drop in a replay session, or click to browse<br></br> <span className="font-mono text-muted">Supports TORCS .json</span>{" "}
             <span className="text-muted">/</span>{" "}
-            <span className="font-mono text-muted">.parquet</span>
-            <span className="text-muted">, up to 25 MB</span>
+            <span className="font-mono text-muted">FastF1 .parquet</span><br></br>
+            <span className="text-muted"> Upload to 25 MB</span>
           </div>
         )}
         <input

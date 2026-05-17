@@ -28,9 +28,7 @@ export function CockpitPage() {
     status,
     busy,
     error,
-    startRace,
     stopRace,
-    recover,
   } = useTorcsControl();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,43 +50,18 @@ export function CockpitPage() {
     if (el && el.requestFullscreen) el.requestFullscreen();
   };
 
-  const onStartRace = useCallback(async () => {
-    try {
-      const response = await startRace({
-        launchMode: "cockpit_practice",
-        track: status?.track ?? undefined,
-        laps: status?.laps ?? undefined,
-      });
-      setSessionId(response.session_id);
-      setNotice(
-        `Visible Practice launch started on ${response.track} for ${response.laps} laps.`,
-      );
-    } catch (_error) {
-      setNotice(null);
-    }
-  }, [startRace, status?.laps, status?.track]);
-
   const onStopRace = useCallback(async () => {
     try {
       const response = await stopRace();
       setNotice(
         response.status === "stopped"
-          ? "Race stopped. The completed session remains available for post-lap analysis."
+          ? "Race stopped. OVERRIDE closed the simulator. Configure the next run from Upload or review the finished session debrief."
           : "No active race was running.",
       );
     } catch (_error) {
       setNotice(null);
     }
   }, [stopRace]);
-
-  const onRecover = useCallback(async () => {
-    try {
-      await recover();
-      setNotice("Simulator reset complete. TORCS is back in its standby kiosk surface.");
-    } catch (_error) {
-      setNotice(null);
-    }
-  }, [recover]);
 
   const viewMode = useMemo<"cockpit" | "headless">(() => {
     if (
@@ -122,9 +95,7 @@ export function CockpitPage() {
         status={status}
         sessionId={sessionId}
         currentLap={latestLap?.lap ?? 0}
-        onStartRace={onStartRace}
         onStopRace={onStopRace}
-        onRecover={onRecover}
         onFullscreen={onFullscreen}
         busy={busy}
       />
@@ -273,8 +244,8 @@ function getSurfaceNotice({
   if (streamState === "ended") {
     return {
       eyebrow: "OVERRIDE debrief ready",
-      title: "Race complete. OVERRIDE is holding the simulator at a calm review state.",
-      body: "Use the finished session debrief for the full engineer readout, or start another branded TORCS run when you want a fresh comparison.",
+      title: "Race complete. OVERRIDE closed the simulator for review.",
+      body: "Use the finished session debrief for the full engineer readout, then configure the next run from Upload when you want a fresh comparison.",
       tone: "accent",
       sessionLink: sessionId,
     };
@@ -283,8 +254,8 @@ function getSurfaceNotice({
   if (status?.state === "cleanup" || status?.state === "stopping") {
     return {
       eyebrow: "OVERRIDE reset",
-      title: "The simulator is returning to standby.",
-      body: "OVERRIDE is finishing the stop-race sequence and guiding TORCS back to a stable menu state for the next run.",
+      title: "OVERRIDE is closing the simulator.",
+      body: "The stop sequence is finishing. TORCS will stay unavailable until the next run is launched from Upload.",
       tone: "neutral",
       sessionLink: sessionId,
     };
@@ -310,11 +281,11 @@ function getSurfaceNotice({
   if (status?.enabled && status?.reachable && status.state === "idle") {
     return {
       eyebrow: "OVERRIDE cockpit ready",
-      title: "The simulator is standing by for the next configured Practice surface run.",
+      title: "The simulator is closed and waiting for the next Upload-configured run.",
       body:
         sessionId != null
           ? "The previous session is still available for review. Configure the next run from Upload, or open the finished debrief to compare outcomes."
-          : "Configure track, laps, and launch mode from Upload. OVERRIDE will return here for live operations and simulator recovery.",
+          : "Configure track, laps, and launch mode from Upload. OVERRIDE will return here automatically once the next run starts.",
       tone: "accent",
       sessionLink: sessionId,
     };

@@ -185,6 +185,85 @@ def test_control_start_cockpit_practice_uses_visible_gui_bridge(monkeypatch):
     assert daemon._race.scr_proc is scr_proc
 
 
+def test_control_stop_cockpit_practice_keeps_simulator_closed(monkeypatch):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    calls: list[str] = []
+
+    async def fake_terminate_proc(_proc, label):
+        calls.append(f"terminate:{label}")
+        return 0 if label == "scr-client" else None
+
+    monkeypatch.setattr(daemon, "_terminate_proc", fake_terminate_proc)
+    monkeypatch.setattr(daemon, "_kill_managed_torcs_for_mode", lambda launch_mode: None)
+    monkeypatch.setattr(daemon, "_pause_kiosk_loop", lambda: calls.append("pause"))
+    monkeypatch.setattr(daemon, "_kill_stale_torcs", lambda: calls.append("close-gui"))
+    monkeypatch.setattr(daemon, "_resume_kiosk_loop", lambda: calls.append("resume"))
+
+    daemon._race = daemon.ActiveRace(
+        session_id="s_torcs_live_stop_42",
+        state=daemon.RaceState.ACTIVE,
+        track="aalborg",
+        laps=75,
+        launch_mode="cockpit_practice",
+    )
+
+    client = TestClient(daemon.app)
+    r = client.post("/control/stop", headers=_auth_headers())
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "stopped"
+    assert body["session_id"] == "s_torcs_live_stop_42"
+    assert daemon._race.state == daemon.RaceState.IDLE
+    assert daemon._race.scr_proc is None
+    assert daemon._race.torcs_proc is None
+    assert calls == ["terminate:scr-client", "pause", "terminate:torcs", "close-gui"]
+
+
+def test_control_status_graceful_finish_keeps_simulator_closed(monkeypatch):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    calls: list[str] = []
+
+    class DeadProc:
+        pid = 222
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+    async def fake_terminate_proc(_proc, label):
+        calls.append(f"terminate:{label}")
+        return None
+
+    monkeypatch.setattr(daemon, "_terminate_proc", fake_terminate_proc)
+    monkeypatch.setattr(daemon, "_kill_managed_torcs_for_mode", lambda launch_mode: None)
+    monkeypatch.setattr(daemon, "_pause_kiosk_loop", lambda: calls.append("pause"))
+    monkeypatch.setattr(daemon, "_kill_stale_torcs", lambda: calls.append("close-gui"))
+    monkeypatch.setattr(daemon, "_resume_kiosk_loop", lambda: calls.append("resume"))
+
+    daemon._race = daemon.ActiveRace(
+        session_id="s_torcs_live_finish_42",
+        state=daemon.RaceState.ACTIVE,
+        track="aalborg",
+        laps=75,
+        launch_mode="cockpit_practice",
+    )
+    daemon._race.scr_proc = DeadProc()
+
+    client = TestClient(daemon.app)
+    r = client.get("/control/status", headers=_auth_headers())
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "cleanup"
+    assert body["last_error"] is None
+    assert daemon._race.state == daemon.RaceState.CLEANUP
+    assert daemon._race.scr_proc is None
+    assert daemon._race.torcs_proc is None
+    assert calls == ["pause", "terminate:torcs", "close-gui"]
+    assert "resume" not in calls
+
+
 def test_visible_practice_xdotool_moves_window_to_origin_before_keys(monkeypatch):
     calls: list[list[str]] = []
 

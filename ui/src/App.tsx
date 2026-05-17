@@ -53,7 +53,7 @@ function SiteHeader() {
         <Link
           to="/"
           className="flex items-center gap-2 font-semibold tracking-tight"
-          aria-label="OVERRIDE — home"
+          aria-label="OVERRIDE - home"
         >
           {/* Logo slot — auto-renders the icon when the designer ships it.
               Falls back to wordmark-only on broken/missing image. */}

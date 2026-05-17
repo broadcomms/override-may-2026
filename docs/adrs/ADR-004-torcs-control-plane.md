@@ -176,6 +176,29 @@ idle → launching → waiting_scr → connecting → active → stopping → cl
 
 Legal transitions are gated by `_ALLOWED_TRANSITIONS` in `control_daemon.py`; illegal moves raise `ValueError` and force-cleanup. `/control/status` surfaces the current `state` field; the UI's `TorcsControlPanel` renders a state-aware badge (Launching → Waiting → Connecting → Live → Stopping → Cleaning up). `active: bool` retained on the response for backward compatibility with pre-2.5 clients.
 
+### Amendment — Phase 2.6: OVERRIDE owns shutdown and next-run launch (2026-05-17)
+
+The live cockpit flow showed one remaining operator leak: after `Stop race` or a
+graceful end-of-race, the daemon resumed the kiosk supervisor and plain TORCS
+reopened at its interactive menu. That left the simulator visibly running but
+outside OVERRIDE control, reintroduced menu framing/alignment issues, and made
+the cockpit appear to support a second launch surface even though Upload was
+already the canonical place to configure track, laps, and mode.
+
+Phase 2.6 keeps the route surface the same but changes the shutdown contract:
+
+- `POST /control/stop` now terminates the SCR client, closes any TORCS process,
+  keeps the kiosk loop paused, and leaves the simulator closed.
+- Graceful race completion detected by `GET /control/status` follows the same
+  pause-and-close path instead of returning TORCS to a menu/review screen.
+- Upload becomes the only supported place to configure and launch the next run.
+  Cockpit remains the live-ops surface for observing a run, stopping it, and
+  jumping to Upload or the finished debrief.
+
+Result: after stop or natural race end, operators see OVERRIDE-owned standby
+copy and debrief links rather than an interactive TORCS menu. A new run always
+starts from the Upload control surface.
+
 ### Six operational gotchas absorbed
 
 1. **UDP readiness polling**: `netstat -uln \| grep ":3001 "` (probed: `ss` and `lsof` are not on the lab image; `netstat` is).
@@ -202,6 +225,7 @@ Legal transitions are gated by `_ALLOWED_TRANSITIONS` in `control_daemon.py`; il
 - `StatusResponse.state` (daemon): exposes the six-state race lifecycle; UI badge picks colors + labels off this. `active: bool` retained for compat.
 - `StartRaceRequest.auto_launch_torcs: bool = True`: opt-out switch for operators who want the legacy Phase 2 behavior (drive against a manually-launched TORCS during dev).
 - `StopResponse.scr_exit_code` + `StopResponse.torcs_exit_code`: separate exit codes for the two subprocesses; legacy `exit_code` no longer present.
+- `POST /control/stop` keeps its path and response model, but its visible-practice semantics are now "stop and close" rather than "stop and return TORCS to menu standby".
 
 ### Cuts list (if Phase 2.5 falls over at T-24h)
 

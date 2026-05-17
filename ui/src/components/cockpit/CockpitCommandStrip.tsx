@@ -8,9 +8,7 @@ interface Props {
   status: TorcsControlStatus | null;
   sessionId: string | null;
   currentLap: number;
-  onStartRace: () => void;
   onStopRace: () => void;
-  onRecover: () => void;
   onFullscreen: () => void;
   busy: boolean;
 }
@@ -19,16 +17,12 @@ export function CockpitCommandStrip({
   status,
   sessionId,
   currentLap,
-  onStartRace,
   onStopRace,
-  onRecover,
   onFullscreen,
   busy,
 }: Props) {
   const badge = labelForTorcsState(status?.state ?? (status?.active ? "active" : "idle"));
-  const startEnabled = !busy && Boolean(status?.enabled && status?.reachable) && status?.state === "idle";
   const stopEnabled = !busy && isTorcsActiveState(status?.state ?? null);
-  const recoverEnabled = !busy && Boolean(status?.enabled && status?.reachable);
   const targetLaps = status?.laps ?? 75;
   const lapLabel =
     currentLap > 0 ? `L${currentLap} closed / ${targetLaps}` : `0 closed / ${targetLaps}`;
@@ -68,27 +62,11 @@ export function CockpitCommandStrip({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={onStartRace}
-          disabled={!startEnabled}
-          className="rounded-pill bg-accent px-4 py-2 text-sm font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Start race
-        </button>
-        <button
-          type="button"
           onClick={onStopRace}
           disabled={!stopEnabled}
           className="rounded-pill border border-border bg-surface-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
         >
           Stop race
-        </button>
-        <button
-          type="button"
-          onClick={onRecover}
-          disabled={!recoverEnabled}
-          className="rounded-pill border border-border bg-surface px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Reset simulator
         </button>
         <Link
           to="/upload"

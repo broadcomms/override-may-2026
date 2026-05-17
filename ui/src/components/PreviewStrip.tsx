@@ -58,7 +58,7 @@ export function PreviewStrip() {
         What you'll see
       </h2>
       <p className="text-sm text-muted mb-5">
-        A real debrief from the cached TORCS engineer fixture — citation grounded, validated, ready to explore.
+        A real debrief from the cached TORCS engineer fixture, citation grounded, validated, and ready to explore.
       </p>
       <div className="grid items-start lg:grid-cols-2 gap-6">
         <EnergyCurve
