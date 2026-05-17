@@ -257,6 +257,8 @@ export type TorcsRaceState =
   | "stopping"
   | "cleanup";
 
+export type TorcsLaunchMode = "cockpit_practice" | "headless_quickrace";
+
 export interface TorcsControlStatus {
   enabled: boolean;        // env configured on override?
   reachable: boolean;      // daemon /health responded?
@@ -268,12 +270,23 @@ export interface TorcsControlStatus {
   // last_exit_code=0) from actual subprocess failures (last_error="...").
   last_error: string | null;
   last_exit_code: number | null;
+  track?: string | null;
+  laps?: number | null;
+  launch_mode?: TorcsLaunchMode | null;
   detail: string | null;
 }
 
 export interface TorcsTrack {
   name: string;
   category: "road" | "oval" | "dirt";
+  display_name: string;
+  author?: string | null;
+  description?: string | null;
+  length_m?: number | null;
+  width_m?: number | null;
+  pits?: number | null;
+  preview_url?: string | null;
+  map_url?: string | null;
 }
 
 export interface TorcsTracksResponse {
@@ -282,10 +295,11 @@ export interface TorcsTracksResponse {
 
 export interface TorcsStartRaceParams {
   track?: string;          // default "aalborg"
-  laps?: number;           // default 5 (was 10 — demo-friendly)
+  laps?: number;           // default 75 — long-run demo default
   track_name?: string;     // free-form, ≤80 chars
   notes?: string;          // free-form, ≤500 chars
-  auto_launch_torcs?: boolean;  // default true; daemon launches TORCS itself
+  launch_mode?: TorcsLaunchMode;
+  auto_launch_torcs?: boolean;  // backward-compatible shim for older callers
 }
 
 export interface TorcsStartRaceResponse {
@@ -296,6 +310,7 @@ export interface TorcsStartRaceResponse {
   laps: number;
   track_name_hint?: string | null;   // OVERRIDE-side echo (optional)
   notes_hint?: string | null;
+  launch_mode?: TorcsLaunchMode | null;
   torcs_pid?: number | null;         // Phase 2.5 — populated when auto_launch=true
   state?: TorcsRaceState | null;     // Phase 2.5 — daemon state after launch (usually "active")
 }
@@ -308,6 +323,14 @@ export interface TorcsStopRaceResponse {
   torcs_exit_code?: number | null;
   // Backward-compat: pre-Phase-2.5 daemon only returned `exit_code` (singular).
   exit_code?: number | null;
+}
+
+export interface TorcsRecoverResponse {
+  status: "recovered" | "no_active_race";
+  session_id: string | null;
+  scr_exit_code?: number | null;
+  torcs_exit_code?: number | null;
+  state?: TorcsRaceState | null;
 }
 
 export interface Session {

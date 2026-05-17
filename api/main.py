@@ -57,6 +57,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -247,24 +248,24 @@ class TorcsStartRaceRequest(BaseModel):
     """Body for POST /api/torcs/start-race — proxied to the daemon's /control/start.
 
     Operator-supplied; OVERRIDE generates the session_id (not the caller).
-    Phase 2.5: ``auto_launch_torcs`` controls whether the daemon launches
-    the TORCS GUI itself or expects an operator-launched TORCS already
-    running in noVNC.
+    OVERRIDE now owns two explicit launch modes:
+      - ``cockpit_practice``  — daemon-launched Practice run on the GUI surface
+      - ``headless_quickrace`` — daemon-launched ``torcs -r`` capture path
+
+    ``auto_launch_torcs`` remains as a backward-compatible shim for older
+    callers. When ``launch_mode`` is omitted, False maps to cockpit_practice
+    and True maps to headless_quickrace.
     """
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
-    laps: int = Field(default=20, ge=1, le=200)
+    laps: int = Field(default=75, ge=1, le=200)
     track_name: Optional[str] = Field(default=None, max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
+    launch_mode: Optional[Literal["cockpit_practice", "headless_quickrace"]] = None
     auto_launch_torcs: bool = Field(
         default=False,
         description=(
-            "When False (default, Phase 2.6 correction): the daemon spawns only "
-            "the SCR client and expects the operator to have launched TORCS GUI "
-            "manually in noVNC first (with scr_server as the configured driver). "
-            "This is the 3D-rendering path — torcs -r is documented as headless "
-            "and cannot show a 3D window regardless of XML config. "
-            "When True: auto-launch via `torcs -r quickrace.xml` (headless, no 3D, "
-            "but useful for batch testing and CI)."
+            "Backward-compatible shim for callers that predate launch_mode. "
+            "False maps to cockpit_practice; True maps to headless_quickrace."
         ),
     )
 
@@ -289,12 +290,23 @@ class TorcsControlPlaneStatus(BaseModel):
     session_id: Optional[str] = None
     last_error: Optional[str] = None
     last_exit_code: Optional[int] = None
+    track: Optional[str] = None
+    laps: Optional[int] = None
+    launch_mode: Optional[Literal["cockpit_practice", "headless_quickrace"]] = None
     detail: Optional[str] = Field(default=None, description="When not reachable, the reason for the UI to show.")
 
 
 class TorcsTrack(BaseModel):
     name: str
     category: str  # road | oval | dirt
+    display_name: str
+    author: Optional[str] = None
+    description: Optional[str] = None
+    length_m: Optional[float] = None
+    width_m: Optional[float] = None
+    pits: Optional[int] = None
+    preview_url: Optional[str] = None
+    map_url: Optional[str] = None
 
 
 class TorcsTracksResponse(BaseModel):
@@ -1095,6 +1107,52 @@ def create_app() -> FastAPI:
             session_id=body.get("session_id"),
             last_error=body.get("last_error"),
             last_exit_code=body.get("last_exit_code"),
+            track=body.get("track"),
+            laps=body.get("laps"),
+            launch_mode=body.get("launch_mode"),
+        )
+
+    @app.get("/api/torcs/tracks/{category}/{track_name}/assets/{kind}")
+    async def torcs_track_asset(
+        category: str,
+        track_name: str,
+        kind: Literal["preview", "map"],
+    ):
+        url, secret = _torcs_control_config()
+        if url is None or secret is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message="TORCS track asset is not available on this OVERRIDE instance.",
+                detail="The TORCS control plane is not configured.",
+                request_id=new_request_id(),
+            )
+        headers = {"Authorization": f"Bearer {secret}"}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{url}/control/tracks/{category}/{track_name}/asset/{kind}",
+                    headers=headers,
+                )
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            raise api_error(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                error_code="CONTROL_UNREACHABLE",
+                message="TORCS control daemon is not reachable.",
+                detail=str(e),
+                request_id=new_request_id(),
+            )
+        if resp.status_code != 200:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message="TORCS track asset not found.",
+                detail=f"{category}/{track_name}/{kind}",
+                request_id=new_request_id(),
+            )
+        return Response(
+            content=resp.content,
+            media_type=resp.headers.get("content-type", "image/png"),
         )
 
     @app.get("/api/torcs/tracks", response_model=TorcsTracksResponse)
@@ -1118,8 +1176,35 @@ def create_app() -> FastAPI:
             return TorcsTracksResponse(tracks=[])
         out: list[TorcsTrack] = []
         for t in body["tracks"]:
-            if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("category"), str):
-                out.append(TorcsTrack(name=t["name"], category=t["category"]))
+            if not isinstance(t, dict):
+                continue
+            name = t.get("name")
+            category = t.get("category")
+            display_name = t.get("display_name")
+            if not isinstance(name, str) or not isinstance(category, str):
+                continue
+            out.append(
+                TorcsTrack(
+                    name=name,
+                    category=category,
+                    display_name=display_name if isinstance(display_name, str) else name.replace("-", " ").title(),
+                    author=t.get("author") if isinstance(t.get("author"), str) else None,
+                    description=t.get("description") if isinstance(t.get("description"), str) else None,
+                    length_m=float(t["length_m"]) if isinstance(t.get("length_m"), (int, float)) else None,
+                    width_m=float(t["width_m"]) if isinstance(t.get("width_m"), (int, float)) else None,
+                    pits=int(t["pits"]) if isinstance(t.get("pits"), (int, float)) else None,
+                    preview_url=(
+                        f"/api/torcs/tracks/{category}/{name}/assets/preview"
+                        if bool(t.get("has_preview_asset"))
+                        else None
+                    ),
+                    map_url=(
+                        f"/api/torcs/tracks/{category}/{name}/assets/map"
+                        if bool(t.get("has_map_asset"))
+                        else None
+                    ),
+                )
+            )
         return TorcsTracksResponse(tracks=out)
 
     @app.post("/api/torcs/start-race", status_code=status.HTTP_201_CREATED)
@@ -1140,6 +1225,9 @@ def create_app() -> FastAPI:
         import secrets as _secrets
         session_id = f"s_torcs_live_{int(time.time())}_{_secrets.token_hex(4)}"
         telemetry_filename = f"{session_id}.jsonl"
+        launch_mode = req.launch_mode
+        if launch_mode is None:
+            launch_mode = "headless_quickrace" if req.auto_launch_torcs else "cockpit_practice"
 
         status_code, body = await _call_torcs_daemon(
             "POST",
@@ -1152,7 +1240,7 @@ def create_app() -> FastAPI:
                 # torcs-live ingest's run_id matches the daemon-issued
                 # session_id 1:1.
                 "telemetry_filename": telemetry_filename,
-                # Phase 2.5: daemon launches TORCS itself by default.
+                "launch_mode": launch_mode,
                 "auto_launch_torcs": req.auto_launch_torcs,
             },
             # Launch + SCR-port poll can take up to ~20s on first run; give
@@ -1217,6 +1305,7 @@ def create_app() -> FastAPI:
             "telemetry_dir": body.get("telemetry_dir"),
             "track": req.track,
             "laps": req.laps,
+            "launch_mode": body.get("launch_mode", launch_mode),
             # Phase 2.5: forward the TORCS wrapper PID + state from the
             # daemon's StartRaceResponse so the UI can render a useful
             # success message ("Daemon spawned torcs pid=N + scr-client
@@ -1239,6 +1328,19 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 error_code="CONTROL_FAILED",
                 message=f"TORCS daemon refused stop (HTTP {status_code}).",
+                detail=str(body)[:300],
+                request_id=new_request_id(),
+            )
+        return body
+
+    @app.post("/api/torcs/recover")
+    async def torcs_recover():
+        status_code, body = await _call_torcs_daemon("POST", "/control/recover", timeout=30.0)
+        if status_code >= 400:
+            raise api_error(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                error_code="CONTROL_FAILED",
+                message=f"TORCS daemon refused recovery (HTTP {status_code}).",
                 detail=str(body)[:300],
                 request_id=new_request_id(),
             )
@@ -1527,7 +1629,7 @@ async def _call_torcs_daemon(
             message="TORCS control plane is not configured on this OVERRIDE instance.",
             detail=(
                 "Set TORCS_CONTROL_URL + TORCS_CONTROL_SECRET in .env and "
-                "bring up `podman compose --profile torcs up` to enable "
+                "bring up `podman-compose up override torcs` to enable "
                 "interactive race control. The live-ingest path "
                 "(POST /api/sessions/torcs-live) still works regardless."
             ),

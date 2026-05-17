@@ -46,6 +46,7 @@ import type {
   SessionListResponse,
   SessionSummary,
   TorcsControlStatus,
+  TorcsRecoverResponse,
   TorcsStartRaceParams,
   TorcsStartRaceResponse,
   TorcsStatusResponse,
@@ -592,7 +593,7 @@ export const api = {
     if (resolveFixture(opts)) {
       return {
         enabled: false, reachable: false, starting: false, active: false, state: null,
-        session_id: null, last_error: null, last_exit_code: null, detail: null,
+        session_id: null, last_error: null, last_exit_code: null, track: null, laps: null, launch_mode: null, detail: null,
       };
     }
     return jsonFetch<TorcsControlStatus>("/api/torcs/control-status", { signal: opts?.signal });
@@ -615,10 +616,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         track: params.track ?? "aalborg",
-        laps: params.laps ?? 20,
+        laps: params.laps ?? 75,
         track_name: params.track_name ?? null,
         notes: params.notes ?? null,
-        auto_launch_torcs: params.auto_launch_torcs ?? true,
+        launch_mode:
+          params.launch_mode
+          ?? (params.auto_launch_torcs ? "headless_quickrace" : "cockpit_practice"),
+        auto_launch_torcs: params.auto_launch_torcs ?? false,
       }),
       signal: opts?.signal,
     });
@@ -629,6 +633,16 @@ export const api = {
       return { status: "no_active_race", session_id: null, exit_code: null };
     }
     return jsonFetch<TorcsStopRaceResponse>("/api/torcs/stop-race", {
+      method: "POST",
+      signal: opts?.signal,
+    });
+  },
+
+  async recoverTorcs(opts?: ApiOpts): Promise<TorcsRecoverResponse> {
+    if (resolveFixture(opts)) {
+      return { status: "recovered", session_id: null, state: "idle" };
+    }
+    return jsonFetch<TorcsRecoverResponse>("/api/torcs/recover", {
       method: "POST",
       signal: opts?.signal,
     });

@@ -885,6 +885,9 @@ def test_control_status_reports_disabled_when_secret_unset(tmp_path, monkeypatch
         "session_id": None,
         "last_error": None,                                # Phase 2.5 — graceful vs failure distinguisher
         "last_exit_code": None,
+        "track": None,
+        "laps": None,
+        "launch_mode": None,
         "detail": "TORCS_CONTROL_URL + SECRET not set; control plane disabled.",
     }
 
@@ -921,8 +924,14 @@ def test_control_status_proxies_active_state(tmp_path, monkeypatch):
         assert request.headers["authorization"] == "Bearer test-secret"
         assert request.url.path == "/control/status"
         return httpx.Response(200, json={
-            "active": True, "session_id": "s_torcs_live_42_abcd", "pid": 4242,
-            "uptime_s": 18.7, "exit_code": None,
+            "active": True,
+            "session_id": "s_torcs_live_42_abcd",
+            "pid": 4242,
+            "uptime_s": 18.7,
+            "exit_code": None,
+            "track": "aalborg",
+            "laps": 75,
+            "launch_mode": "cockpit_practice",
         })
 
     import api.main as main_mod
@@ -940,6 +949,9 @@ def test_control_status_proxies_active_state(tmp_path, monkeypatch):
     assert body["reachable"] is True
     assert body["active"] is True
     assert body["session_id"] == "s_torcs_live_42_abcd"
+    assert body["track"] == "aalborg"
+    assert body["laps"] == 75
+    assert body["launch_mode"] == "cockpit_practice"
 
 
 def test_start_race_503_when_control_disabled(tmp_path, monkeypatch):
@@ -993,6 +1005,7 @@ def test_start_race_201_proxies_daemon_response(tmp_path, monkeypatch):
             "session_id": captured_request["body"]["session_id"],
             "pid": 9999,
             "telemetry_dir": "/home/student/workspace/gym_torcs/telemetry/",
+            "launch_mode": captured_request["body"]["launch_mode"],
         })
 
     import api.main as main_mod
@@ -1015,12 +1028,50 @@ def test_start_race_201_proxies_daemon_response(tmp_path, monkeypatch):
     assert body["telemetry_dir"].endswith("/telemetry/")
     assert body["track"] == "alpine-1"
     assert body["laps"] == 10
+    assert body["launch_mode"] == "cockpit_practice"
     assert body["track_name_hint"] == "Alpine"
     assert body["notes_hint"] == "smoke test"
     # Verify the daemon got the operator-validated payload
     assert captured_request["body"]["track"] == "alpine-1"
     assert captured_request["body"]["laps"] == 10
+    assert captured_request["body"]["launch_mode"] == "cockpit_practice"
     assert captured_request["body"]["session_id"].startswith("s_torcs_live_")
+
+
+def test_start_race_honors_explicit_headless_launch_mode(tmp_path, monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    captured_request: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_request["body"] = json.loads(request.content)
+        return httpx.Response(201, json={
+            "session_id": captured_request["body"]["session_id"],
+            "pid": 5555,
+            "telemetry_dir": "/home/student/workspace/gym_torcs/telemetry/",
+            "launch_mode": captured_request["body"]["launch_mode"],
+        })
+
+    import api.main as main_mod
+
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post(
+        "/api/torcs/start-race",
+        json={"track": "aalborg", "laps": 75, "launch_mode": "headless_quickrace"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["launch_mode"] == "headless_quickrace"
+    assert captured_request["body"]["launch_mode"] == "headless_quickrace"
+    assert captured_request["body"]["auto_launch_torcs"] is False
 
 
 def test_stop_race_returns_daemon_payload(tmp_path, monkeypatch):
@@ -1096,9 +1147,42 @@ def test_torcs_tracks_proxies_daemon_list(tmp_path, monkeypatch):
         assert request.url.path == "/control/tracks"
         assert request.headers["authorization"] == "Bearer test-secret"
         return httpx.Response(200, json={"tracks": [
-            {"name": "aalborg", "category": "road"},
-            {"name": "michigan", "category": "oval"},
-            {"name": "dirt-2", "category": "dirt"},
+            {
+                "name": "aalborg",
+                "category": "road",
+                "display_name": "Aalborg",
+                "author": "Track Team",
+                "description": "Fast road circuit.",
+                "length_m": 3200.5,
+                "width_m": 12.0,
+                "pits": 16,
+                "has_preview_asset": True,
+                "has_map_asset": True,
+            },
+            {
+                "name": "michigan",
+                "category": "oval",
+                "display_name": "Michigan",
+                "author": None,
+                "description": None,
+                "length_m": None,
+                "width_m": None,
+                "pits": None,
+                "has_preview_asset": False,
+                "has_map_asset": True,
+            },
+            {
+                "name": "dirt-2",
+                "category": "dirt",
+                "display_name": "Dirt 2",
+                "author": None,
+                "description": None,
+                "length_m": None,
+                "width_m": None,
+                "pits": None,
+                "has_preview_asset": False,
+                "has_map_asset": False,
+            },
         ]})
 
     import api.main as main_mod
@@ -1118,6 +1202,72 @@ def test_torcs_tracks_proxies_daemon_list(tmp_path, monkeypatch):
     cats = {t["name"]: t["category"] for t in body["tracks"]}
     assert cats["michigan"] == "oval"
     assert cats["dirt-2"] == "dirt"
+    aalborg = next(t for t in body["tracks"] if t["name"] == "aalborg")
+    assert aalborg["display_name"] == "Aalborg"
+    assert aalborg["preview_url"].endswith("/api/torcs/tracks/road/aalborg/assets/preview")
+    assert aalborg["map_url"].endswith("/api/torcs/tracks/road/aalborg/assets/map")
+
+
+def test_torcs_track_asset_proxies_binary_response(tmp_path, monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/control/tracks/road/aalborg/asset/preview"
+        return httpx.Response(
+            200,
+            content=b"fake-png",
+            headers={"content-type": "image/png"},
+        )
+
+    import api.main as main_mod
+
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.get("/api/torcs/tracks/road/aalborg/assets/preview")
+    assert r.status_code == 200
+    assert r.content == b"fake-png"
+    assert r.headers["content-type"] == "image/png"
+
+
+def test_recover_race_returns_daemon_payload(tmp_path, monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("TORCS_CONTROL_URL", "http://fake-daemon:7000")
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/control/recover"
+        return httpx.Response(200, json={
+            "status": "recovered",
+            "session_id": "s_torcs_live_a",
+            "scr_exit_code": 0,
+            "torcs_exit_code": -9,
+            "state": "idle",
+        })
+
+    import api.main as main_mod
+
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        main_mod.httpx, "AsyncClient",
+        lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
+    )
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.post("/api/torcs/recover")
+    assert r.status_code == 200
+    assert r.json()["status"] == "recovered"
+    assert r.json()["state"] == "idle"
 
 
 def test_start_race_writes_stub_active_session(tmp_path, monkeypatch):

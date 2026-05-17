@@ -82,7 +82,7 @@ def _draw_background(draw: ImageDraw.ImageDraw) -> None:
     # Warm signal streaks, much quieter than the earlier blue treatment.
     for idx in range(6):
         x0 = -120 + idx * 86
-        y0 = 72 + idx * 26
+        y0 = 108 + idx * 26
         x1 = x0 + 310
         y1 = y0 - 132
         width = 12 if idx % 2 == 0 else 6
@@ -100,18 +100,6 @@ def _draw_background(draw: ImageDraw.ImageDraw) -> None:
 
     # A restrained stage panel behind the live TORCS menu widgets.
     draw.rounded_rectangle((118, 112, 394, 318), radius=28, fill=PANEL_FILL, outline=PANEL_STROKE, width=1)
-
-    # Small top-right accent capsule to balance the wordmark.
-    draw.rounded_rectangle((350, 30, 478, 56), radius=13, outline=(255, 125, 70, 150), width=1)
-    draw.text((367, 38), "OVERRIDE", font=_font(10), fill=TEXT_MAIN)
-
-
-def _draw_topline(draw: ImageDraw.ImageDraw, title: str) -> None:
-    mono = _font(12)
-    sans = _font(18)
-    draw.text((28, 30), "OVERRIDE TORCS SURFACE", font=mono, fill=TEXT_MUTED)
-    draw.text((28, 50), title, font=sans, fill=TEXT_MAIN)
-
 
 def _draw_car_silhouette(draw: ImageDraw.ImageDraw) -> None:
     body = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
@@ -142,8 +130,10 @@ def _draw_car_silhouette(draw: ImageDraw.ImageDraw) -> None:
     draw.bitmap((0, 0), blurred)
 
 
-def _draw_footer(draw: ImageDraw.ImageDraw) -> None:
+def _draw_footer(draw: ImageDraw.ImageDraw, title: str) -> None:
+    mono = _font(11)
     footer = _font(11)
+    draw.text((28, 30), title, font=mono, fill=TEXT_MUTED)
     draw.text((28, 474), "Explainable 2026 hybrid energy strategy", font=footer, fill=(140, 132, 126))
     draw.text((360, 474), "Simulator skin", font=footer, fill=(140, 132, 126))
 
@@ -153,11 +143,10 @@ def build_asset(filename: str, title: str) -> None:
     draw = ImageDraw.Draw(base, "RGBA")
     _draw_background(draw)
     _draw_car_silhouette(draw)
-    _draw_topline(draw, title)
-    _draw_footer(draw)
+    _draw_footer(draw, title)
 
     logo = _load_logo(max_width=180)
-    base.alpha_composite(logo, dest=(286, 64))
+    base.alpha_composite(logo, dest=(286, 34))
 
     out_path = OUT_DIR / filename
     out_path.parent.mkdir(parents=True, exist_ok=True)

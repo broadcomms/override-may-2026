@@ -31,12 +31,14 @@ import secrets
 import signal
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("torcs.control_daemon")
@@ -71,11 +73,18 @@ TORCS_SCRIPT = f"{GYM_TORCS_DIR}/torcs_jm_par.py"
 
 # Probed: torcs binary at /usr/local/torcs/bin/torcs (NOT /usr/local/bin).
 TORCS_BIN = os.environ.get("OVERRIDE_TORCS_BIN", "/usr/local/torcs/bin/torcs")
-TORCS_USER_HOME = "/home/student"
+# Compose runs the torcs container as root (`user: "0:0"`), and both the
+# kiosk supervisor and the daemon launch TORCS from that root session.
+# That means the live profile TORCS reads is /root/.torcs, not
+# /home/student/.torcs. Keep the path overrideable for tests.
+TORCS_USER_HOME = os.environ.get("OVERRIDE_TORCS_USER_HOME", "/root")
 TORCS_RACEMAN_DIR = f"{TORCS_USER_HOME}/.torcs/config/raceman"
 TORCS_DATA_DIR = "/usr/local/torcs/share/games/torcs"
 TORCS_STOCK_QUICKRACE = f"{TORCS_DATA_DIR}/config/raceman/quickrace.xml"
+TORCS_STOCK_PRACTICE = f"{TORCS_DATA_DIR}/config/raceman/practice.xml"
+PRACTICE_TEMPLATE_FALLBACK = f"{GYM_TORCS_DIR}/practice.xml"
 TORCS_TRACKS_DIR = f"{TORCS_DATA_DIR}/tracks"
+KIOSK_PAUSE_FILE = os.environ.get("OVERRIDE_TORCS_KIOSK_PAUSE_FILE", "/tmp/override-managed-race.lock")
 # Probed: noVNC desktop Xvfb on :1.
 TORCS_DISPLAY = os.environ.get("OVERRIDE_TORCS_DISPLAY", ":1")
 SCR_PORT = 3001  # UDP — gym_torcs scr_server protocol
@@ -85,6 +94,7 @@ LAUNCH_TIMEOUT_S = float(os.environ.get("OVERRIDE_TORCS_LAUNCH_TIMEOUT_S", "20")
 SCR_PORT_POLL_INTERVAL_S = float(os.environ.get("OVERRIDE_TORCS_POLL_INTERVAL_S", "0.5"))
 TERMINATE_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_TERMINATE_GRACE_S", "5"))
 KILL_GRACE_S = float(os.environ.get("OVERRIDE_TORCS_KILL_GRACE_S", "2"))
+GUI_READY_TIMEOUT_S = float(os.environ.get("OVERRIDE_TORCS_GUI_READY_TIMEOUT_S", "20"))
 
 # Post-stop GUI reset env vars (3D/manual-launch mode only).
 # Read inside _reset_torcs_gui_after_stop() so changes take effect without
@@ -149,6 +159,7 @@ class ActiveRace:
     telemetry_filename: Optional[str] = None
     track: Optional[str] = None
     laps: Optional[int] = None
+    launch_mode: Optional[str] = None
 
     def transition_to(self, new_state: RaceState, *, error: Optional[str] = None) -> None:
         """Validated state transition. Raises ValueError on illegal moves."""
@@ -184,6 +195,21 @@ def _is_busy() -> bool:
 # Map track stem → category. Populated lazily from the filesystem; fallback
 # "road" covers the common case.
 _TRACK_CATEGORY_CACHE: dict[str, str] = {}
+_TRACK_METADATA_CACHE: Optional[list["TrackMetadata"]] = None
+
+
+@dataclass(frozen=True)
+class TrackMetadata:
+    name: str
+    category: str
+    display_name: str
+    author: Optional[str]
+    description: Optional[str]
+    length_m: Optional[float]
+    width_m: Optional[float]
+    pits: Optional[int]
+    has_preview_asset: bool
+    has_map_asset: bool
 
 
 def _scan_tracks() -> dict[str, str]:
@@ -208,8 +234,128 @@ def _scan_tracks() -> dict[str, str]:
     return _TRACK_CATEGORY_CACHE
 
 
+def _track_dir(category: str, track: str) -> Path:
+    return Path(TORCS_TRACKS_DIR) / category / track
+
+
+def _track_xml_path(category: str, track: str) -> Path:
+    return _track_dir(category, track) / f"{track}.xml"
+
+
+def _track_asset_candidates(category: str, track: str, kind: Literal["preview", "map"]) -> list[Path]:
+    track_dir = _track_dir(category, track)
+    if kind == "preview":
+        return [
+            track_dir / "background.png",
+            track_dir / f"{track}.png",
+            track_dir / "preview.png",
+        ]
+    return [
+        track_dir / "raceline.png",
+        track_dir / f"{track}.png",
+        track_dir / "outline.png",
+    ]
+
+
+def _resolve_track_asset(category: str, track: str, kind: Literal["preview", "map"]) -> Optional[Path]:
+    for candidate in _track_asset_candidates(category, track, kind):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _extract_track_text_attr(xml_text: str, attr_name: str) -> Optional[str]:
+    match = re.search(
+        rf'<att(?:str|num)\s+name="{re.escape(attr_name)}"(?:\s+unit="[^"]+")?\s+val="([^"]+)"',
+        xml_text,
+    )
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def _extract_header_name(xml_text: str) -> Optional[str]:
+    match = re.search(
+        r'<section\s+name="Header">.*?<attstr\s+name="name"\s+val="([^"]+)"',
+        xml_text,
+        re.DOTALL,
+    )
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def _parse_track_float(xml_text: str, attr_name: str) -> Optional[float]:
+    raw = _extract_track_text_attr(xml_text, attr_name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _parse_track_int(xml_text: str, attr_name: str) -> Optional[int]:
+    raw = _extract_track_text_attr(xml_text, attr_name)
+    if raw is None:
+        return None
+    try:
+        return int(float(raw))
+    except ValueError:
+        return None
+
+
+def _load_track_metadata() -> list[TrackMetadata]:
+    global _TRACK_METADATA_CACHE
+    if _TRACK_METADATA_CACHE is not None:
+        return _TRACK_METADATA_CACHE
+
+    records: list[TrackMetadata] = []
+    for track_name, category in sorted(_scan_tracks().items()):
+        xml_path = _track_xml_path(category, track_name)
+        xml_text = ""
+        if xml_path.is_file():
+            try:
+                xml_text = xml_path.read_text(errors="replace")
+            except OSError:
+                xml_text = ""
+
+        display_name = _extract_header_name(xml_text) or track_name.replace("-", " ").title()
+        records.append(
+            TrackMetadata(
+                name=track_name,
+                category=category,
+                display_name=display_name,
+                author=_extract_track_text_attr(xml_text, "author"),
+                description=_extract_track_text_attr(xml_text, "description"),
+                length_m=_parse_track_float(xml_text, "length"),
+                width_m=_parse_track_float(xml_text, "width"),
+                pits=_parse_track_int(xml_text, "pits"),
+                has_preview_asset=_resolve_track_asset(category, track_name, "preview") is not None,
+                has_map_asset=_resolve_track_asset(category, track_name, "map") is not None,
+            )
+        )
+
+    _TRACK_METADATA_CACHE = records
+    return records
+
+
 def _category_for_track(track: str) -> str:
     return _scan_tracks().get(track, "road")
+
+
+def _practice_template_path() -> Path:
+    stock = Path(TORCS_STOCK_PRACTICE)
+    if stock.is_file():
+        return stock
+    fallback = Path(PRACTICE_TEMPLATE_FALLBACK)
+    if fallback.is_file():
+        return fallback
+    raise FileNotFoundError(
+        f"TORCS practice.xml missing at {TORCS_STOCK_PRACTICE} and {PRACTICE_TEMPLATE_FALLBACK}"
+    )
 
 
 def _write_quickrace_config(track: str, laps: int) -> str:
@@ -294,6 +440,77 @@ def _write_quickrace_config(track: str, laps: int) -> str:
     return target
 
 
+def _write_practice_config(track: str, laps: int) -> str:
+    """Patch practice.xml so OVERRIDE owns track, laps, and SCR driver.
+
+    Practice is the only supported 3D path. We keep the XML patch narrow:
+    track/category/laps plus the focused SCR driver and normal display mode.
+    """
+    template_path = _practice_template_path()
+    tree = ET.parse(template_path)
+    root = tree.getroot()
+    category = _category_for_track(track)
+
+    tracks_section = root.find("./section[@name='Tracks']/section[@name='1']")
+    practice_section = root.find("./section[@name='Practice']")
+    drivers_section = root.find("./section[@name='Drivers']")
+    first_driver = root.find("./section[@name='Drivers']/section[@name='1']")
+    drivers_start_list = root.find("./section[@name='Drivers Start List']")
+    if (
+        tracks_section is None
+        or practice_section is None
+        or drivers_section is None
+        or first_driver is None
+    ):
+        raise RuntimeError("practice.xml is missing required Tracks/Practice/Drivers sections")
+    if drivers_start_list is None:
+        drivers_start_list = ET.SubElement(root, "section", {"name": "Drivers Start List"})
+    start_list_first = drivers_start_list.find("./section[@name='1']")
+    if start_list_first is None:
+        start_list_first = ET.SubElement(drivers_start_list, "section", {"name": "1"})
+
+    def _set_child_attr(section: ET.Element, child_name: str, value: str) -> None:
+        target = section.find(f"./attstr[@name='{child_name}']")
+        if target is None:
+            target = ET.SubElement(section, "attstr", {"name": child_name, "val": value})
+        else:
+            target.set("val", value)
+
+    def _set_child_num(section: ET.Element, child_name: str, value: int | float) -> None:
+        target = section.find(f"./attnum[@name='{child_name}']")
+        if target is None:
+            target = ET.SubElement(section, "attnum", {"name": child_name, "val": str(value)})
+        else:
+            target.set("val", str(value))
+
+    _set_child_attr(tracks_section, "name", track)
+    _set_child_attr(tracks_section, "category", category)
+    _set_child_num(practice_section, "laps", laps)
+    _set_child_attr(practice_section, "display mode", "normal")
+    _set_child_num(practice_section, "distance", 0)
+    _set_child_num(drivers_section, "maximum number", 1)
+    _set_child_attr(drivers_section, "focused module", "scr_server")
+    _set_child_num(drivers_section, "focused idx", 1)
+    _set_child_num(first_driver, "idx", 0)
+    _set_child_attr(first_driver, "module", "scr_server")
+    _set_child_attr(start_list_first, "module", "scr_server")
+    _set_child_num(start_list_first, "idx", 0)
+
+    patched = ET.tostring(root, encoding="unicode")
+    if 'name="module" val="scr_server"' not in patched:
+        raise RuntimeError("practice.xml patch lost the scr_server driver entry")
+
+    os.makedirs(TORCS_RACEMAN_DIR, exist_ok=True)
+    target = f"{TORCS_RACEMAN_DIR}/practice.xml"
+    Path(target).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE params SYSTEM "params.dtd">\n\n' + patched)
+    subprocess.run(
+        ["chown", "-R", "student:student", f"{TORCS_USER_HOME}/.torcs"],
+        check=False,
+        capture_output=True,
+    )
+    return target
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Process management
 # ──────────────────────────────────────────────────────────────────────────────
@@ -314,6 +531,57 @@ def _kill_stale_torcs() -> None:
         )
 
 
+def _restart_torcs_kiosk_surface() -> None:
+    """Kick TORCS back to the kiosk loop without insisting on a zero-PID gap.
+
+    During /control/recover the kiosk supervisor may relaunch plain TORCS
+    almost immediately after we kill the direct-race process. That is the
+    desired end state, so recovery should not fail just because a new
+    torcs-bin appears before the verification window closes.
+    """
+    subprocess.run(["pkill", "-9", "-f", "torcs-bin"], check=False, capture_output=True)
+    time.sleep(0.5)
+
+
+def _pause_kiosk_loop() -> None:
+    Path(KIOSK_PAUSE_FILE).write_text("managed\n")
+
+
+def _resume_kiosk_loop() -> None:
+    try:
+        Path(KIOSK_PAUSE_FILE).unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _torcs_gui_alive() -> bool:
+    r = subprocess.run(["pgrep", "-f", "torcs-bin"], capture_output=True, text=True)
+    return r.returncode == 0 and bool(r.stdout.strip())
+
+
+def _xfwm4_alive() -> bool:
+    r = subprocess.run(["pgrep", "-x", "xfwm4"], capture_output=True, text=True)
+    return r.returncode == 0 and bool(r.stdout.strip())
+
+
+def _ensure_xfwm4() -> None:
+    if _xfwm4_alive():
+        return
+    env = os.environ.copy()
+    env["DISPLAY"] = TORCS_DISPLAY
+    log = open("/tmp/xfwm4.log", "a")
+    subprocess.Popen(
+        ["xfwm4", "--replace"],
+        env=env,
+        cwd=TORCS_USER_HOME,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    time.sleep(1.0)
+
+
 def _scr_port_bound() -> bool:
     """Check whether UDP :3001 has a listener via netstat (ss/lsof not on image)."""
     try:
@@ -324,6 +592,21 @@ def _scr_port_bound() -> bool:
         return False
     # Match a line like:  udp  0  0  0.0.0.0:3001  0.0.0.0:*
     return bool(re.search(rf":{SCR_PORT}\s", r.stdout))
+
+
+async def _wait_for_torcs_gui(timeout_s: float = GUI_READY_TIMEOUT_S) -> bool:
+    deadline = time.monotonic() + timeout_s
+    stable_started_at: Optional[float] = None
+    while time.monotonic() < deadline:
+        if _torcs_gui_alive():
+            if stable_started_at is None:
+                stable_started_at = time.monotonic()
+            elif (time.monotonic() - stable_started_at) >= 3.0:
+                return True
+        else:
+            stable_started_at = None
+        await asyncio.sleep(SCR_PORT_POLL_INTERVAL_S)
+    return False
 
 
 async def _wait_for_scr_port(
@@ -493,6 +776,19 @@ async def _reset_torcs_gui_after_stop() -> None:
     logger.info("gui-reset: sent key sequence [%s] to TORCS", ", ".join(key_seq))
 
 
+LaunchMode = Literal["cockpit_practice", "headless_quickrace"]
+
+
+def _resolve_launch_mode(req: "StartRaceRequest") -> LaunchMode:
+    if req.launch_mode is not None:
+        return req.launch_mode
+    return "headless_quickrace" if req.auto_launch_torcs else "cockpit_practice"
+
+
+def _fresh_idle_race() -> ActiveRace:
+    return ActiveRace(session_id="", state=RaceState.IDLE)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Request / response shapes
 # ──────────────────────────────────────────────────────────────────────────────
@@ -502,23 +798,11 @@ class StartRaceRequest(BaseModel):
     """Body for POST /control/start."""
     session_id: str = Field(pattern=r"^s_[A-Za-z0-9_]+$", min_length=3, max_length=80)
     track: str = Field(default="aalborg", pattern=r"^[a-z0-9_-]+$", max_length=40)
-    laps: int = Field(default=10, ge=1, le=200)
+    laps: int = Field(default=75, ge=1, le=200)
     telemetry_filename: Optional[str] = Field(
         default=None, pattern=r"^[A-Za-z0-9_-]+\.jsonl$", max_length=120,
     )
-    # Phase 2.6 correction (2026-05-13): default flipped to False.
-    #
-    # TORCS's `-r` flag is documented as "run race in command line mode" —
-    # i.e. headless. There's no XML attribute that overrides this; the
-    # `display mode = normal` attempt in commit 0e45fce was patching the
-    # wrong layer. To get 3D rendering in noVNC, the OPERATOR must launch
-    # TORCS in GUI mode manually (no -r) and set up scr_server as the
-    # driver, then click Start race which spawns ONLY the SCR client.
-    #
-    # When True: daemon writes quickrace.xml + spawns `torcs -r <xml>`
-    #            (headless; telemetry is captured, no 3D in noVNC).
-    # When False (default): daemon spawns SCR client only; assumes
-    #            operator launched TORCS manually first.
+    launch_mode: Optional[LaunchMode] = None
     auto_launch_torcs: bool = False
 
 
@@ -529,6 +813,7 @@ class StartRaceResponse(BaseModel):
     track: str
     laps: int
     torcs_pid: Optional[int] = None               # populated when auto_launch=True
+    launch_mode: LaunchMode
     state: RaceState = RaceState.ACTIVE
 
 
@@ -545,6 +830,7 @@ class StatusResponse(BaseModel):
     last_error: Optional[str] = None
     track: Optional[str] = None
     laps: Optional[int] = None
+    launch_mode: Optional[LaunchMode] = None
 
 
 class StopResponse(BaseModel):
@@ -554,9 +840,25 @@ class StopResponse(BaseModel):
     torcs_exit_code: Optional[int] = None
 
 
+class RecoverResponse(BaseModel):
+    status: str                                   # "recovered" | "no_active_race"
+    session_id: Optional[str] = None
+    scr_exit_code: Optional[int] = None
+    torcs_exit_code: Optional[int] = None
+    state: RaceState = RaceState.IDLE
+
+
 class TrackInfo(BaseModel):
     name: str
     category: str                                 # road | oval | dirt
+    display_name: str
+    author: Optional[str] = None
+    description: Optional[str] = None
+    length_m: Optional[float] = None
+    width_m: Optional[float] = None
+    pits: Optional[int] = None
+    has_preview_asset: bool = False
+    has_map_asset: bool = False
 
 
 class TracksResponse(BaseModel):
@@ -626,6 +928,7 @@ async def control_status() -> StatusResponse:
                 logger.warning("control_status: %s", r.last_error)
             if scr_code is not None:
                 r.last_exit_code = scr_code
+            _resume_kiosk_loop()
             # Force-cleanup; direct assignment because some transition_to
             # moves would be illegal from the current state.
             r.state = RaceState.CLEANUP
@@ -655,6 +958,7 @@ async def control_status() -> StatusResponse:
         last_error=r.last_error,
         track=r.track,
         laps=r.laps,
+        launch_mode=r.launch_mode,  # type: ignore[arg-type]
     )
 
 
@@ -666,9 +970,37 @@ async def control_status() -> StatusResponse:
 async def control_tracks() -> TracksResponse:
     """List every track installed under TORCS_TRACKS_DIR. Cached after
     first scan; daemon restart picks up new tracks."""
-    cat = _scan_tracks()
-    tracks = [TrackInfo(name=n, category=c) for n, c in sorted(cat.items())]
+    tracks = [
+        TrackInfo(
+            name=record.name,
+            category=record.category,
+            display_name=record.display_name,
+            author=record.author,
+            description=record.description,
+            length_m=record.length_m,
+            width_m=record.width_m,
+            pits=record.pits,
+            has_preview_asset=record.has_preview_asset,
+            has_map_asset=record.has_map_asset,
+        )
+        for record in _load_track_metadata()
+    ]
     return TracksResponse(tracks=tracks)
+
+
+@app.get(
+    "/control/tracks/{category}/{track}/asset/{kind}",
+    dependencies=[Depends(_verify_auth)],
+)
+async def control_track_asset(
+    category: str,
+    track: str,
+    kind: Literal["preview", "map"],
+):
+    asset = _resolve_track_asset(category, track, kind)
+    if asset is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Track asset not found")
+    return FileResponse(asset)
 
 
 @app.post(
@@ -690,18 +1022,20 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
             )
 
         # Initialize new race; lock held across the full launch sequence.
+        launch_mode = _resolve_launch_mode(req)
         _race = ActiveRace(
             session_id=req.session_id,
             state=RaceState.IDLE,
             track=req.track,
             laps=req.laps,
             telemetry_filename=req.telemetry_filename,
+            launch_mode=launch_mode,
         )
         _race.transition_to(RaceState.LAUNCHING)
 
         try:
             torcs_proc: Optional[subprocess.Popen] = None
-            if req.auto_launch_torcs:
+            if launch_mode == "headless_quickrace":
                 # Headless-race path. _kill_stale_torcs is ONLY safe here
                 # because we're about to launch our own torcs as a fresh
                 # process — anything currently running would conflict on
@@ -717,8 +1051,10 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                         detail=f"Could not write quickrace.xml: {e}",
                     )
                 try:
+                    _pause_kiosk_loop()
                     _kill_stale_torcs()
                 except RuntimeError as e:
+                    _resume_kiosk_loop()
                     _race.transition_to(RaceState.CLEANUP, error=str(e))
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -727,6 +1063,7 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                 try:
                     torcs_proc = _launch_torcs(raceman_path)
                 except (OSError, FileNotFoundError) as e:
+                    _resume_kiosk_loop()
                     _race.transition_to(RaceState.CLEANUP, error=f"torcs spawn failed: {e}")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -739,6 +1076,7 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                     # Reap the dead torcs before bailing. Capture log tail
                     # so /control/status surfaces a useful error message.
                     await _terminate_proc(torcs_proc, "torcs")
+                    _resume_kiosk_loop()
                     log_tail = ""
                     try:
                         from pathlib import Path as _P
@@ -760,9 +1098,56 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                     )
                 _race.transition_to(RaceState.CONNECTING)
             else:
-                # Legacy Phase-2 path: operator launched TORCS manually.
-                # State machine just hops through with no torcs_proc.
+                try:
+                    raceman_path = _write_practice_config(req.track, req.laps)
+                except (FileNotFoundError, RuntimeError, OSError, ET.ParseError) as e:
+                    _race.transition_to(RaceState.CLEANUP, error=f"practice config failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Could not write practice.xml: {e}",
+                    )
+                try:
+                    _pause_kiosk_loop()
+                    _kill_stale_torcs()
+                except RuntimeError as e:
+                    _resume_kiosk_loop()
+                    _race.transition_to(RaceState.CLEANUP, error=str(e))
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e),
+                    )
+                try:
+                    torcs_proc = _launch_torcs(raceman_path)
+                except (OSError, FileNotFoundError) as e:
+                    _resume_kiosk_loop()
+                    _race.transition_to(RaceState.CLEANUP, error=f"practice torcs spawn failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Could not spawn TORCS Practice run: {e}",
+                    )
+                _race.torcs_proc = torcs_proc
                 _race.transition_to(RaceState.WAITING_SCR)
+                if not await _wait_for_scr_port(torcs_proc, LAUNCH_TIMEOUT_S):
+                    await _terminate_proc(torcs_proc, "torcs")
+                    _resume_kiosk_loop()
+                    log_tail = ""
+                    try:
+                        from pathlib import Path as _P
+                        log_text = _P(TORCS_LAUNCH_LOG).read_text(errors="replace")
+                        log_tail = log_text[-500:] if log_text else "(empty)"
+                    except OSError:
+                        log_tail = "(could not read log)"
+                    _race.transition_to(
+                        RaceState.CLEANUP,
+                        error=f"Practice launch did not bind UDP :{SCR_PORT}. Log tail: {log_tail}",
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail=(
+                            f"Practice launch did not bind UDP :{SCR_PORT} within {LAUNCH_TIMEOUT_S}s. "
+                            f"Last lines of {TORCS_LAUNCH_LOG}: {log_tail}"
+                        ),
+                    )
                 _race.transition_to(RaceState.CONNECTING)
 
             # Spawn the SCR client either way.
@@ -773,6 +1158,7 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
             except (OSError, FileNotFoundError) as e:
                 # Tear down torcs if we launched it
                 await _terminate_proc(torcs_proc, "torcs")
+                _resume_kiosk_loop()
                 _race.transition_to(RaceState.CLEANUP, error=f"scr-client spawn failed: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -795,6 +1181,7 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
                 track=req.track,
                 laps=req.laps,
                 torcs_pid=torcs_proc.pid if torcs_proc else None,
+                launch_mode=launch_mode,
                 state=RaceState.ACTIVE,
             )
         except HTTPException:
@@ -841,6 +1228,7 @@ async def control_stop() -> StopResponse:
         gui_mode = _race.torcs_proc is None
         scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
         torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
+        _resume_kiosk_loop()
 
         _race.last_exit_code = scr_exit
         # CLEANUP → IDLE
@@ -863,6 +1251,39 @@ async def control_stop() -> StopResponse:
             session_id=sid,
             scr_exit_code=scr_exit,
             torcs_exit_code=torcs_exit,
+        )
+
+
+@app.post(
+    "/control/recover",
+    response_model=RecoverResponse,
+    dependencies=[Depends(_verify_auth)],
+)
+async def control_recover() -> RecoverResponse:
+    """Hard reset the simulator surface inside the torcs container only."""
+    global _race
+    async with _control_lock:
+        sid = _race.session_id or None
+        scr_exit = await _terminate_proc(_race.scr_proc, "scr-client")
+        torcs_exit = await _terminate_proc(_race.torcs_proc, "torcs")
+        _resume_kiosk_loop()
+        _restart_torcs_kiosk_surface()
+
+        _ensure_xfwm4()
+        if not await _wait_for_torcs_gui():
+            _race = _fresh_idle_race()
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="TORCS did not return to its standby GUI surface after recovery.",
+            )
+
+        _race = _fresh_idle_race()
+        return RecoverResponse(
+            status="recovered",
+            session_id=sid,
+            scr_exit_code=scr_exit,
+            torcs_exit_code=torcs_exit,
+            state=RaceState.IDLE,
         )
 
 

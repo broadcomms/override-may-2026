@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { OverrideApiError, api } from "@/api/client";
 import type {
   TorcsControlStatus,
+  TorcsLaunchMode,
   TorcsRaceState,
+  TorcsRecoverResponse,
   TorcsStartRaceResponse,
   TorcsStopRaceResponse,
   TorcsTrack,
@@ -24,6 +26,7 @@ export const RECOMMENDED_TRACKS = [
 export const FALLBACK_TRACKS: TorcsTrack[] = RECOMMENDED_TRACKS.map((name) => ({
   name,
   category: "road",
+  display_name: name.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
 }));
 
 export function labelForTorcsState(
@@ -98,7 +101,7 @@ interface UseTorcsControlOptions {
 
 export function useTorcsControl({
   defaultTrack = "aalborg",
-  defaultLaps = 20,
+  defaultLaps = 75,
 }: UseTorcsControlOptions = {}) {
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
   const [tracks, setTracks] = useState<TorcsTrack[]>(FALLBACK_TRACKS);
@@ -146,9 +149,9 @@ export function useTorcsControl({
 
   const startRace = useCallback(
     async ({
-      autoLaunchTorcs = false,
+      launchMode = "cockpit_practice",
     }: {
-      autoLaunchTorcs?: boolean;
+      launchMode?: TorcsLaunchMode;
     } = {}): Promise<TorcsStartRaceResponse> => {
       setBusy(true);
       setError(null);
@@ -158,7 +161,8 @@ export function useTorcsControl({
           track,
           laps,
           track_name: trackName,
-          auto_launch_torcs: autoLaunchTorcs,
+          launch_mode: launchMode,
+          auto_launch_torcs: launchMode === "headless_quickrace",
         });
         await refresh();
         return response;
@@ -189,6 +193,22 @@ export function useTorcsControl({
     }
   }, [refresh]);
 
+  const recover = useCallback(async (): Promise<TorcsRecoverResponse> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await api.recoverTorcs();
+      await refresh();
+      return response;
+    } catch (error) {
+      const message = describeApiError(error, "Failed to reset the simulator.");
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh]);
+
   return {
     status,
     tracks,
@@ -203,5 +223,6 @@ export function useTorcsControl({
     refresh,
     startRace,
     stopRace,
+    recover,
   };
 }

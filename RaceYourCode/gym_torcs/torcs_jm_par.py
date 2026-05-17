@@ -587,6 +587,8 @@ if __name__ == "__main__":
     try:
         for step in range(C.maxSteps, 0, -1):
             C.get_servers_input()
+            if C.so is None:
+                break
             drive_modular(C)
             if _override_fh is not None:
                 try:

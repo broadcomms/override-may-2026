@@ -58,7 +58,7 @@ export function TorcsRaceFrame({
     const active = status?.state === "active" || status?.state === "connecting";
     return (
       <section className="relative rounded-card border border-border bg-black">
-        <div className="aspect-video w-full px-6 py-8 text-center">
+        <div className="aspect-[8/5] w-full px-6 py-8 text-center">
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
               Headless capture
@@ -80,7 +80,7 @@ export function TorcsRaceFrame({
   if (!frameUrl) {
     return (
       <section className="relative rounded-card border border-border bg-black">
-        <div className="aspect-video w-full px-6 py-8 text-center">
+        <div className="aspect-[8/5] w-full px-6 py-8 text-center">
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
               3D cockpit unavailable
@@ -97,11 +97,8 @@ export function TorcsRaceFrame({
   return (
     <section className="relative rounded-card border border-border bg-black shadow-card">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 p-3">
-        <div className="rounded-md border border-border/80 bg-bg/82 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.24em] text-muted backdrop-blur-sm">
-          Override TORCS surface
-        </div>
         <div
-          className={`rounded-md border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] backdrop-blur-sm ${
+          className={`ml-auto rounded-md border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] backdrop-blur-sm ${
             surfaceBadge.tone === "accent"
               ? "border-accent/40 bg-accent/12 text-accent"
               : surfaceBadge.tone === "warning"
@@ -113,20 +110,38 @@ export function TorcsRaceFrame({
         </div>
       </div>
 
-      {/* Phase 2.7 v4 — wrapper-clip pattern.
+      {/* Phase 2.7 v7 — wrapper-clip pattern.
           vnc_lite.html hardcodes a status bar at the top of <body> that we
           cannot hide via URL params (different origin → SOP). We clip it by
-          giving the outer wrapper `aspect-video` (matches Xvfb 16:9) and
-          `overflow-hidden`, then absolutely position the iframe pulled up
-          36px so the bar slides off the top of the clip region. */}
-      <div className="relative w-full aspect-video overflow-hidden bg-black">
+          giving the outer wrapper `aspect-[8/5]` (matches Xvfb 16:10) and
+          `overflow-hidden`, then overscanning the iframe with a slightly
+          top-heavy crop. That hides the noVNC status bar and the TORCS/XFCE
+          top seam without reintroducing the lower grey strip. */}
+      <div className="relative w-full aspect-[8/5] overflow-hidden bg-black">
+        {/* SCR-wait overlay: noVNC is black while TORCS X11 is still initialising.
+            Sits above the iframe (z-20) so it covers the blank frame during the
+            launching → waiting_scr window. Clears automatically once the state
+            advances to connecting/active/stopping/cleanup/idle. */}
+        {(status?.state === "launching" || status?.state === "waiting_scr") && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/90">
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted">
+              {status.state === "launching" ? "Launching simulator" : "Waiting for SCR port"}
+            </span>
+            <div className="h-px w-16 animate-pulse bg-accent/50" />
+            <p className="max-w-xs text-center text-xs text-muted/70">
+              {status.state === "launching"
+                ? "TORCS is starting. The display will appear once the simulator initialises."
+                : "TORCS is running. Waiting for the SCR race server port to open before connecting the AI driver."}
+            </p>
+          </div>
+        )}
         <iframe
           key={frameUrl}
           id="torcs-iframe"
           title="TORCS in noVNC"
           src={frameUrl}
           className="absolute inset-x-0 w-full border-0"
-          style={{ top: "-36px", height: "calc(100% + 36px)" }}
+          style={{ top: "-60px", height: "calc(100% + 96px)" }}
         />
       </div>
 

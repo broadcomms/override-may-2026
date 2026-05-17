@@ -2,28 +2,14 @@ import { Link } from "react-router-dom";
 
 import type { TorcsControlStatus } from "@/api/types";
 import { truncateSessionId } from "@/lib/cockpitTelemetry";
-import {
-  groupTorcsTracks,
-  isTorcsActiveState,
-  labelForTorcsState,
-} from "@/hooks/useTorcsControl";
-
-type ViewMode = "cockpit" | "headless";
+import { isTorcsActiveState, labelForTorcsState } from "@/hooks/useTorcsControl";
 
 interface Props {
   status: TorcsControlStatus | null;
   sessionId: string | null;
   currentLap: number;
-  targetLaps: number;
-  track: string;
-  onTrackChange: (value: string) => void;
-  laps: number;
-  onLapsChange: (value: number) => void;
-  tracks: Array<{ name: string; category: "road" | "oval" | "dirt" }>;
-  viewMode: ViewMode;
-  onViewModeChange: (value: ViewMode) => void;
-  onStartRace: () => void;
   onStopRace: () => void;
+  onRecover: () => void;
   onFullscreen: () => void;
   busy: boolean;
 }
@@ -32,25 +18,19 @@ export function CockpitCommandStrip({
   status,
   sessionId,
   currentLap,
-  targetLaps,
-  track,
-  onTrackChange,
-  laps,
-  onLapsChange,
-  tracks,
-  viewMode,
-  onViewModeChange,
-  onStartRace,
   onStopRace,
+  onRecover,
   onFullscreen,
   busy,
 }: Props) {
   const badge = labelForTorcsState(status?.state ?? (status?.active ? "active" : "idle"));
-  const startDisabled = busy || (status?.state !== null && status?.state !== "idle");
   const stopEnabled = !busy && isTorcsActiveState(status?.state ?? null);
-  const groupedTracks = groupTorcsTracks(tracks);
+  const recoverEnabled = !busy && Boolean(status?.enabled && status?.reachable);
+  const targetLaps = status?.laps ?? 75;
   const lapLabel =
     currentLap > 0 ? `L${currentLap} closed / ${targetLaps}` : `0 closed / ${targetLaps}`;
+  const modeLabel =
+    status?.launch_mode === "headless_quickrace" ? "Headless quickrace" : "Cockpit practice";
 
   return (
     <section className="rounded-card border border-border bg-surface px-4 py-3">
@@ -71,7 +51,8 @@ export function CockpitCommandStrip({
           title={sessionId ?? "No active session yet"}
         />
         <MetaPill label="Closed lap" value={lapLabel} />
-        <MetaPill label="Mode" value="2026 Hybrid Energy" />
+        <MetaPill label="Track" value={status?.track ?? "aalborg"} />
+        <MetaPill label="Mode" value={modeLabel} />
         <button
           type="button"
           onClick={onFullscreen}
@@ -81,196 +62,31 @@ export function CockpitCommandStrip({
         </button>
       </div>
 
-      <div className="mt-3 hidden grid-cols-1 gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
-        <DesktopSetup
-          track={track}
-          onTrackChange={onTrackChange}
-          laps={laps}
-          onLapsChange={onLapsChange}
-          groupedTracks={groupedTracks}
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          startDisabled={startDisabled}
-        />
-        <button
-          type="button"
-          onClick={onStartRace}
-          disabled={startDisabled}
-          className="h-10 rounded-pill bg-accent px-4 text-sm font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Start race
-        </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onStopRace}
           disabled={!stopEnabled}
-          className="h-10 rounded-pill border border-border bg-surface-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-pill border border-border bg-surface-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
         >
           Stop race
         </button>
-      </div>
-
-      <details className="mt-3 lg:hidden">
-        <summary className="cursor-pointer list-none rounded-md border border-border bg-surface-2 px-3 py-2 text-xs uppercase tracking-wider text-muted">
-          Race setup
-        </summary>
-        <div className="mt-3 space-y-3">
-          <DesktopSetup
-            track={track}
-            onTrackChange={onTrackChange}
-            laps={laps}
-            onLapsChange={onLapsChange}
-            groupedTracks={groupedTracks}
-            viewMode={viewMode}
-            onViewModeChange={onViewModeChange}
-            startDisabled={startDisabled}
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onStartRace}
-              disabled={startDisabled}
-              className="flex-1 rounded-pill bg-accent px-4 py-2 text-sm font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Start race
-            </button>
-            <button
-              type="button"
-              onClick={onStopRace}
-              disabled={!stopEnabled}
-              className="flex-1 rounded-pill border border-border bg-surface-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Stop race
-            </button>
-          </div>
-        </div>
-      </details>
-    </section>
-  );
-}
-
-function DesktopSetup({
-  track,
-  onTrackChange,
-  laps,
-  onLapsChange,
-  groupedTracks,
-  viewMode,
-  onViewModeChange,
-  startDisabled,
-}: {
-  track: string;
-  onTrackChange: (value: string) => void;
-  laps: number;
-  onLapsChange: (value: number) => void;
-  groupedTracks: ReturnType<typeof groupTorcsTracks>;
-  viewMode: ViewMode;
-  onViewModeChange: (value: ViewMode) => void;
-  startDisabled: boolean;
-}) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-muted">
-          Track
-        </span>
-        <select
-          value={track}
-          onChange={(e) => onTrackChange(e.target.value)}
-          disabled={startDisabled}
-          className="h-10 rounded-md border border-border bg-surface px-3 font-mono text-sm disabled:opacity-50"
+        <button
+          type="button"
+          onClick={onRecover}
+          disabled={!recoverEnabled}
+          className="rounded-pill border border-border bg-surface px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {groupedTracks.recommended.length > 0 && (
-            <optgroup label="Recommended">
-              {groupedTracks.recommended.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {Object.entries(groupedTracks.others).map(([category, items]) => (
-            <optgroup key={category} label={category}>
-              {items.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-muted">
-          Target laps
-        </span>
-        <input
-          type="number"
-          min={1}
-          max={200}
-          value={laps}
-          onChange={(e) =>
-            onLapsChange(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 1)))
-          }
-          disabled={startDisabled}
-          className="h-10 rounded-md border border-border bg-surface px-3 font-mono text-sm disabled:opacity-50"
-        />
-      </label>
-
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-muted">
-          View mode
-        </span>
-        <div className="inline-flex h-10 rounded-pill border border-border bg-surface p-0.5 text-sm">
-          <ViewModeButton
-            active={viewMode === "cockpit"}
-            label="3D Cockpit"
-            onClick={() => onViewModeChange("cockpit")}
-            disabled={startDisabled}
-          />
-          <ViewModeButton
-            active={viewMode === "headless"}
-            label="Headless Capture"
-            onClick={() => onViewModeChange("headless")}
-            disabled={startDisabled}
-          />
-        </div>
+          Reset simulator
+        </button>
+        <Link
+          to="/upload"
+          className="rounded-pill border border-border bg-surface px-4 py-2 text-sm text-muted transition-colors hover:text-text"
+        >
+          Configure next run
+        </Link>
       </div>
-    </div>
-  );
-}
-
-function ViewModeButton({
-  active,
-  label,
-  onClick,
-  disabled,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex-1 rounded-pill px-3 transition-colors disabled:opacity-50 ${
-        active ? "bg-accent text-bg" : "text-muted hover:text-text"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function StatePill({ label, tone }: { label: string; tone: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-pill border border-border px-2 py-1 text-xs ${tone}`}>
-      {label}
-    </span>
+    </section>
   );
 }
 
@@ -286,10 +102,18 @@ function MetaPill({
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1 rounded-pill border border-border px-2 py-1 font-mono text-[11px] uppercase tracking-wide text-muted"
+      className="inline-flex items-center gap-1 rounded-pill border border-border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-muted"
     >
-      <span className="text-text/60">{label}</span>
-      <span className="normal-case tracking-normal text-text">{value}</span>
+      <span>{label}</span>
+      <span className="text-text normal-case tracking-normal font-sans text-sm">{value}</span>
+    </span>
+  );
+}
+
+function StatePill({ label, tone }: { label: string; tone: string }) {
+  return (
+    <span className={`inline-flex rounded-pill border border-border px-2.5 py-1 text-xs ${tone}`}>
+      {label}
     </span>
   );
 }

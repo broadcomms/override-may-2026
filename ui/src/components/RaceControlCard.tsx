@@ -1,35 +1,7 @@
-/**
- * RaceControlCard — Phase 2 + 2.5 Start/Stop race form.
- *
- * Phase B split from the previous monolithic TorcsControlPanel: this card
- * owns the *form* (status, track dropdown, lap input, headless toggle,
- * manual-setup disclosure, Start/Stop), and emits a disclosure link to
- * /cockpit for the noVNC view (which now lives on its own surface — see
- * CockpitPage). Per audit §20 don't #5, the noVNC iframe wrapper-clip
- * hack moved verbatim to CockpitPage; this file does not touch the
- * iframe at all.
- *
- * Surface contract (unchanged from TorcsControlPanel):
- * 1. Hosted demo (Cloudflare Tunnel → override.patrickndille.com): the
- *    `isLocalHost` check returns false, the whole card doesn't render.
- * 2. Local dev WITHOUT --profile torcs: server-side `enabled` flag from
- *    /api/torcs/control-status reports the daemon URL/secret aren't
- *    configured; render a small "control plane disabled" hint.
- * 3. Local dev WITH --profile torcs but daemon not yet reachable:
- *    "Starting…" badge + detail string surfaces while torcs container
- *    boots (~90s on first run).
- * 4. Daemon reachable, race not active: form enabled.
- * 5. Race in progress: state-aware badge + Stop enabled + View live link.
- *
- * Defense-in-depth: even if a savvy operator forces the card to render
- * via dev tools, the API proxy STILL refuses with 503 CONTROL_DISABLED
- * when TORCS_CONTROL_SECRET is unset. The hostname check is UX
- * scaffolding, not a security boundary.
- */
-
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import type { TorcsLaunchMode, TorcsTrack } from "@/api/types";
 import {
   isTorcsActiveState,
   labelForTorcsState,
@@ -42,6 +14,7 @@ export function RaceControlCard() {
   const {
     status,
     groupedTracks: grouped,
+    tracks,
     track,
     setTrack,
     laps,
@@ -50,44 +23,53 @@ export function RaceControlCard() {
     error,
     startRace,
     stopRace,
+    recover,
   } = useTorcsControl();
+  const [launchMode, setLaunchMode] = useState<TorcsLaunchMode>("cockpit_practice");
   const [message, setMessage] = useState<string | null>(null);
-  // Phase 2.6 correction: default is manual-launch (3D visible in noVNC).
-  // Headless is opt-in for operators who want batch/CI-shape races.
-  const [autoLaunch, setAutoLaunch] = useState<boolean>(false);
-  const trackName = track.charAt(0).toUpperCase() + track.slice(1);
+
+  const selectedTrack = useMemo(
+    () => tracks.find((item) => item.name === track) ?? tracks[0] ?? null,
+    [track, tracks],
+  );
+
+  const trackName = selectedTrack?.display_name ?? track;
 
   const onStart = useCallback(async () => {
     try {
-      const resp = await startRace({ autoLaunchTorcs: autoLaunch });
+      const resp = await startRace({ launchMode });
       setMessage(
-        autoLaunch
-          ? `Headless race launching on ${trackName} (${laps} laps). ` +
-            `torcs pid=${resp.torcs_pid ?? "?"} + scr-client pid=${resp.pid}. ` +
-            `NOTE: torcs -r is text-mode by design — no 3D in noVNC. ` +
-            `Live telemetry will stream in the panel above; click "View live →".`
-          : `SCR client connected (pid=${resp.pid}) to your manually-launched TORCS. ` +
-            `If you see "Server has stopped the race" in TORCS GUI, the race ` +
-            `wasn't running yet — set up scr_server driver in Quick Race and ` +
-            `click New Race in TORCS GUI before pressing Start race again.`,
+        launchMode === "headless_quickrace"
+          ? `Headless quickrace started on ${trackName} for ${resp.laps} laps. OVERRIDE is capturing telemetry without the 3D cockpit surface.`
+          : `Practice launch started on ${trackName} for ${resp.laps} laps. OVERRIDE is launching the configured Practice run directly on the 3D cockpit surface.`,
       );
+      navigate("/cockpit");
     } catch (_error) {
       setMessage(null);
     }
-  }, [autoLaunch, laps, startRace, trackName]);
+  }, [launchMode, navigate, startRace, trackName]);
 
   const onStop = useCallback(async () => {
     try {
       const resp = await stopRace();
       setMessage(
         resp.status === "stopped"
-          ? `Race stopped (scr exit ${resp.scr_exit_code ?? "-"}, torcs exit ${resp.torcs_exit_code ?? "-"}).`
-          : "No active race.",
+          ? "Race stopped. OVERRIDE is returning the simulator to a calm standby state."
+          : "No active race was running.",
       );
     } catch (_error) {
       setMessage(null);
     }
   }, [stopRace]);
+
+  const onRecover = useCallback(async () => {
+    try {
+      await recover();
+      setMessage("Simulator reset complete. TORCS is back in a clean standby state.");
+    } catch (_error) {
+      setMessage(null);
+    }
+  }, [recover]);
 
   if (!hasTorcsSurface()) return null;
 
@@ -105,13 +87,15 @@ export function RaceControlCard() {
   const badge = labelForTorcsState(status.state ?? (status.active ? "active" : "idle"));
   const startDisabled = busy || (status.state !== null && status.state !== "idle");
   const stopEnabled = !busy && isTorcsActiveState(status.state ?? null);
+  const resetEnabled = !busy && status.enabled && status.reachable;
+  const needsAttention = Boolean(status.last_error) || status.state === "cleanup";
 
   return (
     <section
       className="rounded-card border border-border bg-surface p-4"
       aria-label="TORCS race control"
     >
-      <header className="flex items-center justify-between mb-3">
+      <header className="flex items-center justify-between gap-3 mb-3">
         <span className="text-[11px] uppercase tracking-wider text-muted font-mono">
           Race control
         </span>
@@ -120,132 +104,145 @@ export function RaceControlCard() {
 
       {!status.enabled && (
         <p className="text-xs text-muted">
-          Control plane disabled — set <code className="font-mono text-text">TORCS_CONTROL_SECRET</code> in
-          .env and run <code className="font-mono text-text">podman compose --profile torcs up</code> to
-          enable Start/Stop race controls.
+          Control plane disabled. Set <code className="font-mono text-text">TORCS_CONTROL_SECRET</code> in
+          <code className="ml-1 font-mono text-text">.env</code> and run
+          <code className="mx-1 font-mono text-text">podman-compose up override torcs</code>
+          to enable OVERRIDE-owned live capture.
         </p>
       )}
 
       {status.enabled && !status.reachable && (
         <p className="text-xs text-muted">
           {status.starting
-            ? "Control daemon is warming up — TORCS container is still booting (noVNC + uvicorn handshake takes ~90 s on first run)."
+            ? "Control daemon is warming up. The torcs container is still booting its kiosk surface and telemetry services."
             : `Control daemon is unreachable. ${status.detail ?? "Check that the torcs container is still running."}`}
         </p>
       )}
 
       {status.enabled && status.reachable && (
         <>
-          <div className="grid grid-cols-[1fr_auto] gap-2 mb-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-wider text-muted">Track</span>
-              <select
-                value={track}
-                onChange={(e) => setTrack(e.target.value)}
-                disabled={startDisabled}
-                className="px-2 py-1.5 rounded-md border border-border bg-surface text-sm font-mono disabled:opacity-50"
-              >
-                {grouped.recommended.length > 0 && (
-                  <optgroup label="Recommended">
-                    {grouped.recommended.map((t) => (
-                      <option key={t.name} value={t.name}>{t.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-                {Object.entries(grouped.others).map(([cat, ts]) => (
-                  <optgroup key={cat} label={cat}>
-                    {ts.map((t) => (
-                      <option key={t.name} value={t.name}>{t.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-wider text-muted">Laps</span>
-              <input
-                type="number"
-                min={1}
-                max={200}
-                value={laps}
-                onChange={(e) => setLaps(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 1)))}
-                disabled={startDisabled}
-                className="w-20 px-2 py-1.5 rounded-md border border-border bg-surface text-sm font-mono disabled:opacity-50"
-              />
-            </label>
-          </div>
-
-          {/* Phase 2.6 correction: TORCS's `-r` flag is documented as
-              "command line mode" — headless by design. Operator must
-              manually launch TORCS in noVNC for 3D rendering. UI defaults
-              to the manual flow with this checkbox opt-in for headless. */}
-          <label className="flex items-center gap-2 mb-3 text-xs text-muted cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoLaunch}
-              onChange={(e) => setAutoLaunch(e.target.checked)}
-              disabled={startDisabled}
-              className="cursor-pointer"
-            />
-            <span>
-              Headless mode <span className="text-text/60">— skip 3D rendering; faster, ideal for batch capture or CI</span>
-            </span>
-          </label>
-
-          {!autoLaunch && (
-            <details className="mb-3 text-xs text-muted">
-              <summary className="cursor-pointer hover:text-text">
-                Manual TORCS setup — first time only (~30 s)
-              </summary>
-              <ol className="ml-5 mt-2 space-y-1 list-decimal">
-                <li>Open TORCS in the cockpit view (or in a terminal: <code className="font-mono">torcs &amp;</code>)</li>
-                <li>Race → Quick Race → Configure Race</li>
-                <li>Drivers: add <code className="font-mono">scr_server 1</code> and remove the default robot</li>
-                <li>Accept → Accept → <strong>New Race</strong>. The 3D race opens, cars wait at the grid for the SCR client.</li>
-                <li>Click <strong>Start race</strong> here — the SCR client connects, the AI starts driving, telemetry streams.</li>
-              </ol>
-            </details>
+          {(needsAttention || status.state === "stopping") && (
+            <div className="mb-4 rounded-md border border-warning/35 bg-warning/10 px-3 py-2">
+              <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-warning">
+                Recovery
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                {status.last_error
+                  ? status.last_error
+                  : "The simulator is not in a clean standby state. Reset it here instead of dropping to the shell."}
+              </p>
+            </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onStart}
-              disabled={startDisabled}
-              className="px-3 py-1.5 rounded-pill bg-accent text-bg text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Start race
-            </button>
-            <button
-              type="button"
-              onClick={onStop}
-              disabled={!stopEnabled}
-              className="px-3 py-1.5 rounded-pill border border-border bg-surface text-sm hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Stop race
-            </button>
-            {status.session_id && (status.active || status.state === "launching" || status.state === "waiting_scr" || status.state === "connecting") && (
-              <button
-                type="button"
-                onClick={() =>
-                  status.session_id && navigate(`/session/${encodeURIComponent(status.session_id)}`)
-                }
-                className="ml-auto text-xs text-accent hover:underline"
-                title="Open the active session's live-telemetry view"
-              >
-                View live → {status.session_id}
-              </button>
-            )}
-          </div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <div className="space-y-3">
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] uppercase tracking-wider text-muted">Track</span>
+                  <select
+                    value={track}
+                    onChange={(e) => setTrack(e.target.value)}
+                    disabled={startDisabled}
+                    className="px-2 py-1.5 rounded-md border border-border bg-surface text-sm font-mono disabled:opacity-50"
+                  >
+                    {grouped.recommended.length > 0 && (
+                      <optgroup label="Recommended">
+                        {grouped.recommended.map((item) => (
+                          <option key={item.name} value={item.name}>
+                            {item.display_name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {Object.entries(grouped.others).map(([category, items]) => (
+                      <optgroup key={category} label={category}>
+                        {items.map((item) => (
+                          <option key={item.name} value={item.name}>
+                            {item.display_name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] uppercase tracking-wider text-muted">Laps</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={laps}
+                    onChange={(e) =>
+                      setLaps(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 1)))
+                    }
+                    disabled={startDisabled}
+                    className="w-24 px-2 py-1.5 rounded-md border border-border bg-surface text-sm font-mono disabled:opacity-50"
+                  />
+                </label>
+              </div>
 
-          {/* Brief B3: disclosure link to the dedicated cockpit surface.
-              Same-tab navigation; the page itself is full-bleed noVNC. */}
-          <Link
-            to="/cockpit"
-            className="mt-3 inline-block text-xs text-muted hover:text-accent transition-colors"
-          >
-            Open cockpit view ↗
-          </Link>
+              <div className="space-y-1">
+                <span className="text-[11px] uppercase tracking-wider text-muted">Launch mode</span>
+                <div className="inline-flex w-full rounded-pill border border-border bg-surface p-0.5 text-sm">
+                  <ModeButton
+                    active={launchMode === "cockpit_practice"}
+                    label="3D Practice"
+                    description="GUI TORCS in kiosk mode"
+                    onClick={() => setLaunchMode("cockpit_practice")}
+                    disabled={startDisabled}
+                  />
+                  <ModeButton
+                    active={launchMode === "headless_quickrace"}
+                    label="Headless"
+                    description="Fast capture without 3D"
+                    onClick={() => setLaunchMode("headless_quickrace")}
+                    disabled={startDisabled}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-muted">
+                {launchMode === "cockpit_practice"
+                  ? "OVERRIDE owns the supported 3D path here: a direct Practice launch with scr_server 1 plus the configured track and laps."
+                  : "Headless mode keeps the legacy quickrace-style capture path for faster batch runs and smoke checks."}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onStart}
+                  disabled={startDisabled}
+                  className="px-3 py-1.5 rounded-pill bg-accent text-bg text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Start race
+                </button>
+                <button
+                  type="button"
+                  onClick={onRecover}
+                  disabled={!resetEnabled}
+                  className="px-3 py-1.5 rounded-pill border border-border bg-surface text-sm hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Reset simulator
+                </button>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  disabled={!stopEnabled}
+                  className="px-3 py-1.5 rounded-pill border border-border bg-surface text-sm hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Stop race
+                </button>
+                <Link
+                  to="/cockpit"
+                  className="ml-auto text-xs text-accent transition-colors hover:text-text"
+                >
+                  Open cockpit view ↗
+                </Link>
+              </div>
+            </div>
+
+            <TrackPreview track={selectedTrack} />
+          </div>
         </>
       )}
 
@@ -253,6 +250,91 @@ export function RaceControlCard() {
         <p className="mt-3 text-xs text-muted whitespace-pre-line">{error ?? message}</p>
       )}
     </section>
+  );
+}
+
+function TrackPreview({ track }: { track: TorcsTrack | null }) {
+  return (
+    <aside className="rounded-md border border-border bg-surface-2 p-3">
+      <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-muted">
+        Track preview
+      </div>
+      {track?.preview_url ? (
+        <img
+          src={track.preview_url}
+          alt={`${track.display_name} preview`}
+          className="mt-3 aspect-[8/5] w-full rounded-md border border-border object-cover"
+        />
+      ) : track?.map_url ? (
+        <img
+          src={track.map_url}
+          alt={`${track.display_name} map`}
+          className="mt-3 aspect-[8/5] w-full rounded-md border border-border object-contain bg-black/30 p-4"
+        />
+      ) : (
+        <div className="mt-3 flex aspect-[8/5] w-full items-center justify-center rounded-md border border-dashed border-border bg-bg/40 px-4 text-center text-xs text-muted">
+          Track preview will appear here when TORCS exposes background or map assets for this circuit.
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2 text-sm">
+        <div className="font-semibold text-text">{track?.display_name ?? "Standby"}</div>
+        <p className="text-xs text-muted">
+          {track?.description ?? "OVERRIDE uses TORCS track metadata and assets directly so operators can configure races here instead of inside the simulator menus."}
+        </p>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-muted">
+          <MetaItem label="Category" value={track?.category ?? "road"} />
+          <MetaItem label="Author" value={track?.author ?? "—"} />
+          <MetaItem label="Length" value={formatMeasure(track?.length_m, "m")} />
+          <MetaItem label="Width" value={formatMeasure(track?.width_m, "m")} />
+          <MetaItem label="Pits" value={track?.pits != null ? String(track.pits) : "—"} />
+          <MetaItem label="Map asset" value={track?.map_url ? "available" : "—"} />
+        </dl>
+      </div>
+    </aside>
+  );
+}
+
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="font-mono uppercase tracking-wider">{label}</dt>
+      <dd className="text-text">{value}</dd>
+    </>
+  );
+}
+
+function formatMeasure(value: number | null | undefined, unit: string): string {
+  if (value == null) return "—";
+  if (Number.isInteger(value)) return `${value} ${unit}`;
+  return `${value.toFixed(1)} ${unit}`;
+}
+
+function ModeButton({
+  active,
+  label,
+  description,
+  onClick,
+  disabled,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex-1 rounded-pill px-3 py-2 text-left transition-colors disabled:opacity-40 ${
+        active ? "bg-accent text-bg" : "text-muted hover:text-text"
+      }`}
+    >
+      <div className="text-sm font-medium">{label}</div>
+      <div className={`text-[11px] ${active ? "text-bg/80" : "text-muted"}`}>{description}</div>
+    </button>
   );
 }
 

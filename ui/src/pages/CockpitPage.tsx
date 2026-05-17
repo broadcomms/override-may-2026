@@ -26,17 +26,11 @@ export function CockpitPage() {
   const torcsSurface = hasTorcsSurface();
   const {
     status,
-    tracks,
-    track,
-    setTrack,
-    laps,
-    setLaps,
     busy,
     error,
-    startRace,
     stopRace,
+    recover,
   } = useTorcsControl();
-  const [viewMode, setViewMode] = useState<"cockpit" | "headless">("cockpit");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -57,20 +51,6 @@ export function CockpitPage() {
     if (el && el.requestFullscreen) el.requestFullscreen();
   };
 
-  const onStartRace = useCallback(async () => {
-    try {
-      const response = await startRace({ autoLaunchTorcs: viewMode === "headless" });
-      setSessionId(response.session_id);
-      setNotice(
-        viewMode === "headless"
-          ? `Headless capture started on ${response.track} for ${response.laps} laps. Live timing and hybrid energy data will stream as laps complete.`
-          : `3D cockpit capture started on ${response.track} for ${response.laps} laps. Live timing will attach as soon as the first lap closes.`,
-      );
-    } catch (_error) {
-      setNotice(null);
-    }
-  }, [startRace, viewMode]);
-
   const onStopRace = useCallback(async () => {
     try {
       const response = await stopRace();
@@ -84,17 +64,35 @@ export function CockpitPage() {
     }
   }, [stopRace]);
 
+  const onRecover = useCallback(async () => {
+    try {
+      await recover();
+      setNotice("Simulator reset complete. TORCS is back in its standby kiosk surface.");
+    } catch (_error) {
+      setNotice(null);
+    }
+  }, [recover]);
+
+  const viewMode = useMemo<"cockpit" | "headless">(() => {
+    if (
+      status?.launch_mode === "headless_quickrace" &&
+      (status.state === "active" || status.state === "connecting" || status.state === "waiting_scr")
+    ) {
+      return "headless";
+    }
+    return "cockpit";
+  }, [status?.launch_mode, status?.state]);
+
   const surfaceNotice = useMemo(
     () =>
       getSurfaceNotice({
         error,
         notice,
         status,
-        viewMode,
         sessionId,
         streamState: streamState.kind,
       }),
-    [error, notice, status, viewMode, sessionId, streamState.kind],
+    [error, notice, status, sessionId, streamState.kind],
   );
 
   if (!torcsSurface) {
@@ -107,16 +105,8 @@ export function CockpitPage() {
         status={status}
         sessionId={sessionId}
         currentLap={latestLap?.lap ?? 0}
-        targetLaps={laps}
-        track={track}
-        onTrackChange={setTrack}
-        laps={laps}
-        onLapsChange={setLaps}
-        tracks={tracks}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onStartRace={onStartRace}
         onStopRace={onStopRace}
+        onRecover={onRecover}
         onFullscreen={onFullscreen}
         busy={busy}
       />
@@ -157,7 +147,7 @@ export function CockpitPage() {
             latestSnapshot={latestSnapshot}
             latestLap={latestLap}
             streamState={streamState}
-            targetLaps={laps}
+            targetLaps={status?.laps ?? 75}
             raceState={status?.state ?? null}
           />
         </div>
@@ -200,14 +190,12 @@ function getSurfaceNotice({
   error,
   notice,
   status,
-  viewMode,
   sessionId,
   streamState,
 }: {
   error: string | null;
   notice: string | null;
   status: ReturnType<typeof useTorcsControl>["status"];
-  viewMode: "cockpit" | "headless";
   sessionId: string | null;
   streamState: "idle" | "connecting" | "connected" | "no_telemetry" | "error" | "ended";
 }): SurfaceNoticeModel | null {
@@ -285,14 +273,15 @@ function getSurfaceNotice({
   }
 
   if (status?.state === "active" || status?.state === "connecting" || status?.state === "waiting_scr") {
+    const headless = status.launch_mode === "headless_quickrace";
     return {
-      eyebrow: viewMode === "headless" ? "OVERRIDE live capture" : "OVERRIDE live cockpit",
+      eyebrow: headless ? "OVERRIDE live capture" : "OVERRIDE live cockpit",
       title:
         streamState === "connected"
           ? "Race live. OVERRIDE is tracking the run in real time."
           : "Race live. Waiting for the first closed lap to unlock richer guidance.",
       body:
-        viewMode === "headless"
+        headless
           ? "The simulator is running without the 3D cockpit frame, but telemetry, timing, and hybrid energy tracking remain live below."
           : "Keep the simulator in view while OVERRIDE watches for the first closed lap, then upgrades the cockpit with stronger energy signals and debrief-ready context.",
       tone: "accent",
@@ -300,19 +289,14 @@ function getSurfaceNotice({
     };
   }
 
-  if (
-    viewMode === "cockpit" &&
-    status?.enabled &&
-    status?.reachable &&
-    status.state === "idle"
-  ) {
+  if (status?.enabled && status?.reachable && status.state === "idle") {
     return {
       eyebrow: "OVERRIDE cockpit ready",
-      title: "The branded TORCS surface is standing by for the next run.",
+      title: "The simulator is standing by for the next configured Practice run.",
       body:
         sessionId != null
-          ? "The previous session is still available for review. Start another race when you want fresh telemetry, or open the finished debrief to compare outcomes."
-          : "Start a race to begin streaming telemetry. OVERRIDE will keep the simulator visible while the cockpit layers timing, hybrid energy, and post-lap guidance around it.",
+          ? "The previous session is still available for review. Configure the next run from Upload, or open the finished debrief to compare outcomes."
+          : "Configure track, laps, and launch mode from Upload. OVERRIDE will return here for live operations and simulator recovery.",
       tone: "accent",
       sessionLink: sessionId,
     };
