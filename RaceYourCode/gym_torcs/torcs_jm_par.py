@@ -6,6 +6,20 @@ import os
 import time
 import json
 import time as _time  # alias avoids shadowing if local `time` var used elsewhere
+
+try:
+    from RaceYourCode.gym_torcs.driver_config_contract import (
+        DEFAULT_DRIVER_CONFIG,
+        TorcsDriverConfigWire,
+        load_driver_config_from_env,
+    )
+except ImportError:
+    from driver_config_contract import (  # type: ignore[no-redef]
+        DEFAULT_DRIVER_CONFIG,
+        TorcsDriverConfigWire,
+        load_driver_config_from_env,
+    )
+
 PI= 3.14159265359
 
 data_size = 2**17
@@ -500,18 +514,18 @@ def drive_example(c):
 import math
 
 # ================= USER CONFIGURABLE PARAMETERS =================
-TARGET_SPEED = 85  # Safe straight-line cap for the branded demo path.
-MIN_TARGET_SPEED = 35
-STEER_GAIN = 22
-CENTERING_GAIN = 0.35
-TRACK_SENSOR_GAIN = 0.60
-BRAKE_THRESHOLD = 0.55  # Angle threshold for braking. Lower values brake earlier.
-GEAR_SPEEDS = [0, 20, 40, 80, 100, 180]  # Speed thresholds for gear shifting.
-ENABLE_TRACTION_CONTROL = True  # Toggle traction control system.
-OFFTRACK_TRACKPOS = 0.85
-OFFTRACK_ANGLE = 0.60
-RECOVERY_SPEED_KMH = 25
-LAUNCH_GUARD_S = 15
+TARGET_SPEED = DEFAULT_DRIVER_CONFIG.speed.target_speed_kmh  # Safe straight-line cap for the branded demo path.
+MIN_TARGET_SPEED = DEFAULT_DRIVER_CONFIG.speed.min_target_speed_kmh
+STEER_GAIN = DEFAULT_DRIVER_CONFIG.steering.steer_gain
+CENTERING_GAIN = DEFAULT_DRIVER_CONFIG.steering.centering_gain
+TRACK_SENSOR_GAIN = DEFAULT_DRIVER_CONFIG.steering.track_sensor_gain
+BRAKE_THRESHOLD = DEFAULT_DRIVER_CONFIG.braking.angle_threshold_rad  # Angle threshold for braking. Lower values brake earlier.
+GEAR_SPEEDS = DEFAULT_DRIVER_CONFIG.gear.gear_speeds_kmh  # Speed thresholds for gear shifting.
+ENABLE_TRACTION_CONTROL = DEFAULT_DRIVER_CONFIG.traction.enabled  # Toggle traction control system.
+OFFTRACK_TRACKPOS = DEFAULT_DRIVER_CONFIG.recovery.offtrack_trackpos_threshold
+OFFTRACK_ANGLE = DEFAULT_DRIVER_CONFIG.recovery.offtrack_angle_threshold_rad
+RECOVERY_SPEED_KMH = DEFAULT_DRIVER_CONFIG.recovery.recovery_speed_kmh
+LAUNCH_GUARD_S = DEFAULT_DRIVER_CONFIG.launch_guard.duration_s
 
 # ================= HELPER FUNCTIONS =================
 def _track_triplet(S):
@@ -524,72 +538,77 @@ def _track_triplet(S):
     return left, centre, right
 
 
-def calculate_target_speed(S):
+def calculate_target_speed(S, config=DEFAULT_DRIVER_CONFIG):
     triplet = _track_triplet(S)
     if triplet is None:
-        return TARGET_SPEED
+        return config.speed.target_speed_kmh
 
     left, centre, right = triplet
     visible_road = min(left, centre, right)
     curvature = abs(left - right)
 
-    target = MIN_TARGET_SPEED + min(centre, 120.0) * 0.45
-    target -= min(curvature, 80.0) * 0.30
-    target -= max(0.0, 20.0 - visible_road) * 0.50
-    return clip(target, MIN_TARGET_SPEED, TARGET_SPEED)
+    speed_cfg = config.speed
+    target = speed_cfg.min_target_speed_kmh + min(centre, speed_cfg.centre_clamp_m) * speed_cfg.centre_factor
+    target -= min(curvature, speed_cfg.curvature_clamp) * speed_cfg.curvature_penalty
+    target -= max(0.0, speed_cfg.visible_road_threshold_m - visible_road) * speed_cfg.visible_road_penalty
+    return clip(target, speed_cfg.min_target_speed_kmh, speed_cfg.target_speed_kmh)
 
 
-def calculate_steering(S):
-    steer = (S['angle'] * STEER_GAIN / math.pi) - (S['trackPos'] * CENTERING_GAIN)
+def calculate_steering(S, config=DEFAULT_DRIVER_CONFIG):
+    steer_cfg = config.steering
+    steer = (S['angle'] * steer_cfg.steer_gain / math.pi) - (S['trackPos'] * steer_cfg.centering_gain)
     triplet = _track_triplet(S)
     if triplet is not None:
         left, centre, right = triplet
-        steer += ((left - right) / centre) * TRACK_SENSOR_GAIN
+        steer += ((left - right) / centre) * steer_cfg.track_sensor_gain
     return max(-1, min(1, steer))
 
-def calculate_throttle(S, R, target_speed):
+def calculate_throttle(S, R, target_speed, config=DEFAULT_DRIVER_CONFIG):
     speed = float(S.get('speedX', 0.0) or 0.0)
     steer = float(R.get('steer', 0.0) or 0.0)
     accel_now = float(R.get('accel', 0.0) or 0.0)
+    throttle_cfg = config.throttle
 
-    if speed < target_speed - (abs(steer) * 8.0):
-        accel = min(1.0, accel_now + 0.4)
+    if speed < target_speed - (abs(steer) * throttle_cfg.steer_speed_penalty_kmh):
+        accel = min(1.0, accel_now + throttle_cfg.accel_ramp_up)
     else:
-        accel = max(0.0, accel_now - 0.2)
+        accel = max(0.0, accel_now - throttle_cfg.accel_decay)
 
     # Guard against the launch/back-roll trap: the original Gym-TORCS
     # expression used `1 / (speedX + 0.1)`, which becomes sharply negative
     # as soon as the car drifts backward a little. That immediately zeroes
     # throttle, the car keeps rolling backward, and recovery never reaches
     # a stable forward launch.
-    if speed < 10:
-        accel += 1 / (max(speed, 0.0) + 0.1)
+    if speed < throttle_cfg.low_speed_boost_cutoff_kmh:
+        accel += 1 / (max(speed, 0.0) + throttle_cfg.low_speed_boost_denominator_offset)
     return max(0.0, min(1.0, accel))
 
-def apply_brakes(S, target_speed):
+def apply_brakes(S, target_speed, config=DEFAULT_DRIVER_CONFIG):
     speed = float(S.get('speedX', 0.0) or 0.0)
     angle = abs(float(S.get('angle', 0.0) or 0.0))
     track_pos = abs(float(S.get('trackPos', 0.0) or 0.0))
+    braking_cfg = config.braking
 
-    if speed > target_speed + 12:
-        return clip((speed - target_speed) / 35.0, 0.0, 0.7)
-    if angle > BRAKE_THRESHOLD and speed > 45:
-        return 0.3
-    if track_pos > 0.6 and speed > 30:
-        return 0.4
+    if speed > target_speed + braking_cfg.overspeed_margin_kmh:
+        return clip((speed - target_speed) / braking_cfg.overspeed_divisor_kmh, 0.0, braking_cfg.overspeed_cap)
+    if angle > braking_cfg.angle_threshold_rad and speed > braking_cfg.angle_min_speed_kmh:
+        return braking_cfg.angle_brake_force
+    if track_pos > braking_cfg.track_pos_threshold and speed > braking_cfg.track_pos_min_speed_kmh:
+        return braking_cfg.track_pos_brake_force
     return 0.0
 
-def shift_gears(S):
+def shift_gears(S, config=DEFAULT_DRIVER_CONFIG):
     gear = 1
-    for i, speed in enumerate(GEAR_SPEEDS):
+    for i, speed in enumerate(config.gear.gear_speeds_kmh):
         if S['speedX'] > speed:
             gear = i + 1
     return min(gear, 6)
 
-def traction_control(S, accel):
-    if ENABLE_TRACTION_CONTROL:
-        if ((S['wheelSpinVel'][2] + S['wheelSpinVel'][3]) - (S['wheelSpinVel'][0] + S['wheelSpinVel'][1])) > 2:
-            accel -= 0.1
+def traction_control(S, accel, config=DEFAULT_DRIVER_CONFIG):
+    traction_cfg = config.traction
+    if traction_cfg.enabled:
+        if ((S['wheelSpinVel'][2] + S['wheelSpinVel'][3]) - (S['wheelSpinVel'][0] + S['wheelSpinVel'][1])) > traction_cfg.slip_threshold:
+            accel -= traction_cfg.accel_cut
     return max(0.0, accel)
 
 
@@ -603,7 +622,7 @@ def derive_max_steps(laps):
     return max(DEFAULT_MAX_STEPS, lap_count * STEPS_PER_LAP_BUDGET)
 
 
-def apply_launch_guard(S, R):
+def apply_launch_guard(S, R, config=DEFAULT_DRIVER_CONFIG):
     """Keep the opening seconds biased toward a clean forward launch.
 
     In the failing cockpit_practice runs, TORCS was letting the car drift
@@ -620,24 +639,26 @@ def apply_launch_guard(S, R):
     track_pos = float(S.get('trackPos', 0.0) or 0.0)
     angle = float(S.get('angle', 0.0) or 0.0)
     damage = float(S.get('damage', 0.0) or 0.0)
+    launch_cfg = config.launch_guard
 
-    if cur_lap_time < 0 or cur_lap_time > LAUNCH_GUARD_S:
+    if cur_lap_time < 0 or cur_lap_time > launch_cfg.duration_s:
         return False
     if damage > 0:
         return False
     if speed >= 0:
         return False
-    if abs(track_pos) > 0.5 or abs(angle) > 0.8:
+    if abs(track_pos) > launch_cfg.track_pos_limit or abs(angle) > launch_cfg.angle_limit_rad:
         return False
 
     R['gear'] = 1
     R['accel'] = 1.0
     R['brake'] = 0.0
-    R['steer'] = clip((-angle * 0.25) - (track_pos * 0.10), -0.35, 0.35)
+    steer_cmd = (angle * launch_cfg.steer_angle_gain) + (track_pos * launch_cfg.steer_track_pos_gain)
+    R['steer'] = clip(steer_cmd, -launch_cfg.steer_clip, launch_cfg.steer_clip)
     return True
 
 
-def apply_recovery(S, R):
+def apply_recovery(S, R, config=DEFAULT_DRIVER_CONFIG):
     """Recover from wall/off-track states before TORCS times out the client.
 
     The live probe showed the demo driver getting pinned near the wall with
@@ -655,62 +676,77 @@ def apply_recovery(S, R):
     speed = float(S.get('speedX', 0.0) or 0.0)
     stuck = float(S.get('stucktimer', 0.0) or 0.0)
     damage = float(S.get('damage', 0.0) or 0.0)
+    recovery_cfg = config.recovery
 
-    if apply_launch_guard(S, R):
+    if apply_launch_guard(S, R, config=config):
         return True
 
     needs_recovery = (
-        abs(track_pos) > OFFTRACK_TRACKPOS
-        or (abs(angle) > OFFTRACK_ANGLE and speed < 20)
-        or stuck > 20
+        abs(track_pos) > recovery_cfg.offtrack_trackpos_threshold
+        or (abs(angle) > recovery_cfg.offtrack_angle_threshold_rad and speed < recovery_cfg.angle_recovery_speed_cap_kmh)
+        or stuck > recovery_cfg.stuck_time_threshold_s
         or damage > 0
     )
     if not needs_recovery:
         return False
 
-    steer_back = clip((-angle * 0.8) - (track_pos * 0.8), -1, 1)
-    if speed > RECOVERY_SPEED_KMH:
+    steer_back = clip(
+        (angle * recovery_cfg.steer_back_angle_gain) + (track_pos * recovery_cfg.steer_back_track_pos_gain),
+        -1,
+        1,
+    )
+    if speed > recovery_cfg.recovery_speed_kmh:
         R['gear'] = max(1, int(R.get('gear', 1)))
         R['accel'] = 0.0
-        R['brake'] = 0.6
+        R['brake'] = recovery_cfg.high_speed_brake_force
         R['steer'] = steer_back
         return True
 
-    if damage > 0 and abs(speed) < 2:
+    if damage > 0 and abs(speed) < recovery_cfg.damaged_reverse_speed_threshold_kmh:
         R['gear'] = -1
-        R['accel'] = 0.2
+        R['accel'] = recovery_cfg.damaged_reverse_accel
         R['brake'] = 0.0
-        R['steer'] = clip(angle + (track_pos * 0.35), -0.7, 0.7)
+        R['steer'] = clip(
+            angle + (track_pos * recovery_cfg.damaged_reverse_track_pos_gain),
+            -recovery_cfg.damaged_reverse_steer_clip,
+            recovery_cfg.damaged_reverse_steer_clip,
+        )
         return True
 
-    if speed < -2 and damage <= 0:
+    if speed < recovery_cfg.backward_relaunch_speed_threshold_kmh and damage <= 0:
         R['gear'] = 1
-        R['accel'] = 0.8
+        R['accel'] = recovery_cfg.backward_relaunch_accel
         R['brake'] = 0.0
-        R['steer'] = clip((-angle * 0.35) - (track_pos * 0.15), -0.5, 0.5)
+        R['steer'] = clip(
+            (angle * recovery_cfg.backward_relaunch_angle_gain)
+            + (track_pos * recovery_cfg.backward_relaunch_track_pos_gain),
+            -recovery_cfg.backward_relaunch_steer_clip,
+            recovery_cfg.backward_relaunch_steer_clip,
+        )
         return True
 
     R['gear'] = 1
-    R['accel'] = 0.2
-    R['brake'] = 0.1
+    R['accel'] = recovery_cfg.fallback_accel
+    R['brake'] = recovery_cfg.fallback_brake
     R['steer'] = steer_back
     return True
 
 # ================= MAIN DRIVE FUNCTION =================
-def drive_modular(c):
+def drive_modular(c, config=DEFAULT_DRIVER_CONFIG):
     S, R = c.S.d, c.R.d
-    target_speed = calculate_target_speed(S)
-    R['steer'] = calculate_steering(S)
-    R['accel'] = calculate_throttle(S, R, target_speed)
-    R['brake'] = apply_brakes(S, target_speed)
-    R['accel'] = traction_control(S, R['accel'])
-    R['gear'] = shift_gears(S)
-    if apply_recovery(S, R):
+    target_speed = calculate_target_speed(S, config=config)
+    R['steer'] = calculate_steering(S, config=config)
+    R['accel'] = calculate_throttle(S, R, target_speed, config=config)
+    R['brake'] = apply_brakes(S, target_speed, config=config)
+    R['accel'] = traction_control(S, R['accel'], config=config)
+    R['gear'] = shift_gears(S, config=config)
+    if apply_recovery(S, R, config=config):
         return
     return
 
 # ================= MAIN LOOP =================
 if __name__ == "__main__":
+    runtime_config = load_driver_config_from_env()
     C = Client(p=3001)
     C.maxSteps = derive_max_steps(os.environ.get("OVERRIDE_LAPS"))
     # OVERRIDE telemetry logger — env-gated (set OVERRIDE_LOG_TELEMETRY to a
@@ -754,7 +790,7 @@ if __name__ == "__main__":
             C.get_servers_input()
             if C.so is None:
                 break
-            drive_modular(C)
+            drive_modular(C, config=runtime_config)
             if _override_fh is not None:
                 try:
                     _override_fh.write(json.dumps({

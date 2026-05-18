@@ -153,6 +153,133 @@ export interface Recommendation {
 
 export type SessionSourceKind = "upload" | "torcs_live";
 export type SessionStatusKind = "completed" | "active" | "cancelled";
+export type DriverProfileOrigin = "shipped_default" | "user_saved" | "session_snapshot";
+
+export interface TorcsDriverSpeedConfig {
+  target_speed_kmh: number;
+  min_target_speed_kmh: number;
+  centre_clamp_m: number;
+  centre_factor: number;
+  curvature_clamp: number;
+  curvature_penalty: number;
+  visible_road_threshold_m: number;
+  visible_road_penalty: number;
+}
+
+export interface TorcsDriverSteeringConfig {
+  steer_gain: number;
+  centering_gain: number;
+  track_sensor_gain: number;
+}
+
+export interface TorcsDriverThrottleConfig {
+  steer_speed_penalty_kmh: number;
+  accel_ramp_up: number;
+  accel_decay: number;
+  low_speed_boost_cutoff_kmh: number;
+  low_speed_boost_denominator_offset: number;
+}
+
+export interface TorcsDriverBrakingConfig {
+  overspeed_margin_kmh: number;
+  overspeed_divisor_kmh: number;
+  overspeed_cap: number;
+  angle_threshold_rad: number;
+  angle_min_speed_kmh: number;
+  angle_brake_force: number;
+  track_pos_threshold: number;
+  track_pos_min_speed_kmh: number;
+  track_pos_brake_force: number;
+}
+
+export interface TorcsDriverGearConfig {
+  gear_speeds_kmh: number[];
+}
+
+export interface TorcsDriverTractionConfig {
+  enabled: boolean;
+  slip_threshold: number;
+  accel_cut: number;
+}
+
+export interface TorcsDriverLaunchGuardConfig {
+  duration_s: number;
+  track_pos_limit: number;
+  angle_limit_rad: number;
+  steer_angle_gain: number;
+  steer_track_pos_gain: number;
+  steer_clip: number;
+}
+
+export interface TorcsDriverRecoveryConfig {
+  offtrack_trackpos_threshold: number;
+  offtrack_angle_threshold_rad: number;
+  angle_recovery_speed_cap_kmh: number;
+  stuck_time_threshold_s: number;
+  recovery_speed_kmh: number;
+  steer_back_angle_gain: number;
+  steer_back_track_pos_gain: number;
+  high_speed_brake_force: number;
+  damaged_reverse_speed_threshold_kmh: number;
+  damaged_reverse_accel: number;
+  damaged_reverse_track_pos_gain: number;
+  damaged_reverse_steer_clip: number;
+  backward_relaunch_speed_threshold_kmh: number;
+  backward_relaunch_accel: number;
+  backward_relaunch_angle_gain: number;
+  backward_relaunch_track_pos_gain: number;
+  backward_relaunch_steer_clip: number;
+  fallback_accel: number;
+  fallback_brake: number;
+}
+
+export interface TorcsDriverConfigWire {
+  speed: TorcsDriverSpeedConfig;
+  steering: TorcsDriverSteeringConfig;
+  throttle: TorcsDriverThrottleConfig;
+  braking: TorcsDriverBrakingConfig;
+  gear: TorcsDriverGearConfig;
+  traction: TorcsDriverTractionConfig;
+  launch_guard: TorcsDriverLaunchGuardConfig;
+  recovery: TorcsDriverRecoveryConfig;
+}
+
+export interface TorcsDriverProfileSummary {
+  profile_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  origin: DriverProfileOrigin;
+  read_only: boolean;
+}
+
+export interface TorcsDriverProfile {
+  profile_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  origin: DriverProfileOrigin;
+  config: TorcsDriverConfigWire;
+  read_only: boolean;
+}
+
+export interface TorcsDriverProfilesResponse {
+  profiles: TorcsDriverProfileSummary[];
+}
+
+export interface TorcsDriverConfigSnapshot {
+  driver_profile_id: string;
+  driver_profile_name: string;
+  driver_profile_origin: DriverProfileOrigin;
+  config: TorcsDriverConfigWire;
+}
+
+export interface TorcsDriverConfigValidateResponse {
+  valid: true;
+  config: TorcsDriverConfigWire;
+}
 
 export interface SessionSummary {
   session_id: string;
@@ -171,6 +298,9 @@ export interface SessionSummary {
   started_at: string | null;     // ISO-8601
   completed_at: string | null;   // ISO-8601
   telemetry_file: string | null;
+  driver_profile_id: string | null;
+  driver_profile_name: string | null;
+  driver_profile_origin: DriverProfileOrigin | null;
 }
 
 export interface SessionListResponse {
@@ -298,6 +428,7 @@ export interface TorcsStartRaceParams {
   laps?: number;           // default 75 — long-run demo default
   track_name?: string;     // free-form, ≤80 chars
   notes?: string;          // free-form, ≤500 chars
+  driver_profile_id?: string;
   launch_mode?: TorcsLaunchMode;
   auto_launch_torcs?: boolean;  // backward-compatible shim for older callers
 }
@@ -310,6 +441,8 @@ export interface TorcsStartRaceResponse {
   laps: number;
   track_name_hint?: string | null;   // OVERRIDE-side echo (optional)
   notes_hint?: string | null;
+  driver_profile_id_hint?: string | null;
+  driver_profile_name_hint?: string | null;
   launch_mode?: TorcsLaunchMode | null;
   torcs_pid?: number | null;         // Phase 2.5 — populated when auto_launch=true
   state?: TorcsRaceState | null;     // Phase 2.5 — daemon state after launch (usually "active")
@@ -339,6 +472,7 @@ export interface Session {
   forecast: Forecast | null;
   recommendations: Recommendation[];
   regulation_source: RegulationSource | null;
+  driver_config_snapshot: TorcsDriverConfigSnapshot | null;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -353,7 +487,13 @@ export type ErrorCode =
   | "MODEL_UNAVAILABLE"
   | "RATE_LIMITED"
   | "NOT_FOUND"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "CONTROL_DISABLED"
+  | "CONTROL_UNREACHABLE"
+  | "CONTROL_FAILED"
+  | "RACE_ACTIVE"
+  | "READ_ONLY_PROFILE"
+  | "PERSISTENCE_FAILED";
 
 export interface ApiError {
   error_code: ErrorCode;

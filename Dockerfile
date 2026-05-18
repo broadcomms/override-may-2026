@@ -78,6 +78,9 @@ COPY core/ ./core/
 COPY ingest/ ./ingest/
 COPY analysis/ ./analysis/
 COPY api/ ./api/
+COPY torcs_driver_profiles.py ./
+COPY config/torcs_driver_profiles/ ./config/torcs_driver_profiles/
+COPY RaceYourCode/gym_torcs/driver_config_contract.py ./RaceYourCode/gym_torcs/driver_config_contract.py
 COPY prompts/ ./prompts/
 COPY guardian/ ./guardian/
 COPY data/regs/extracted_chunks.sample.json ./data/regs/extracted_chunks.sample.json

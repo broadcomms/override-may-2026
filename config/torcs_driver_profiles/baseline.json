@@ -1,0 +1,80 @@
+{
+  "profile_id": "baseline",
+  "name": "Baseline Demo Driver",
+  "description": "Shipped baseline profile matching the current live managed TORCS driver behavior.",
+  "created_at": "2026-05-17T00:00:00+00:00",
+  "updated_at": "2026-05-17T00:00:00+00:00",
+  "origin": "shipped_default",
+  "config": {
+    "speed": {
+      "target_speed_kmh": 85.0,
+      "min_target_speed_kmh": 35.0,
+      "centre_clamp_m": 120.0,
+      "centre_factor": 0.45,
+      "curvature_clamp": 80.0,
+      "curvature_penalty": 0.3,
+      "visible_road_threshold_m": 20.0,
+      "visible_road_penalty": 0.5
+    },
+    "steering": {
+      "steer_gain": 22.0,
+      "centering_gain": 0.35,
+      "track_sensor_gain": 0.6
+    },
+    "throttle": {
+      "steer_speed_penalty_kmh": 8.0,
+      "accel_ramp_up": 0.4,
+      "accel_decay": 0.2,
+      "low_speed_boost_cutoff_kmh": 10.0,
+      "low_speed_boost_denominator_offset": 0.1
+    },
+    "braking": {
+      "overspeed_margin_kmh": 12.0,
+      "overspeed_divisor_kmh": 35.0,
+      "overspeed_cap": 0.7,
+      "angle_threshold_rad": 0.55,
+      "angle_min_speed_kmh": 45.0,
+      "angle_brake_force": 0.3,
+      "track_pos_threshold": 0.6,
+      "track_pos_min_speed_kmh": 30.0,
+      "track_pos_brake_force": 0.4
+    },
+    "gear": {
+      "gear_speeds_kmh": [0.0, 20.0, 40.0, 80.0, 100.0, 180.0]
+    },
+    "traction": {
+      "enabled": true,
+      "slip_threshold": 2.0,
+      "accel_cut": 0.1
+    },
+    "launch_guard": {
+      "duration_s": 15.0,
+      "track_pos_limit": 0.5,
+      "angle_limit_rad": 0.8,
+      "steer_angle_gain": -0.25,
+      "steer_track_pos_gain": -0.1,
+      "steer_clip": 0.35
+    },
+    "recovery": {
+      "offtrack_trackpos_threshold": 0.85,
+      "offtrack_angle_threshold_rad": 0.6,
+      "angle_recovery_speed_cap_kmh": 20.0,
+      "stuck_time_threshold_s": 20.0,
+      "recovery_speed_kmh": 25.0,
+      "steer_back_angle_gain": -0.8,
+      "steer_back_track_pos_gain": -0.8,
+      "high_speed_brake_force": 0.6,
+      "damaged_reverse_speed_threshold_kmh": 2.0,
+      "damaged_reverse_accel": 0.2,
+      "damaged_reverse_track_pos_gain": 0.35,
+      "damaged_reverse_steer_clip": 0.7,
+      "backward_relaunch_speed_threshold_kmh": -2.0,
+      "backward_relaunch_accel": 0.8,
+      "backward_relaunch_angle_gain": -0.35,
+      "backward_relaunch_track_pos_gain": -0.15,
+      "backward_relaunch_steer_clip": 0.5,
+      "fallback_accel": 0.2,
+      "fallback_brake": 0.1
+    }
+  }
+}

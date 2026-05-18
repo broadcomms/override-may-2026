@@ -7,6 +7,8 @@ import { isTorcsActiveState, labelForTorcsState } from "@/hooks/useTorcsControl"
 interface Props {
   status: TorcsControlStatus | null;
   sessionId: string | null;
+  driverProfileName: string | null;
+  driverProfileOrigin: string | null;
   currentLap: number;
   onStopRace: () => void;
   onFullscreen: () => void;
@@ -16,6 +18,8 @@ interface Props {
 export function CockpitCommandStrip({
   status,
   sessionId,
+  driverProfileName,
+  driverProfileOrigin,
   currentLap,
   onStopRace,
   onFullscreen,
@@ -49,6 +53,11 @@ export function CockpitCommandStrip({
         />
         <MetaPill label="Closed lap" value={lapLabel} />
         <MetaPill label="Track" value={status?.track ?? "aalborg"} />
+        <MetaPill
+          label="Profile"
+          value={driverProfileName ?? "baseline"}
+          title={driverProfileOrigin ? driverProfileOrigin.replace(/_/g, " ") : "Launch profile provenance unavailable"}
+        />
         <MetaPill label="Mode" value={modeLabel} />
         <button
           type="button"

@@ -96,6 +96,16 @@ function SidePanel({ label, session, partner }: SidePanelProps) {
         <dt className="text-muted">Track</dt>
         <dd>{s.track_name ?? s.track_id ?? "—"}</dd>
 
+        <dt className="text-muted">Driver profile</dt>
+        <dd>
+          {session.driver_config_snapshot?.driver_profile_name ?? s.driver_profile_name ?? "—"}
+          {(session.driver_config_snapshot?.driver_profile_origin ?? s.driver_profile_origin) && (
+            <span className="ml-2 text-[10px] uppercase tracking-wider text-muted">
+              {(session.driver_config_snapshot?.driver_profile_origin ?? s.driver_profile_origin)?.replace(/_/g, " ")}
+            </span>
+          )}
+        </dd>
+
         <dt className="text-muted">Uploaded</dt>
         <dd>{formatTs(s.uploaded_at)}</dd>
 

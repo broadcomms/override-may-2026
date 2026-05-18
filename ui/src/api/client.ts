@@ -45,6 +45,10 @@ import type {
   SessionListParams,
   SessionListResponse,
   SessionSummary,
+  TorcsDriverConfigValidateResponse,
+  TorcsDriverConfigWire,
+  TorcsDriverProfile,
+  TorcsDriverProfilesResponse,
   TorcsControlStatus,
   TorcsRecoverResponse,
   TorcsStartRaceParams,
@@ -162,6 +166,9 @@ function layeredDefenseSession(): Session {
     started_at: null,
     completed_at: null,
     telemetry_file: null,
+    driver_profile_id: null,
+    driver_profile_name: null,
+    driver_profile_origin: null,
   };
   const reg = recommendation.reasoning.regulation_citation;
   return {
@@ -170,6 +177,7 @@ function layeredDefenseSession(): Session {
     forecast: null,
     recommendations: [recommendation],
     regulation_source: reg ? reg.source : null,
+    driver_config_snapshot: null,
   };
 }
 
@@ -604,6 +612,117 @@ export const api = {
     return jsonFetch<TorcsTracksResponse>("/api/torcs/tracks", { signal: opts?.signal });
   },
 
+  async listTorcsDriverProfiles(opts?: ApiOpts): Promise<TorcsDriverProfilesResponse> {
+    if (resolveFixture(opts)) {
+      return { profiles: [] };
+    }
+    return jsonFetch<TorcsDriverProfilesResponse>("/api/torcs/driver-profiles", {
+      signal: opts?.signal,
+    });
+  },
+
+  async getTorcsDriverProfile(profileId: string, opts?: ApiOpts): Promise<TorcsDriverProfile> {
+    if (resolveFixture(opts)) {
+      throw new Error("Driver profiles are unavailable in fixture mode.");
+    }
+    return jsonFetch<TorcsDriverProfile>(
+      `/api/torcs/driver-profiles/${encodeURIComponent(profileId)}`,
+      { signal: opts?.signal },
+    );
+  },
+
+  async validateTorcsDriverConfig(
+    config: TorcsDriverConfigWire,
+    opts?: ApiOpts,
+  ): Promise<TorcsDriverConfigValidateResponse> {
+    if (resolveFixture(opts)) {
+      return { valid: true, config };
+    }
+    return jsonFetch<TorcsDriverConfigValidateResponse>("/api/torcs/driver-profiles/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config }),
+      signal: opts?.signal,
+    });
+  },
+
+  async createTorcsDriverProfile(
+    payload: { name: string; description?: string | null; config: TorcsDriverConfigWire },
+    opts?: ApiOpts,
+  ): Promise<TorcsDriverProfile> {
+    if (resolveFixture(opts)) {
+      throw new Error("Driver profiles are unavailable in fixture mode.");
+    }
+    return jsonFetch<TorcsDriverProfile>("/api/torcs/driver-profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: opts?.signal,
+    });
+  },
+
+  async updateTorcsDriverProfile(
+    profileId: string,
+    payload: { name?: string; description?: string | null; config?: TorcsDriverConfigWire },
+    opts?: ApiOpts,
+  ): Promise<TorcsDriverProfile> {
+    if (resolveFixture(opts)) {
+      throw new Error("Driver profiles are unavailable in fixture mode.");
+    }
+    return jsonFetch<TorcsDriverProfile>(
+      `/api/torcs/driver-profiles/${encodeURIComponent(profileId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: opts?.signal,
+      },
+    );
+  },
+
+  async duplicateTorcsDriverProfile(
+    profileId: string,
+    payload: { name?: string; description?: string | null } = {},
+    opts?: ApiOpts,
+  ): Promise<TorcsDriverProfile> {
+    if (resolveFixture(opts)) {
+      throw new Error("Driver profiles are unavailable in fixture mode.");
+    }
+    return jsonFetch<TorcsDriverProfile>(
+      `/api/torcs/driver-profiles/${encodeURIComponent(profileId)}/duplicate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: opts?.signal,
+      },
+    );
+  },
+
+  async deleteTorcsDriverProfile(profileId: string, opts?: ApiOpts): Promise<void> {
+    if (resolveFixture(opts)) {
+      throw new Error("Driver profiles are unavailable in fixture mode.");
+    }
+    const res = await fetch(`/api/torcs/driver-profiles/${encodeURIComponent(profileId)}`, {
+      method: "DELETE",
+      signal: opts?.signal,
+    });
+    if (!res.ok && res.status !== 204) {
+      let payload: ApiError;
+      try {
+        payload = (await res.json()) as ApiError;
+      } catch {
+        payload = {
+          error_code: "INTERNAL_ERROR",
+          message: `HTTP ${res.status}`,
+          detail: null,
+          request_id: "unknown",
+        };
+      }
+      throw new OverrideApiError(res.status, payload);
+    }
+  },
+
   async startTorcsRace(
     params: TorcsStartRaceParams = {},
     opts?: ApiOpts,
@@ -619,6 +738,7 @@ export const api = {
         laps: params.laps ?? 75,
         track_name: params.track_name ?? null,
         notes: params.notes ?? null,
+        driver_profile_id: params.driver_profile_id ?? "baseline",
         launch_mode:
           params.launch_mode
           ?? (params.auto_launch_torcs ? "headless_quickrace" : "cockpit_practice"),

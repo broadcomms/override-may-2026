@@ -7,6 +7,7 @@ Layout under `data/sessions/`:
   data/sessions/{session_id}/forecast.json  — `Forecast` (optional)
   data/sessions/{session_id}/recommendations.json — list[Recommendation]
   data/sessions/{session_id}/regulation_source.json — RegulationSource (optional)
+    data/sessions/{session_id}/driver_config.json — TorcsDriverConfigSnapshot (optional)
 
 No DB. Sessions are keyed by their `session_id` slug. Original uploaded
 files are NOT retained after parsing — only derived artifacts.
@@ -31,6 +32,7 @@ from ingest.schema import (
     RegulationSource,
     Session,
     SessionSummary,
+    TorcsDriverConfigSnapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,11 @@ def save_session(session: Session, *, root: Optional[Path] = None) -> Path:
     if session.regulation_source is not None:
         (base / "regulation_source.json").write_text(
             json.dumps(session.regulation_source.model_dump(mode="json"), indent=2)
+        )
+
+    if session.driver_config_snapshot is not None:
+        (base / "driver_config.json").write_text(
+            json.dumps(session.driver_config_snapshot.model_dump(mode="json"), indent=2)
         )
 
     _update_index(session.summary, root=root)
@@ -166,12 +173,18 @@ def load_session(session_id: str, *, root: Optional[Path] = None) -> Optional[Se
     if rs_path.exists():
         regulation_source = RegulationSource.model_validate_json(rs_path.read_text())
 
+    driver_config_snapshot: Optional[TorcsDriverConfigSnapshot] = None
+    dcfg_path = base / "driver_config.json"
+    if dcfg_path.exists():
+        driver_config_snapshot = TorcsDriverConfigSnapshot.model_validate_json(dcfg_path.read_text())
+
     return Session(
         summary=summary,
         laps=laps,
         forecast=forecast,
         recommendations=recommendations,
         regulation_source=regulation_source,
+        driver_config_snapshot=driver_config_snapshot,
     )
 
 

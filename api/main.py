@@ -67,6 +67,26 @@ from core.forecasting import forecast_lap_window
 from core.guardian import WatsonxAIGuardianClient, WatsonxGuardianClient
 from core.llm_clients import OllamaChatClient, probe_ollama_reachable
 from core.pipeline import run_pipeline
+from torcs_driver_profiles import (
+    DEFAULT_DRIVER_PROFILE_ID,
+    DriverProfileNotFoundError,
+    DriverProfileReadOnlyError,
+    TorcsDriverConfigSnapshot,
+    TorcsDriverProfile,
+    TorcsDriverProfileCreate,
+    TorcsDriverProfileDuplicateRequest,
+    TorcsDriverProfileSummary,
+    TorcsDriverProfileUpdate,
+    build_driver_config_snapshot,
+    create_driver_profile,
+    delete_driver_profile,
+    duplicate_driver_profile,
+    list_driver_profiles,
+    load_driver_profile,
+    resolve_driver_profile,
+    update_driver_profile,
+    validate_driver_profile_config,
+)
 from core.reasoning import WatsonxAIChatClient, WatsonxChatClient
 from core.regs import (
     DEFAULT_CHUNKS_PATH,
@@ -87,6 +107,7 @@ from ingest.schema import (
     WhatIfRequest,
     WhatIfResult,
 )
+from RaceYourCode.gym_torcs.driver_config_contract import TorcsDriverConfigWire
 
 from .errors import api_error, map_watsonx_exception, new_request_id
 from .observability import setup_tracing
@@ -260,6 +281,11 @@ class TorcsStartRaceRequest(BaseModel):
     laps: int = Field(default=75, ge=1, le=200)
     track_name: Optional[str] = Field(default=None, max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
+    driver_profile_id: str = Field(
+        default=DEFAULT_DRIVER_PROFILE_ID,
+        pattern=r"^[a-z0-9_-]+$",
+        max_length=80,
+    )
     launch_mode: Optional[Literal["cockpit_practice", "headless_quickrace"]] = None
     auto_launch_torcs: bool = Field(
         default=False,
@@ -311,6 +337,19 @@ class TorcsTrack(BaseModel):
 
 class TorcsTracksResponse(BaseModel):
     tracks: list[TorcsTrack]
+
+
+class TorcsDriverProfilesResponse(BaseModel):
+    profiles: list[TorcsDriverProfileSummary]
+
+
+class TorcsDriverConfigValidateRequest(BaseModel):
+    config: TorcsDriverConfigWire
+
+
+class TorcsDriverConfigValidateResponse(BaseModel):
+    valid: Literal[True] = True
+    config: TorcsDriverConfigWire
 
 
 class LiveLapStats(BaseModel):
@@ -1209,6 +1248,102 @@ def create_app() -> FastAPI:
             )
         return TorcsTracksResponse(tracks=out)
 
+    @app.get("/api/torcs/driver-profiles", response_model=TorcsDriverProfilesResponse)
+    async def torcs_driver_profiles_list():
+        return TorcsDriverProfilesResponse(profiles=list_driver_profiles())
+
+    @app.post(
+        "/api/torcs/driver-profiles/validate",
+        response_model=TorcsDriverConfigValidateResponse,
+    )
+    async def torcs_driver_profiles_validate(req: TorcsDriverConfigValidateRequest):
+        return TorcsDriverConfigValidateResponse(config=validate_driver_profile_config(req.config))
+
+    @app.post(
+        "/api/torcs/driver-profiles",
+        response_model=TorcsDriverProfile,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def torcs_driver_profiles_create(req: TorcsDriverProfileCreate):
+        return create_driver_profile(req)
+
+    @app.post(
+        "/api/torcs/driver-profiles/{profile_id}/duplicate",
+        response_model=TorcsDriverProfile,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def torcs_driver_profiles_duplicate(
+        req: TorcsDriverProfileDuplicateRequest,
+        profile_id: str = PathParam(..., pattern=r"^[a-z0-9_-]+$"),
+    ):
+        try:
+            return duplicate_driver_profile(profile_id, req)
+        except DriverProfileNotFoundError:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Driver profile {profile_id!r} not found.",
+                request_id=new_request_id(),
+            )
+
+    @app.get("/api/torcs/driver-profiles/{profile_id}", response_model=TorcsDriverProfile)
+    async def torcs_driver_profiles_get(
+        profile_id: str = PathParam(..., pattern=r"^[a-z0-9_-]+$"),
+    ):
+        profile = load_driver_profile(profile_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Driver profile {profile_id!r} not found.",
+                request_id=new_request_id(),
+            )
+        return profile
+
+    @app.patch("/api/torcs/driver-profiles/{profile_id}", response_model=TorcsDriverProfile)
+    async def torcs_driver_profiles_patch(
+        req: TorcsDriverProfileUpdate,
+        profile_id: str = PathParam(..., pattern=r"^[a-z0-9_-]+$"),
+    ):
+        try:
+            return update_driver_profile(profile_id, req)
+        except DriverProfileNotFoundError:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Driver profile {profile_id!r} not found.",
+                request_id=new_request_id(),
+            )
+        except DriverProfileReadOnlyError:
+            raise api_error(
+                status_code=status.HTTP_409_CONFLICT,
+                error_code="READ_ONLY_PROFILE",
+                message=f"Driver profile {profile_id!r} is read-only.",
+                request_id=new_request_id(),
+            )
+
+    @app.delete("/api/torcs/driver-profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def torcs_driver_profiles_delete(
+        profile_id: str = PathParam(..., pattern=r"^[a-z0-9_-]+$"),
+    ):
+        try:
+            delete_driver_profile(profile_id)
+        except DriverProfileNotFoundError:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Driver profile {profile_id!r} not found.",
+                request_id=new_request_id(),
+            )
+        except DriverProfileReadOnlyError:
+            raise api_error(
+                status_code=status.HTTP_409_CONFLICT,
+                error_code="READ_ONLY_PROFILE",
+                message=f"Driver profile {profile_id!r} is read-only.",
+                request_id=new_request_id(),
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     @app.post("/api/torcs/start-race", status_code=status.HTTP_201_CREATED)
     async def torcs_start_race(req: TorcsStartRaceRequest):
         """Generate a session_id, ask the daemon to spawn gym_torcs.
@@ -1233,6 +1368,37 @@ def create_app() -> FastAPI:
             launch_mode = "headless_quickrace" if req.auto_launch_torcs else "cockpit_practice"
 
         try:
+            driver_profile = resolve_driver_profile(req.driver_profile_id)
+        except DriverProfileNotFoundError:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Driver profile {req.driver_profile_id!r} not found.",
+                request_id=new_request_id(),
+            )
+
+        driver_config_snapshot = build_driver_config_snapshot(driver_profile)
+
+        try:
+            _create_torcs_live_stub_session(
+                session_id=session_id,
+                telemetry_filename=telemetry_filename,
+                track_name=req.track_name,
+                target_laps=req.laps,
+                notes=req.notes,
+                started_at=started_at,
+                driver_config_snapshot=driver_config_snapshot,
+            )
+        except Exception as exc:
+            raise api_error(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="PERSISTENCE_FAILED",
+                message="OVERRIDE could not persist the live session contract before launch.",
+                detail=str(exc)[:300],
+                request_id=new_request_id(),
+            )
+
+        try:
             status_code, body = await _call_torcs_daemon(
                 "POST",
                 "/control/start",
@@ -1246,6 +1412,7 @@ def create_app() -> FastAPI:
                     "telemetry_filename": telemetry_filename,
                     "launch_mode": launch_mode,
                     "auto_launch_torcs": req.auto_launch_torcs,
+                    "driver_config": driver_profile.config.model_dump(mode="json"),
                 },
                 # Launch + SCR-port poll can take up to ~20s on first run; give
                 # the daemon time to finish before this proxy call times out.
@@ -1253,6 +1420,7 @@ def create_app() -> FastAPI:
             )
         except HTTPException as exc:
             if not _has_api_error_code(exc, "CONTROL_UNREACHABLE"):
+                _delete_torcs_live_launch_artifacts(session_id)
                 raise
             reconciled = await _reconcile_torcs_start_after_unreachable(
                 session_id=session_id,
@@ -1260,6 +1428,7 @@ def create_app() -> FastAPI:
                 launch_mode=launch_mode,
             )
             if reconciled is None:
+                _delete_torcs_live_launch_artifacts(session_id)
                 raise
             status_code = status.HTTP_201_CREATED
             body = reconciled
@@ -1268,6 +1437,7 @@ def create_app() -> FastAPI:
                 session_id,
             )
         if status_code == 409:
+            _delete_torcs_live_launch_artifacts(session_id)
             raise api_error(
                 status_code=status.HTTP_409_CONFLICT,
                 error_code="RACE_ACTIVE",
@@ -1276,6 +1446,7 @@ def create_app() -> FastAPI:
                 request_id=new_request_id(),
             )
         if status_code >= 400:
+            _delete_torcs_live_launch_artifacts(session_id)
             raise api_error(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 error_code="CONTROL_FAILED",
@@ -1283,24 +1454,6 @@ def create_app() -> FastAPI:
                 detail=str(body)[:300],
                 request_id=new_request_id(),
             )
-        # Write a stub Session with status=ACTIVE so /session/<id> renders
-        # the LiveTelemetry panel from the moment the user clicks Start.
-        # Empty laps/recommendations — the eventual torcs-live POST
-        # replaces them with real pipeline output via run_pipeline(session_id=...).
-        try:
-            _ensure_torcs_live_stub_session(
-                session_id=session_id,
-                telemetry_filename=telemetry_filename,
-                track_name=req.track_name,
-                target_laps=req.laps,
-                notes=req.notes,
-                started_at=started_at,
-            )
-        except Exception:
-            # Stub-write failures shouldn't fail the race-start — the
-            # daemon's gym_torcs is already running. Log and continue;
-            # the ingest path will create the session row as before.
-            logger.exception("torcs_start_race: stub session write failed (non-fatal)")
 
         return {
             "session_id": session_id,
@@ -1319,6 +1472,8 @@ def create_app() -> FastAPI:
             # operator-supplied metadata for the eventual torcs-live POST.
             "track_name_hint": req.track_name,
             "notes_hint": req.notes,
+            "driver_profile_id_hint": driver_profile.profile_id,
+            "driver_profile_name_hint": driver_profile.name,
         }
 
     @app.post("/api/torcs/stop-race")
@@ -1482,6 +1637,7 @@ def create_app() -> FastAPI:
         adopt_session_id: Optional[str] = (
             body.run_id if body.run_id.startswith("s_torcs_live_") else None
         )
+        existing_stub = load_session(adopt_session_id) if adopt_session_id else None
 
         try:
             session = await run_pipeline(
@@ -1501,25 +1657,14 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise map_watsonx_exception(e, request_id=rid)
 
-        # Phase 1 enrichment: stamp the summary with session_source +
-        # lifecycle metadata. SessionSummary is frozen — build a new
-        # one via model_copy, then a new Session to wrap it. The
-        # pipeline doesn't know about these fields by design (keeps
-        # core.pipeline domain-pure).
-        stat = jsonl_path.stat()
-        last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
-        started = _extract_start_time(jsonl_path) or last_written
-        enriched_summary = session.summary.model_copy(update={
-            "session_source": SessionSource.TORCS_LIVE,
-            "status": SessionStatus.COMPLETED,
-            "track_name": body.track_name,
-            "target_laps": body.target_laps,
-            "started_at": started,
-            "completed_at": last_written,
-            "telemetry_file": jsonl_path.name,
-            "note": body.notes or session.summary.note,
-        })
-        enriched_session = session.model_copy(update={"summary": enriched_summary})
+        enriched_session = _merge_torcs_live_session(
+            session=session,
+            existing_stub=existing_stub,
+            jsonl_path=jsonl_path,
+            track_name=body.track_name,
+            target_laps=body.target_laps,
+            notes=body.notes,
+        )
 
         save_session(enriched_session)
         return enriched_session.model_dump(mode="json")
@@ -1673,9 +1818,10 @@ def _build_torcs_live_stub_session(
     session_id: str,
     telemetry_filename: str,
     track_name: Optional[str],
-    target_laps: int,
+    target_laps: Optional[int],
     notes: Optional[str],
     started_at: datetime,
+    driver_config_snapshot: Optional[TorcsDriverConfigSnapshot],
 ) -> Session:
     stub_summary = SessionSummary(
         session_id=session_id,
@@ -1693,6 +1839,15 @@ def _build_torcs_live_stub_session(
         completed_at=None,
         telemetry_file=telemetry_filename,
         note=notes,
+        driver_profile_id=(
+            driver_config_snapshot.driver_profile_id if driver_config_snapshot is not None else None
+        ),
+        driver_profile_name=(
+            driver_config_snapshot.driver_profile_name if driver_config_snapshot is not None else None
+        ),
+        driver_profile_origin=(
+            driver_config_snapshot.driver_profile_origin if driver_config_snapshot is not None else None
+        ),
     )
     return Session(
         summary=stub_summary,
@@ -1700,7 +1855,31 @@ def _build_torcs_live_stub_session(
         forecast=None,
         recommendations=[],
         regulation_source=None,
+        driver_config_snapshot=driver_config_snapshot,
     )
+
+
+def _create_torcs_live_stub_session(
+    *,
+    session_id: str,
+    telemetry_filename: str,
+    track_name: Optional[str],
+    target_laps: Optional[int],
+    notes: Optional[str],
+    started_at: datetime,
+    driver_config_snapshot: Optional[TorcsDriverConfigSnapshot],
+) -> Session:
+    stub_session = _build_torcs_live_stub_session(
+        session_id=session_id,
+        telemetry_filename=telemetry_filename,
+        track_name=track_name,
+        target_laps=target_laps,
+        notes=notes,
+        started_at=started_at,
+        driver_config_snapshot=driver_config_snapshot,
+    )
+    save_session(stub_session)
+    return stub_session
 
 
 def _ensure_torcs_live_stub_session(
@@ -1715,16 +1894,22 @@ def _ensure_torcs_live_stub_session(
     existing = load_session(session_id)
     if existing is not None:
         return existing
-    stub_session = _build_torcs_live_stub_session(
+    return _create_torcs_live_stub_session(
         session_id=session_id,
         telemetry_filename=telemetry_filename,
         track_name=track_name,
         target_laps=target_laps,
         notes=notes,
         started_at=started_at,
+        driver_config_snapshot=None,
     )
-    save_session(stub_session)
-    return stub_session
+
+
+def _delete_torcs_live_launch_artifacts(session_id: str) -> None:
+    try:
+        delete_session(session_id)
+    except Exception:
+        logger.exception("torcs_start_race: failed to delete launch artifacts for %s", session_id)
 
 
 def _recover_missing_torcs_live_session(session_id: str) -> Optional[Session]:
@@ -1782,6 +1967,39 @@ async def _reconcile_torcs_start_after_unreachable(
         await asyncio.sleep(poll_interval_s)
 
     return None
+
+
+def _merge_torcs_live_session(
+    *,
+    session: Session,
+    existing_stub: Optional[Session],
+    jsonl_path: Path,
+    track_name: Optional[str],
+    target_laps: Optional[int],
+    notes: Optional[str],
+) -> Session:
+    stat = jsonl_path.stat()
+    last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+    extracted_started = _extract_start_time(jsonl_path) or last_written
+    existing_summary = existing_stub.summary if existing_stub is not None else None
+    started = existing_summary.started_at if existing_summary and existing_summary.started_at else extracted_started
+    merged_summary = session.summary.model_copy(update={
+        "session_source": SessionSource.TORCS_LIVE,
+        "status": SessionStatus.COMPLETED,
+        "track_name": track_name if track_name is not None else (existing_summary.track_name if existing_summary else None),
+        "target_laps": target_laps if target_laps is not None else (existing_summary.target_laps if existing_summary else None),
+        "started_at": started,
+        "completed_at": last_written,
+        "telemetry_file": jsonl_path.name,
+        "note": notes if notes is not None else (existing_summary.note if existing_summary else session.summary.note),
+        "driver_profile_id": existing_summary.driver_profile_id if existing_summary else None,
+        "driver_profile_name": existing_summary.driver_profile_name if existing_summary else None,
+        "driver_profile_origin": existing_summary.driver_profile_origin if existing_summary else None,
+    })
+    return session.model_copy(update={
+        "summary": merged_summary,
+        "driver_config_snapshot": existing_stub.driver_config_snapshot if existing_stub is not None else session.driver_config_snapshot,
+    })
 
 
 def _find_telemetry_file(session_id: str) -> Optional[Path]:

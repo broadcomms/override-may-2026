@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import type { VersionResponse } from "@/api/types";
+import { hasTorcsSurface } from "@/lib/env";
 import { CockpitPage } from "@/pages/CockpitPage";
+import { DriverLabPage } from "@/pages/DriverLabPage";
 import { SessionComparePage } from "@/pages/SessionComparePage";
 import { SessionPage } from "@/pages/SessionPage";
 import { SessionsPage } from "@/pages/SessionsPage";
@@ -18,6 +20,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/upload" replace />} />
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/driver-lab" element={<DriverLabPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/sessions/compare" element={<SessionComparePage />} />
           <Route path="/cockpit" element={<CockpitPage />} />
@@ -47,6 +50,8 @@ function SkipToContent() {
 }
 
 function SiteHeader() {
+  const showTorcsNav = hasTorcsSurface();
+
   return (
     <header>
       <div className="px-6 py-3 flex items-center justify-between">
@@ -72,6 +77,7 @@ function SiteHeader() {
         <div className="flex items-center gap-3">
           <nav className="flex gap-1 text-sm" aria-label="Primary">
             <NavLink to="/upload" label="Upload" />
+            {showTorcsNav && <NavLink to="/driver-lab" label="Driver Lab" />}
             <NavLink to="/sessions" label="Sessions" />
           </nav>
           <VersionChip />

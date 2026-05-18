@@ -69,6 +69,9 @@ services:
     volumes:
       # Session persistence — survives container restarts.
       - ./data/sessions:/app/data/sessions:Z
+      # User-saved TORCS driver profiles — edited from the Driver Lab UI and
+      # resolved by OVERRIDE before each launch.
+      - ./data/torcs_driver_profiles:/app/data/torcs_driver_profiles:Z
       # Shared TORCS-telemetry bus — POST /api/sessions/torcs-live reads
       # JSONL from this directory inside the override container; gym_torcs
       # writes to it from inside the torcs container.

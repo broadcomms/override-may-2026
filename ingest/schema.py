@@ -23,6 +23,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from torcs_driver_profiles import TorcsDriverConfigSnapshot
+
 # ──────────────────────────────────────────────────────────────────────────────
 # §3  Lap-level features
 # ──────────────────────────────────────────────────────────────────────────────
@@ -372,6 +374,9 @@ class SessionSummary(BaseModel):
         default=None,
         description="Filename of the originating JSONL capture (basename only — no path). Set only for `session_source=torcs_live`.",
     )
+    driver_profile_id: Optional[str] = Field(default=None, pattern=r"^[a-z0-9_-]+$", max_length=80)
+    driver_profile_name: Optional[str] = Field(default=None, max_length=80)
+    driver_profile_origin: Optional[Literal["shipped_default", "user_saved", "session_snapshot"]] = None
 
 
 class Session(BaseModel):
@@ -384,6 +389,7 @@ class Session(BaseModel):
     forecast: Optional[Forecast] = None
     recommendations: list[Recommendation] = Field(default_factory=list)
     regulation_source: Optional[RegulationSource] = None
+    driver_config_snapshot: Optional[TorcsDriverConfigSnapshot] = None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -503,6 +509,7 @@ __all__ = [
     "Recommendation",
     "SessionSummary",
     "Session",
+    "TorcsDriverConfigSnapshot",
     "PerturbationKind",
     "WhatIfRequest",
     "WhatIfResult",

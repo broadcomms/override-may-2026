@@ -261,6 +261,16 @@ export function SessionPage() {
       {session.summary.note && (
         <div className="mb-3 text-xs text-muted italic">{session.summary.note}</div>
       )}
+      {session.driver_config_snapshot && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <span className="rounded-pill border border-border bg-surface px-2.5 py-1">
+            Driver profile: <span className="text-text">{session.driver_config_snapshot.driver_profile_name}</span>
+          </span>
+          <span className="rounded-pill border border-border bg-surface px-2.5 py-1 uppercase tracking-wider">
+            {session.driver_config_snapshot.driver_profile_origin.replace(/_/g, " ")}
+          </span>
+        </div>
+      )}
       {groundingPending && (
         <div className="mb-4">
           <GroundingPendingBanner />

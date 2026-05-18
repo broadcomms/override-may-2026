@@ -32,6 +32,8 @@ ErrorCode = Literal[
     "CONTROL_UNREACHABLE",  # daemon HTTP/network error from the override side
     "CONTROL_FAILED",       # daemon responded with non-2xx for an unexpected reason
     "RACE_ACTIVE",          # /api/torcs/start-race called while a race is already running (409)
+    "READ_ONLY_PROFILE",    # shipped/default profile cannot be mutated or deleted
+    "PERSISTENCE_FAILED",   # OVERRIDE could not persist launch/session artifacts
 ]
 
 

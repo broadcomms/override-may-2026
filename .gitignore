@@ -43,6 +43,7 @@ data/regs/raw/
 data/sessions/*/
 data/sessions/_index.json
 data/sessions/s_*.json
+data/torcs_driver_profiles/
 analysis/exploratory-plots/
 
 # OS
@@ -77,6 +78,7 @@ assets/graphics/RACE-TRACK.mp4
 # TORCS lab — gym_torcs source committed; runtime artifacts gitignored
 RaceYourCode/gym_torcs/__pycache__/
 RaceYourCode/gym_torcs/*.pyc
+RaceYourCode/gym_torcs/driver_configs/
 RaceYourCode/gym_torcs/telemetry/
 RaceYourCode/gym_torcs/results/
 RaceYourCode/gym_torcs/*.rgb

@@ -81,7 +81,10 @@ analysis/exploratory-plots
 hands-on-labs
 
 # ── TORCS lab files (only used by the torcs service which has its own image)
-RaceYourCode
+RaceYourCode/*
+!RaceYourCode/gym_torcs/
+RaceYourCode/gym_torcs/*
+!RaceYourCode/gym_torcs/driver_config_contract.py
 
 # ── OS junk ──────────────────────────────────────────────────────────────────
 .DS_Store

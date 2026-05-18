@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { OverrideApiError, api } from "@/api/client";
 import type {
   TorcsControlStatus,
+  TorcsDriverProfileSummary,
   TorcsLaunchMode,
   TorcsRaceState,
   TorcsRecoverResponse,
@@ -104,6 +105,8 @@ export function useTorcsControl({
   defaultLaps = 75,
 }: UseTorcsControlOptions = {}) {
   const [status, setStatus] = useState<TorcsControlStatus | null>(null);
+  const [driverProfiles, setDriverProfiles] = useState<TorcsDriverProfileSummary[]>([]);
+  const [driverProfileId, setDriverProfileId] = useState<string>("baseline");
   const [tracks, setTracks] = useState<TorcsTrack[]>(FALLBACK_TRACKS);
   const [track, setTrack] = useState<string>(defaultTrack);
   const [laps, setLaps] = useState<number>(defaultLaps);
@@ -153,6 +156,25 @@ export function useTorcsControl({
     };
   }, [status?.enabled, status?.reachable]);
 
+  useEffect(() => {
+    if (!hasTorcsSurface()) return;
+    let cancelled = false;
+    api.listTorcsDriverProfiles()
+      .then((response) => {
+        if (cancelled) return;
+        setDriverProfiles(response.profiles);
+        if (!response.profiles.some((profile) => profile.profile_id === driverProfileId)) {
+          setDriverProfileId(response.profiles[0]?.profile_id ?? "baseline");
+        }
+      })
+      .catch(() => {
+        /* leave baseline fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const groupedTracks = useMemo(() => groupTorcsTracks(tracks), [tracks]);
 
   const startRace = useCallback(
@@ -160,21 +182,25 @@ export function useTorcsControl({
       launchMode = "cockpit_practice",
       track: trackOverride,
       laps: lapsOverride,
+      driverProfileId: driverProfileIdOverride,
     }: {
       launchMode?: TorcsLaunchMode;
       track?: string;
       laps?: number;
+      driverProfileId?: string;
     } = {}): Promise<TorcsStartRaceResponse> => {
       setBusy(true);
       setError(null);
       try {
         const selectedTrack = trackOverride ?? track;
         const selectedLaps = lapsOverride ?? laps;
+        const selectedDriverProfileId = driverProfileIdOverride ?? driverProfileId;
         const trackName = selectedTrack.charAt(0).toUpperCase() + selectedTrack.slice(1);
         const response = await api.startTorcsRace({
           track: selectedTrack,
           laps: selectedLaps,
           track_name: trackName,
+          driver_profile_id: selectedDriverProfileId,
           launch_mode: launchMode,
           auto_launch_torcs: launchMode === "headless_quickrace",
         });
@@ -188,7 +214,7 @@ export function useTorcsControl({
         setBusy(false);
       }
     },
-    [laps, refresh, track],
+    [driverProfileId, laps, refresh, track],
   );
 
   const stopRace = useCallback(async (): Promise<TorcsStopRaceResponse> => {
@@ -225,6 +251,9 @@ export function useTorcsControl({
 
   return {
     status,
+    driverProfiles,
+    driverProfileId,
+    setDriverProfileId,
     tracks,
     groupedTracks,
     track,

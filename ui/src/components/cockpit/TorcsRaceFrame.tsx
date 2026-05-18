@@ -137,7 +137,7 @@ export function TorcsRaceFrame({
         {latestSnapshot && streamState.kind !== "ended" && (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-3">
             <div className="max-w-md rounded-md border border-border/80 bg-bg/85 px-3 py-2 text-center text-xs text-muted backdrop-blur-sm">
-              {`Live telemetry — Sector ${latestSnapshot.sector ?? "—"}, Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`}
+              {`Live telemetry - Sector ${latestSnapshot.sector ?? "—"}, Lap ${latestSnapshot.lap}, ${latestSnapshot.lap_progress_pct.toFixed(0)}% complete.`}
             </div>
           </div>
         )}

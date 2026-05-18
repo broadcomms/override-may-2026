@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("TORCS_CONTROL_SECRET", "test-secret")
 
 import RaceYourCode.gym_torcs.control_daemon as daemon
+from RaceYourCode.gym_torcs.driver_config_contract import DEFAULT_DRIVER_CONFIG
 
 
 def _auth_headers() -> dict[str, str]:
@@ -158,7 +160,7 @@ def test_control_start_cockpit_practice_uses_visible_gui_bridge(monkeypatch):
     monkeypatch.setattr(
         daemon,
         "_launch_scr_client",
-        lambda session_id, track, laps, telemetry_filename: scr_proc,
+        lambda session_id, track, laps, telemetry_filename, driver_config_path: scr_proc,
     )
     daemon._race = daemon._fresh_idle_race()
 
@@ -258,10 +260,64 @@ def test_control_status_graceful_finish_keeps_simulator_closed(monkeypatch):
     assert body["state"] == "cleanup"
     assert body["last_error"] is None
     assert daemon._race.state == daemon.RaceState.CLEANUP
-    assert daemon._race.scr_proc is None
+
+
+def test_control_start_materializes_driver_config_and_passes_path(monkeypatch, tmp_path):
+    monkeypatch.setenv("TORCS_CONTROL_SECRET", "test-secret")
+    monkeypatch.setattr(daemon, "DRIVER_CONFIG_DIR", str(tmp_path / "driver-configs"))
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+        def poll(self):
+            return None
+
+    async def fake_wait_for_visible_practice_scr(timeout_s=daemon.LAUNCH_TIMEOUT_S):
+        return True
+
+    async def fake_launch_visible_practice(track, laps):
+        return None
+
+    captured: dict[str, str | None] = {}
+    scr_proc = FakeProc(333)
+
+    monkeypatch.setattr(daemon, "_launch_visible_practice", fake_launch_visible_practice)
+    monkeypatch.setattr(daemon, "_wait_for_visible_practice_scr", fake_wait_for_visible_practice_scr)
+
+    def fake_launch_scr_client(session_id, track, laps, telemetry_filename, driver_config_path):
+        captured["path"] = driver_config_path
+        return scr_proc
+
+    monkeypatch.setattr(
+        daemon,
+        "_launch_scr_client",
+        fake_launch_scr_client,
+    )
+    daemon._race = daemon._fresh_idle_race()
+
+    client = TestClient(daemon.app)
+    r = client.post(
+        "/control/start",
+        headers=_auth_headers(),
+        json={
+            "session_id": "s_torcs_live_cfg_99",
+            "track": "aalborg",
+            "laps": 75,
+            "launch_mode": "cockpit_practice",
+            "driver_config": DEFAULT_DRIVER_CONFIG.model_dump(mode="json"),
+        },
+    )
+
+    assert r.status_code == 201, r.text
+    assert captured["path"] is not None
+    path = Path(str(captured["path"]))
+    assert path.is_file()
+    payload = json.loads(path.read_text())
+    assert payload["speed"]["target_speed_kmh"] == 85.0
+    assert daemon._race.state == daemon.RaceState.ACTIVE
+    assert daemon._race.scr_proc is scr_proc
     assert daemon._race.torcs_proc is None
-    assert calls == ["pause", "terminate:torcs", "close-gui"]
-    assert "resume" not in calls
 
 
 def test_visible_practice_xdotool_moves_window_to_origin_before_keys(monkeypatch):

@@ -34,6 +34,8 @@ from api.main import (
     get_embedding_client,
     get_guardian_client,
 )
+from RaceYourCode.gym_torcs.driver_config_contract import DEFAULT_DRIVER_CONFIG
+from torcs_driver_profiles import DEFAULT_DRIVER_PROFILE_ID
 from ingest.schema import (
     FanOutput,
     LapFeatures,
@@ -986,6 +988,82 @@ def test_start_race_409_when_daemon_returns_conflict(tmp_path, monkeypatch):
     r = client.post("/api/torcs/start-race", json={"track": "aalborg", "laps": 5})
     assert r.status_code == 409
     assert r.json()["error_code"] == "RACE_ACTIVE"
+    listing = client.get("/api/sessions").json()
+    assert listing["sessions"] == []
+
+
+def test_driver_profiles_list_create_update_duplicate_delete_and_validate(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCS_DRIVER_PROFILES_DIR", str(tmp_path / "driver-profiles"))
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    listed = client.get("/api/torcs/driver-profiles")
+    assert listed.status_code == 200, listed.text
+    baseline = {p["profile_id"]: p for p in listed.json()["profiles"]}
+    assert DEFAULT_DRIVER_PROFILE_ID in baseline
+    assert baseline[DEFAULT_DRIVER_PROFILE_ID]["origin"] == "shipped_default"
+
+    validate_resp = client.post(
+        "/api/torcs/driver-profiles/validate",
+        json={
+            "config": {
+                **DEFAULT_DRIVER_CONFIG.model_dump(mode="json"),
+                "speed": {
+                    **DEFAULT_DRIVER_CONFIG.speed.model_dump(mode="json"),
+                    "target_speed_kmh": 88.0,
+                },
+            },
+        },
+    )
+    assert validate_resp.status_code == 200, validate_resp.text
+    assert validate_resp.json()["config"]["speed"]["target_speed_kmh"] == 88.0
+
+    created = client.post(
+        "/api/torcs/driver-profiles",
+        json={
+            "name": "Aggressive Demo",
+            "description": "Pushes target speed slightly harder.",
+            "config": validate_resp.json()["config"],
+        },
+    )
+    assert created.status_code == 201, created.text
+    profile = created.json()
+    assert profile["profile_id"].startswith("aggressive-demo")
+    assert profile["origin"] == "user_saved"
+
+    fetched = client.get(f"/api/torcs/driver-profiles/{profile['profile_id']}")
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.json()["name"] == "Aggressive Demo"
+
+    updated = client.patch(
+        f"/api/torcs/driver-profiles/{profile['profile_id']}",
+        json={"name": "Aggressive Demo v2", "description": "Sharper throttle map."},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["name"] == "Aggressive Demo v2"
+
+    duplicated = client.post(
+        f"/api/torcs/driver-profiles/{profile['profile_id']}/duplicate",
+        json={"name": "Aggressive Demo Copy"},
+    )
+    assert duplicated.status_code == 201, duplicated.text
+    assert duplicated.json()["name"] == "Aggressive Demo Copy"
+    assert duplicated.json()["profile_id"] != profile["profile_id"]
+
+    delete_resp = client.delete(f"/api/torcs/driver-profiles/{profile['profile_id']}")
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    missing = client.get(f"/api/torcs/driver-profiles/{profile['profile_id']}")
+    assert missing.status_code == 404
+
+
+def test_driver_profiles_reject_delete_of_shipped_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCS_DRIVER_PROFILES_DIR", str(tmp_path / "driver-profiles"))
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    r = client.delete(f"/api/torcs/driver-profiles/{DEFAULT_DRIVER_PROFILE_ID}")
+    assert r.status_code == 409, r.text
+    assert r.json()["error_code"] == "READ_ONLY_PROFILE"
 
 
 def test_start_race_201_proxies_daemon_response(tmp_path, monkeypatch):
@@ -1031,11 +1109,14 @@ def test_start_race_201_proxies_daemon_response(tmp_path, monkeypatch):
     assert body["launch_mode"] == "cockpit_practice"
     assert body["track_name_hint"] == "Alpine"
     assert body["notes_hint"] == "smoke test"
+    assert body["driver_profile_id_hint"] == DEFAULT_DRIVER_PROFILE_ID
+    assert body["driver_profile_name_hint"] == "Baseline Demo Driver"
     # Verify the daemon got the operator-validated payload
     assert captured_request["body"]["track"] == "alpine-1"
     assert captured_request["body"]["laps"] == 10
     assert captured_request["body"]["launch_mode"] == "cockpit_practice"
     assert captured_request["body"]["session_id"].startswith("s_torcs_live_")
+    assert captured_request["body"]["driver_config"]["speed"]["target_speed_kmh"] == 85.0
 
 
 def test_start_race_honors_explicit_headless_launch_mode(tmp_path, monkeypatch):
@@ -1318,8 +1399,14 @@ def test_start_race_writes_stub_active_session(tmp_path, monkeypatch):
     assert summary["telemetry_file"] == f"{sid}.jsonl"
     assert summary["track_name"] == "Aalborg"
     assert summary["target_laps"] == 5
+    assert summary["driver_profile_id"] == DEFAULT_DRIVER_PROFILE_ID
+    assert summary["driver_profile_name"] == "Baseline Demo Driver"
+    assert summary["driver_profile_origin"] == "shipped_default"
     assert summary["lap_count"] == 0       # stub — laps land via torcs-live ingest
     assert summary["zone_count"] == 0
+    snapshot = r2.json()["driver_config_snapshot"]
+    assert snapshot["driver_profile_id"] == DEFAULT_DRIVER_PROFILE_ID
+    assert snapshot["config"]["speed"]["target_speed_kmh"] == 85.0
 
     # And the stub must appear in the GET /api/sessions index
     r3 = client.get("/api/sessions")
@@ -1385,6 +1472,7 @@ def test_start_race_reconciles_control_unreachable_when_daemon_reports_same_sess
     assert summary["status"] == "active"
     assert summary["session_source"] == "torcs_live"
     assert summary["telemetry_file"] == f"{sid}.jsonl"
+    assert summary["driver_profile_id"] == DEFAULT_DRIVER_PROFILE_ID
 
 
 def test_torcs_live_updates_stub_session_when_run_id_matches(tmp_path, monkeypatch):
@@ -1434,6 +1522,8 @@ def test_torcs_live_updates_stub_session_when_run_id_matches(tmp_path, monkeypat
     assert ingested["summary"]["session_id"] == sid     # adopted from run_id, not pipeline-generated
     assert ingested["summary"]["status"] == "completed"  # stub flipped from active
     assert ingested["summary"]["lap_count"] >= 1        # real lap data wrote in
+    assert ingested["summary"]["driver_profile_id"] == DEFAULT_DRIVER_PROFILE_ID
+    assert ingested["driver_config_snapshot"]["driver_profile_id"] == DEFAULT_DRIVER_PROFILE_ID
 
     # 4) Only ONE row exists in the index — not a stub + a fresh one
     listing = client.get("/api/sessions").json()

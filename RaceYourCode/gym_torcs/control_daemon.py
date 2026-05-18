@@ -41,6 +41,17 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+try:
+    from RaceYourCode.gym_torcs.driver_config_contract import (
+        TorcsDriverConfigWire,
+        dump_driver_config_json,
+    )
+except ImportError:
+    from driver_config_contract import (  # type: ignore[no-redef]
+        TorcsDriverConfigWire,
+        dump_driver_config_json,
+    )
+
 logger = logging.getLogger("torcs.control_daemon")
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -73,6 +84,7 @@ def _verify_auth(authorization: Optional[str] = Header(default=None)) -> None:
 GYM_TORCS_DIR = "/home/student/workspace/gym_torcs"
 TELEMETRY_DIR = f"{GYM_TORCS_DIR}/telemetry/"
 TORCS_SCRIPT = f"{GYM_TORCS_DIR}/torcs_jm_par.py"
+DRIVER_CONFIG_DIR = f"{GYM_TORCS_DIR}/driver_configs"
 
 # Probed: torcs binary at /usr/local/torcs/bin/torcs (NOT /usr/local/bin).
 TORCS_BIN = os.environ.get("OVERRIDE_TORCS_BIN", "/usr/local/torcs/bin/torcs")
@@ -893,7 +905,8 @@ def _launch_torcs(raceman_path: str) -> subprocess.Popen:
 
 
 def _launch_scr_client(req_session_id: str, req_track: str, req_laps: int,
-                      req_telemetry_filename: Optional[str]) -> subprocess.Popen:
+                      req_telemetry_filename: Optional[str],
+                      req_driver_config_path: Optional[str]) -> subprocess.Popen:
     """Spawn torcs_jm_par.py (the SCR client). Same file-backed stdout
     treatment as _launch_torcs — gym_torcs writes per-tick observations
     to stdout that would otherwise overflow a PIPE buffer in seconds."""
@@ -905,6 +918,8 @@ def _launch_scr_client(req_session_id: str, req_track: str, req_laps: int,
         env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR.rstrip("/") + "/" + req_telemetry_filename
     else:
         env["OVERRIDE_LOG_TELEMETRY"] = TELEMETRY_DIR
+    if req_driver_config_path:
+        env["OVERRIDE_DRIVER_CONFIG_PATH"] = req_driver_config_path
     log = open(SCR_CLIENT_LOG, "w")
     return subprocess.Popen(
         ["python3", TORCS_SCRIPT],
@@ -1030,6 +1045,7 @@ class StartRaceRequest(BaseModel):
     telemetry_filename: Optional[str] = Field(
         default=None, pattern=r"^[A-Za-z0-9_-]+\.jsonl$", max_length=120,
     )
+    driver_config: Optional[TorcsDriverConfigWire] = None
     launch_mode: Optional[LaunchMode] = None
     auto_launch_torcs: bool = False
 
@@ -1091,6 +1107,14 @@ class TrackInfo(BaseModel):
 
 class TracksResponse(BaseModel):
     tracks: list[TrackInfo]
+
+
+def _materialize_driver_config(session_id: str, driver_config: TorcsDriverConfigWire) -> str:
+    base = Path(DRIVER_CONFIG_DIR)
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / f"{session_id}.json"
+    path.write_text(dump_driver_config_json(driver_config))
+    return str(path)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1270,6 +1294,16 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
 
         try:
             torcs_proc: Optional[subprocess.Popen] = None
+            driver_config_path: Optional[str] = None
+            if req.driver_config is not None:
+                try:
+                    driver_config_path = _materialize_driver_config(req.session_id, req.driver_config)
+                except OSError as e:
+                    _race.transition_to(RaceState.CLEANUP, error=f"driver config write failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Could not materialize driver config: {e}",
+                    )
             if launch_mode == "headless_quickrace":
                 # Headless-race path. _kill_stale_torcs is ONLY safe here
                 # because we're about to launch our own torcs as a fresh
@@ -1362,7 +1396,7 @@ async def control_start(req: StartRaceRequest) -> StartRaceResponse:
             # Spawn the SCR client either way.
             try:
                 scr_proc = _launch_scr_client(
-                    req.session_id, req.track, req.laps, req.telemetry_filename,
+                    req.session_id, req.track, req.laps, req.telemetry_filename, driver_config_path,
                 )
             except (OSError, FileNotFoundError) as e:
                 # Tear down torcs if we launched it; visible Practice uses

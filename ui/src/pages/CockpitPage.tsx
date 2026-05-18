@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 
+import { api } from "@/api/client";
 import { CockpitCommandStrip } from "@/components/cockpit/CockpitCommandStrip";
 import { CockpitTimingRail } from "@/components/cockpit/CockpitTimingRail";
 import { HybridEnergyRail } from "@/components/cockpit/HybridEnergyRail";
@@ -32,10 +33,40 @@ export function CockpitPage() {
   } = useTorcsControl();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [driverProfileName, setDriverProfileName] = useState<string | null>(null);
+  const [driverProfileOrigin, setDriverProfileOrigin] = useState<string | null>(null);
 
   useEffect(() => {
     if (status?.session_id) setSessionId(status.session_id);
   }, [status?.session_id]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setDriverProfileName(null);
+      setDriverProfileOrigin(null);
+      return;
+    }
+    let cancelled = false;
+    api.getSession(sessionId).then(
+      (session) => {
+        if (cancelled) return;
+        setDriverProfileName(
+          session.driver_config_snapshot?.driver_profile_name ?? session.summary.driver_profile_name,
+        );
+        setDriverProfileOrigin(
+          session.driver_config_snapshot?.driver_profile_origin ?? session.summary.driver_profile_origin,
+        );
+      },
+      () => {
+        if (cancelled) return;
+        setDriverProfileName(null);
+        setDriverProfileOrigin(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   const { laps: liveLaps, latestLap, latestSnapshot, streamState } = useLiveTelemetry(sessionId, {
     retryNoTelemetry: true,
@@ -94,6 +125,8 @@ export function CockpitPage() {
       <CockpitCommandStrip
         status={status}
         sessionId={sessionId}
+        driverProfileName={driverProfileName}
+        driverProfileOrigin={driverProfileOrigin}
         currentLap={latestLap?.lap ?? 0}
         onStopRace={onStopRace}
         onFullscreen={onFullscreen}
