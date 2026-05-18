@@ -1765,6 +1765,49 @@ def test_aggregate_lap_uses_torcs_energy_constants():
     assert stats.max_speed_kmh >= stats.avg_speed_kmh > 0
 
 
+def test_aggregate_lap_uses_speedx_as_kmh_without_extra_conversion():
+    """Regression: TORCS speedX is already in km/h. The live helper must
+    not multiply by 3.6 or the cockpit sidebar drifts far above the in-sim
+    gauge."""
+    import tempfile, os as _os
+    from api.main import _aggregate_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload(n_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        stats = _aggregate_lap(obs, 1)
+    finally:
+        _os.unlink(p)
+
+    assert stats is not None
+    assert stats.avg_speed_kmh == 44.4
+    assert stats.max_speed_kmh == 60.0
+
+
+def test_aggregate_live_snapshot_uses_speedx_as_kmh_without_extra_conversion():
+    """Regression: the in-progress live snapshot should stay in TORCS-native
+    km/h so the sidebar agrees with the simulator HUD."""
+    import tempfile, os as _os
+    from api.main import _aggregate_live_snapshot, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload(n_laps=2))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        snap = _aggregate_live_snapshot(obs)
+    finally:
+        _os.unlink(p)
+
+    assert snap is not None
+    assert snap.lap == 2
+    assert snap.speed_kmh == 60.0
+    assert snap.avg_speed_kmh == 44.4
+    assert snap.max_speed_kmh == 60.0
+
+
 def test_aggregate_lap_returns_none_when_lap_index_out_of_range():
     """Asking for lap 5 when only 2 are present → None (caller skips)."""
     import tempfile, os as _os

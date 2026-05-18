@@ -2163,9 +2163,10 @@ def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLap
     last_t = _scalar(lap[-1], "curLapTime") or 0.0
     lap_time_s = max(0.0, last_t - first_t)
 
-    # Speed stats (TORCS speedX is m/s → km/h)
+    # TORCS' SCR protocol reports speedX in km/h already. Keep the live
+    # stream aligned with ingest/torcs_parser.py instead of inflating by 3.6x.
     speeds_kmh = [
-        v * 3.6 for v in (_scalar(o, "speedX") for o in lap) if v is not None
+        v for v in (_scalar(o, "speedX") for o in lap) if v is not None
     ]
     avg_speed = sum(speeds_kmh) / len(speeds_kmh) if speeds_kmh else 0.0
     max_speed = max(speeds_kmh) if speeds_kmh else 0.0
@@ -2292,9 +2293,10 @@ def _aggregate_live_snapshot(observations: list[dict]) -> Optional[LiveLapSnapsh
     # Current lap time (from curLapTime of the latest tick)
     lap_time_s = max(0.0, _scalar(current_seg[-1], "curLapTime") or 0.0)
 
-    # Speed stats (TORCS speedX is m/s → km/h)
+    # TORCS' SCR protocol reports speedX in km/h already. Keep the live
+    # stream aligned with ingest/torcs_parser.py instead of inflating by 3.6x.
     speeds_kmh = [
-        v * 3.6 for v in (_scalar(o, "speedX") for o in current_seg) if v is not None
+        v for v in (_scalar(o, "speedX") for o in current_seg) if v is not None
     ]
     speed_kmh = speeds_kmh[-1] if speeds_kmh else 0.0
     avg_speed_kmh = sum(speeds_kmh) / len(speeds_kmh) if speeds_kmh else 0.0
