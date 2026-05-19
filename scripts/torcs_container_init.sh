@@ -625,10 +625,20 @@ DISPLAY=:1 xhost +SI:localuser:root 2>/dev/null \
 # daemon a narrow, deterministic way to focus the TORCS window before clicking
 # Race → Practice → New Race. Keep this non-fatal: the daemon still has an
 # xte fallback, but visible Practice launch is much more reliable with xdotool.
+run_with_timeout() {
+  local duration="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=5s "$duration" "$@"
+  else
+    "$@"
+  fi
+}
+
 if ! command -v xdotool >/dev/null 2>&1; then
     echo "[init] installing xdotool for TORCS GUI launch bridge"
     export DEBIAN_FRONTEND=noninteractive
-    if ! apt-get update -qq; then
+  if ! run_with_timeout 45s apt-get update -qq; then
         # The lab image has a VS Code apt source whose key can expire/miss in
         # WSL. Disable it inside this disposable container and retry against
         # Ubuntu's repos; this mirrors the existing "skip VS Code install"
@@ -636,10 +646,11 @@ if ! command -v xdotool >/dev/null 2>&1; then
         # editor repository.
         mv /etc/apt/sources.list.d/vscode.sources \
            /etc/apt/sources.list.d/vscode.sources.disabled 2>/dev/null || true
-        apt-get update -qq || true
+    run_with_timeout 45s apt-get update -qq || true
     fi
-    apt-get install -y --no-install-recommends xdotool >/tmp/override-apt-xdotool.log 2>&1 \
-        || echo "[init] WARN: xdotool install failed — falling back to xte only"
+  run_with_timeout 60s apt-get install -y --no-install-recommends xdotool \
+    >/tmp/override-apt-xdotool.log 2>&1 \
+    || echo "[init] WARN: xdotool install failed or timed out — falling back to xte only"
 fi
 
 # Phase 2.7 — pre-seed TORCS screen.xml with fullscreen=yes so the GUI
