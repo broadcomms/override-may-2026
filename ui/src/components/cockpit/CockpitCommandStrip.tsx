@@ -10,6 +10,7 @@ interface Props {
   driverProfileName: string | null;
   driverProfileOrigin: string | null;
   currentLap: number;
+  preRunIdle: boolean;
   onStopRace: () => void;
   onFullscreen: () => void;
   busy: boolean;
@@ -21,17 +22,26 @@ export function CockpitCommandStrip({
   driverProfileName,
   driverProfileOrigin,
   currentLap,
+  preRunIdle,
   onStopRace,
   onFullscreen,
   busy,
 }: Props) {
-  const badge = labelForTorcsState(status?.state ?? (status?.active ? "active" : "idle"));
+  const badge = preRunIdle
+    ? { label: "Ready", tone: "text-muted" }
+    : labelForTorcsState(status?.state ?? (status?.active ? "active" : "idle"));
   const stopEnabled = !busy && isTorcsActiveState(status?.state ?? null);
-  const targetLaps = status?.laps ?? 75;
-  const lapLabel =
-    currentLap > 0 ? `L${currentLap} closed / ${targetLaps}` : `0 closed / ${targetLaps}`;
-  const modeLabel =
-    status?.launch_mode === "headless_quickrace" ? "Headless quickrace" : "Visible Practice";
+  const targetLaps = status?.laps ?? null;
+  const lapLabel = preRunIdle
+    ? "—"
+    : currentLap > 0
+      ? `L${currentLap} closed / ${targetLaps ?? "—"}`
+      : `0 closed / ${targetLaps ?? "—"}`;
+  const modeLabel = status?.launch_mode === "headless_quickrace"
+    ? "Headless quickrace"
+    : status?.launch_mode === "cockpit_practice"
+      ? "Visible Practice"
+      : "—";
 
   return (
     <section className="rounded-card border border-border bg-surface px-4 py-3">
@@ -48,14 +58,14 @@ export function CockpitCommandStrip({
         <StatePill label={badge.label} tone={badge.tone} />
         <MetaPill
           label="Session"
-          value={sessionId ? truncateSessionId(sessionId) : "standby"}
+          value={sessionId ? truncateSessionId(sessionId) : "—"}
           title={sessionId ?? "No active session yet"}
         />
         <MetaPill label="Closed lap" value={lapLabel} />
-        <MetaPill label="Track" value={status?.track ?? "aalborg"} />
+        <MetaPill label="Track" value={status?.track ?? "—"} />
         <MetaPill
           label="Profile"
-          value={driverProfileName ?? "baseline"}
+          value={driverProfileName ?? "—"}
           title={driverProfileOrigin ? driverProfileOrigin.replace(/_/g, " ") : "Launch profile provenance unavailable"}
         />
         <MetaPill label="Mode" value={modeLabel} />

@@ -92,7 +92,10 @@ services:
   # the default `podman-compose up` does NOT pull it. README documents the
   # trade-off.
   torcs:
-    image: docker.io/johnsloe/torcs-competition:amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.torcs
+    image: override-torcs:local
     container_name: torcs
     profiles: [torcs]
     # The init script absorbs two root-only fixes from RESULTS.md:
@@ -182,7 +185,7 @@ services:
       # + VS Code extension install hang); scripts/torcs_container_init.sh
       # absorbs both at boot. Mounted read-only. Phase 2: the same script
       # also handles the daemon boot chain (start.sh background → wait for
-      # noVNC → pip install fastapi/uvicorn → exec uvicorn).
+      # noVNC → exec uvicorn; runtime dependency installs are only a fallback).
       - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
       # WSL2 GPU passthrough — mounts the Windows-host-provided WSL GL
       # stack so Mesa's d3d12_dri.so can find its driver shims. Companion

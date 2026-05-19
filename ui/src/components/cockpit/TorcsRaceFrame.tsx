@@ -8,6 +8,7 @@ type ViewMode = "cockpit" | "headless";
 
 interface Props {
   viewMode: ViewMode;
+  preRunIdle: boolean;
   status: TorcsControlStatus | null;
   streamState: LiveStreamState;
   latestSnapshot: LiveLapSnapshot | null;
@@ -15,6 +16,7 @@ interface Props {
 
 export function TorcsRaceFrame({
   viewMode,
+  preRunIdle,
   status,
   streamState,
   latestSnapshot,
@@ -67,7 +69,7 @@ export function TorcsRaceFrame({
   if (viewMode === "headless") {
     const active = status?.state === "active" || status?.state === "connecting";
     return (
-      <section className="relative rounded-card border border-border bg-black">
+      <section className="relative bg-black">
         <div className="aspect-[8/5] w-full px-6 py-8 text-center">
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
@@ -89,7 +91,7 @@ export function TorcsRaceFrame({
 
   if (!frameUrl) {
     return (
-      <section className="relative rounded-card border border-border bg-black">
+      <section className="relative bg-black">
         <div className="aspect-[8/5] w-full px-6 py-8 text-center">
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
@@ -104,8 +106,16 @@ export function TorcsRaceFrame({
     );
   }
 
+  if (preRunIdle) {
+    return (
+      <section className="relative bg-black shadow-card">
+        <div className="aspect-[8/5] w-full bg-black" />
+      </section>
+    );
+  }
+
   return (
-    <section className="relative rounded-card border border-border bg-black shadow-card">
+    <section className="relative  bg-black shadow-card">
       {/* Phase 2.7 v7 — wrapper-clip pattern.
           vnc_lite.html hardcodes a status bar at the top of <body> that we
           cannot hide via URL params (different origin → SOP). We clip it by

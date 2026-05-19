@@ -7,6 +7,7 @@ interface Props {
   latestLap: LiveLapStats | null;
   streamState: LiveStreamState;
   targetLaps: number;
+  preRunIdle: boolean;
   raceState: TorcsRaceState | null;
 }
 
@@ -15,6 +16,7 @@ export function CockpitTimingRail({
   latestLap,
   streamState,
   targetLaps,
+  preRunIdle,
   raceState,
 }: Props) {
   return (
@@ -30,13 +32,15 @@ export function CockpitTimingRail({
               ? `${latestSnapshot.lap}/${targetLaps}`
               : latestLap
               ? `${latestLap.lap + 1}/${targetLaps}`
-              : `1/${targetLaps}`
+              : preRunIdle
+                ? "—"
+                : `1/${targetLaps}`
           }
           prominent
         />
         <Metric
           label="CURRENT TIME"
-          value={latestSnapshot ? `${latestSnapshot.lap_time_s.toFixed(2)}s` : "waiting"}
+          value={latestSnapshot ? `${latestSnapshot.lap_time_s.toFixed(2)}s` : preRunIdle ? "—" : "waiting"}
         />
         <Metric
           label="LIVE SPEED"
@@ -53,10 +57,12 @@ export function CockpitTimingRail({
               ? `${latestSnapshot.fuel_kg.toFixed(1)} kg`
               : latestLap?.fuel_used_kg != null
               ? `${latestLap.fuel_used_kg.toFixed(2)} kg used`
-              : "n/a"
+              : preRunIdle
+                ? "—"
+                : "n/a"
           }
         />
-        <Metric label="STATE" value={stateValue(streamState, raceState)} />
+        <Metric label="STATE" value={preRunIdle ? "—" : stateValue(streamState, raceState)} />
         {latestLap && (
           <div className="pt-1">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted/70">

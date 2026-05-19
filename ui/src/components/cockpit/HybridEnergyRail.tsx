@@ -8,11 +8,12 @@ interface Props {
   latestLap: LiveLapStats | null;
   previousLap: LiveLapStats | null;
   streamState: LiveStreamState;
+  preRunIdle: boolean;
 }
 
-export function HybridEnergyRail({ status, latestSnapshot, latestLap, previousLap, streamState }: Props) {
+export function HybridEnergyRail({ status, latestSnapshot, latestLap, previousLap, streamState, preRunIdle }: Props) {
   const signal = deriveLiveSignal(latestLap, previousLap);
-  const raceBadge = getRaceBadge(status, streamState);
+  const raceBadge = getRaceBadge(status, streamState, preRunIdle);
 
   // Snapshot values take priority during an open lap.
   const isLive = latestSnapshot != null;
@@ -31,7 +32,7 @@ export function HybridEnergyRail({ status, latestSnapshot, latestLap, previousLa
       ? "bg-success"
       : "bg-accent";
 
-  const statusLine = streamStatusLine(streamState);
+  const statusLine = streamStatusLine(streamState, preRunIdle);
 
   return (
     <section className="rounded-card border border-border bg-surface p-4">
@@ -93,7 +94,11 @@ export function HybridEnergyRail({ status, latestSnapshot, latestLap, previousLa
 }
 
 /** One-line stream status shown at the bottom of the rail, replacing the frame overlay. */
-function streamStatusLine(state: LiveStreamState): string | null {
+function streamStatusLine(state: LiveStreamState, preRunIdle: boolean): string | null {
+  if (preRunIdle) {
+    return null;
+  }
+
   switch (state.kind) {
     case "idle":
       return "Ready. Start a race to stream live data.";
@@ -124,7 +129,12 @@ function Metric({ label, value }: { label: string; value: string }) {
 function getRaceBadge(
   status: TorcsControlStatus | null,
   streamState: LiveStreamState,
+  preRunIdle: boolean,
 ): { label: string; tone: string } | null {
+  if (preRunIdle) {
+    return null;
+  }
+
   if (streamState.kind === "ended") {
     return {
       label: "Debrief ready",

@@ -75,6 +75,20 @@ export function CockpitPage() {
     () => (liveLaps.length > 1 ? liveLaps[liveLaps.length - 2] : null),
     [liveLaps],
   );
+  const preRunIdle =
+    sessionId == null
+    && latestSnapshot == null
+    && latestLap == null
+    && streamState.kind === "idle"
+    && (
+      status == null
+      || status.starting === true
+      || (
+        status.enabled === true
+        && status.reachable === true
+        && status.state === "idle"
+      )
+    );
 
   const onFullscreen = () => {
     const el = document.getElementById("torcs-iframe");
@@ -109,11 +123,12 @@ export function CockpitPage() {
       getSurfaceNotice({
         error,
         notice,
+        preRunIdle,
         status,
         sessionId,
         streamState: streamState.kind,
       }),
-    [error, notice, status, sessionId, streamState.kind],
+    [error, notice, preRunIdle, status, sessionId, streamState.kind],
   );
 
   if (!torcsSurface) {
@@ -128,6 +143,7 @@ export function CockpitPage() {
         driverProfileName={driverProfileName}
         driverProfileOrigin={driverProfileOrigin}
         currentLap={latestLap?.lap ?? 0}
+        preRunIdle={preRunIdle}
         onStopRace={onStopRace}
         onFullscreen={onFullscreen}
         busy={busy}
@@ -169,6 +185,7 @@ export function CockpitPage() {
             latestSnapshot={latestSnapshot}
             latestLap={latestLap}
             streamState={streamState}
+            preRunIdle={preRunIdle}
             targetLaps={status?.laps ?? 75}
             raceState={status?.state ?? null}
           />
@@ -177,6 +194,7 @@ export function CockpitPage() {
         <div className="order-1 xl:order-2">
           <TorcsRaceFrame
             viewMode={viewMode}
+            preRunIdle={preRunIdle}
             status={status}
             streamState={streamState}
             latestSnapshot={latestSnapshot}
@@ -184,7 +202,7 @@ export function CockpitPage() {
         </div>
 
         <div className="order-3 xl:order-3">
-          <HybridEnergyRail status={status} latestSnapshot={latestSnapshot} latestLap={latestLap} previousLap={previousLap} streamState={streamState} />
+          <HybridEnergyRail status={status} latestSnapshot={latestSnapshot} latestLap={latestLap} previousLap={previousLap} streamState={streamState} preRunIdle={preRunIdle} />
         </div>
       </div>
 
@@ -211,12 +229,14 @@ interface SurfaceNoticeModel {
 function getSurfaceNotice({
   error,
   notice,
+  preRunIdle,
   status,
   sessionId,
   streamState,
 }: {
   error: string | null;
   notice: string | null;
+  preRunIdle: boolean;
   status: ReturnType<typeof useTorcsControl>["status"];
   sessionId: string | null;
   streamState: "idle" | "connecting" | "connected" | "no_telemetry" | "error" | "ended";
@@ -252,6 +272,10 @@ function getSurfaceNotice({
       tone: "warning",
       sessionLink: sessionId,
     };
+  }
+
+  if (preRunIdle) {
+    return null;
   }
 
   if (status?.starting) {

@@ -860,12 +860,18 @@ cat > /root/.torcs/config/screen.xml <<'EOF'
 </params>
 EOF
 
-# Install daemon dependencies into the image's Python. The lab image
-# ships Python 3 but not fastapi/uvicorn; install once per container start.
-# --quiet keeps the compose logs from being flooded; failures fall through
-# to the exec which will surface the actual import error.
-pip install --quiet fastapi 'uvicorn[standard]' 2>/dev/null || \
-    pip install --quiet fastapi uvicorn
+# Install daemon dependencies only when the image doesn't already ship
+# them. The custom compose image pre-bakes fastapi/uvicorn so steady-state
+# restarts don't depend on PyPI at runtime.
+if ! python3 - <<'PY' >/dev/null 2>&1
+import fastapi
+import uvicorn
+PY
+then
+  echo "[init] installing control daemon python deps"
+  run_with_timeout 90s python3 -m pip install --quiet fastapi 'uvicorn[standard]' 2>/dev/null || \
+    run_with_timeout 90s python3 -m pip install --quiet fastapi uvicorn
+fi
 
 # Launch the daemon in the foreground (replaces this shell so PID 1 is
 # uvicorn — clean signal propagation when compose stops the container).
