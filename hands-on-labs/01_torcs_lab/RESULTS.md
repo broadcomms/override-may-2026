@@ -1,5 +1,11 @@
 # IBM SkillsBuild TORCS Autonomous Driving Learning Lab — Results
 
+
+the shipped baseline steering loop is too aggressive and undamped. The car is not physically degrading over laps; the controller is falling into a self-exciting left-right limit cycle, and that is why the dangling gets worse as the run progresses.
+
+
+
+
 ## Lab context
 
 This document records my results and reflections for the IBM SkillsBuild TORCS Autonomous Driving Learning Lab completed as part of the May 2026 AI Builders Challenge preparation.

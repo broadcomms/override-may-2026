@@ -554,14 +554,38 @@ def calculate_target_speed(S, config=DEFAULT_DRIVER_CONFIG):
     return clip(target, speed_cfg.min_target_speed_kmh, speed_cfg.target_speed_kmh)
 
 
-def calculate_steering(S, config=DEFAULT_DRIVER_CONFIG):
+def _stabilize_steering_command(raw_steer, previous_steer, speed_kmh):
+    """Smooth steering so moderate heading error doesn't become a lock-to-lock oscillation."""
+    target = math.tanh(raw_steer)
+    speed = max(0.0, float(speed_kmh or 0.0))
+    blend = clip(0.42 - (speed / 300.0), 0.18, 0.42)
+    if target * previous_steer < 0.0:
+        blend *= 0.6
+    steer = previous_steer + ((target - previous_steer) * blend)
+    return clip(steer, -1.0, 1.0)
+
+
+def calculate_steering(S, previous_steer=0.0, config=DEFAULT_DRIVER_CONFIG):
     steer_cfg = config.steering
-    steer = (S['angle'] * steer_cfg.steer_gain / math.pi) - (S['trackPos'] * steer_cfg.centering_gain)
+    angle = float(S.get('angle', 0.0) or 0.0)
+    track_pos = float(S.get('trackPos', 0.0) or 0.0)
+    speed = float(S.get('speedX', 0.0) or 0.0)
+    pitch = float(S.get('pitch', 0.0) or 0.0)
+
+    steer = (angle * steer_cfg.steer_gain / math.pi) - (track_pos * steer_cfg.centering_gain)
     triplet = _track_triplet(S)
     if triplet is not None:
         left, centre, right = triplet
         steer += ((left - right) / centre) * steer_cfg.track_sensor_gain
-    return max(-1, min(1, steer))
+
+    # On the uphill crest, the car can drift sideways with only a tiny heading
+    # error. Add a small cross-track bias there without touching the tighter
+    # corner logic that we already stabilized elsewhere on the lap.
+    if pitch > 0.06 and abs(angle) < 0.05 and abs(track_pos) > 0.2 and speed > 45.0:
+        steer -= track_pos * steer_cfg.crest_centering_gain
+
+    steer -= float(S.get('speedY', 0.0) or 0.0) * steer_cfg.lateral_speed_damping_gain
+    return _stabilize_steering_command(steer, previous_steer, S.get('speedX', 0.0))
 
 def calculate_throttle(S, R, target_speed, config=DEFAULT_DRIVER_CONFIG):
     speed = float(S.get('speedX', 0.0) or 0.0)
@@ -596,6 +620,25 @@ def apply_brakes(S, target_speed, config=DEFAULT_DRIVER_CONFIG):
     if track_pos > braking_cfg.track_pos_threshold and speed > braking_cfg.track_pos_min_speed_kmh:
         return braking_cfg.track_pos_brake_force
     return 0.0
+
+
+def coordinate_longitudinal_controls(S, R, target_speed, config=DEFAULT_DRIVER_CONFIG):
+    brake = float(R.get('brake', 0.0) or 0.0)
+    accel = float(R.get('accel', 0.0) or 0.0)
+    steer = abs(float(R.get('steer', 0.0) or 0.0))
+    track_pos = abs(float(S.get('trackPos', 0.0) or 0.0))
+    lateral_speed = abs(float(S.get('speedY', 0.0) or 0.0))
+    speed = float(S.get('speedX', 0.0) or 0.0)
+
+    if brake > 0.0:
+        return 0.0, brake
+
+    # If the car is still yawed/off-line in a corner, don't reapply throttle
+    # until it has settled enough to stop the visible weave/recover cycle.
+    if steer >= 0.28 and track_pos >= 0.35 and lateral_speed >= 0.8:
+        return 0.0, brake
+
+    return accel, brake
 
 def shift_gears(S, config=DEFAULT_DRIVER_CONFIG):
     gear = 1
@@ -735,9 +778,11 @@ def apply_recovery(S, R, config=DEFAULT_DRIVER_CONFIG):
 def drive_modular(c, config=DEFAULT_DRIVER_CONFIG):
     S, R = c.S.d, c.R.d
     target_speed = calculate_target_speed(S, config=config)
-    R['steer'] = calculate_steering(S, config=config)
-    R['accel'] = calculate_throttle(S, R, target_speed, config=config)
+    previous_steer = float(R.get('steer', 0.0) or 0.0)
+    R['steer'] = calculate_steering(S, previous_steer=previous_steer, config=config)
     R['brake'] = apply_brakes(S, target_speed, config=config)
+    R['accel'] = calculate_throttle(S, R, target_speed, config=config)
+    R['accel'], R['brake'] = coordinate_longitudinal_controls(S, R, target_speed, config=config)
     R['accel'] = traction_control(S, R['accel'], config=config)
     R['gear'] = shift_gears(S, config=config)
     if apply_recovery(S, R, config=config):

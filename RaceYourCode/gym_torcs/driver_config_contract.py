@@ -33,6 +33,8 @@ class SteeringConfig(BaseModel):
     steer_gain: float
     centering_gain: float
     track_sensor_gain: float
+    lateral_speed_damping_gain: float = Field(default=0.10, ge=0.0)
+    crest_centering_gain: float = Field(default=0.10, ge=0.0)
 
 
 class ThrottleConfig(BaseModel):
@@ -141,9 +143,11 @@ DEFAULT_DRIVER_CONFIG = TorcsDriverConfigWire(
         visible_road_penalty=0.50,
     ),
     steering=SteeringConfig(
-        steer_gain=22.0,
+        steer_gain=9.0,
         centering_gain=0.35,
         track_sensor_gain=0.60,
+        lateral_speed_damping_gain=0.14,
+        crest_centering_gain=0.10,
     ),
     throttle=ThrottleConfig(
         steer_speed_penalty_kmh=8.0,

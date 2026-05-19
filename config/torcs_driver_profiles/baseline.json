@@ -1,9 +1,9 @@
 {
   "profile_id": "baseline",
   "name": "Baseline Demo Driver",
-  "description": "Shipped baseline profile matching the current live managed TORCS driver behavior.",
+  "description": "Shipped baseline profile for the live managed TORCS driver with stabilized steering tuning.",
   "created_at": "2026-05-17T00:00:00+00:00",
-  "updated_at": "2026-05-17T00:00:00+00:00",
+  "updated_at": "2026-05-19T00:00:00+00:00",
   "origin": "shipped_default",
   "config": {
     "speed": {
@@ -17,9 +17,11 @@
       "visible_road_penalty": 0.5
     },
     "steering": {
-      "steer_gain": 22.0,
+      "steer_gain": 9.0,
       "centering_gain": 0.35,
-      "track_sensor_gain": 0.6
+      "track_sensor_gain": 0.6,
+      "lateral_speed_damping_gain": 0.14,
+      "crest_centering_gain": 0.1
     },
     "throttle": {
       "steer_speed_penalty_kmh": 8.0,
