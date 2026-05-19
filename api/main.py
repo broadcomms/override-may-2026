@@ -1018,34 +1018,32 @@ def create_app() -> FastAPI:
                 last_mtime: Optional[float] = None
                 stall_started: Optional[float] = None
                 last_snapshot_sig: Optional[str] = None
+                cursor = _LiveTelemetryCursor()
 
                 while True:
                     if await request.is_disconnected():
                         break
 
                     try:
-                        cur_mtime = tfile.stat().st_mtime
+                        cur_mtime, new_laps, snapshot = await asyncio.to_thread(
+                            _poll_live_telemetry_cursor,
+                            cursor,
+                            tfile,
+                        )
                     except OSError:
                         yield _sse({"event": "race_ended", "reason": "file_gone"})
                         break
 
-                    observations = _read_jsonl_safe(tfile)
-                    completed = _get_current_lap(observations)
-
-                    # Emit any newly-completed laps
-                    while emitted_laps < completed:
-                        next_lap = emitted_laps + 1
-                        stats = _aggregate_lap(observations, next_lap)
-                        if stats is not None:
-                            yield _sse({"event": "lap", **stats.model_dump()})
-                        emitted_laps = next_lap
+                    # Emit any newly-completed laps.
+                    for stats in new_laps:
+                        yield _sse({"event": "lap", **stats.model_dump()})
                         # Yield control between lap emits so a multi-lap
                         # catch-up doesn't block the disconnect check.
                         await asyncio.sleep(0)
+                    emitted_laps = cursor.completed_laps
 
                     # Emit a snapshot for the current in-progress lap.
                     # Deduplicated by signature so static files don't spam the client.
-                    snapshot = _aggregate_live_snapshot(observations)
                     if snapshot is not None:
                         sig = _snapshot_sig(snapshot)
                         if sig != last_snapshot_sig:
@@ -1764,6 +1762,18 @@ async def _call_torcs_daemon(
 ) -> tuple[int, dict]:
     """Proxy a request to the TORCS control daemon with bearer auth.
 
+    The override API polls this path from a long-lived uvicorn process while
+    the torcs service may be recreated and reattached on the compose network.
+    In practice, the async transport path has proven brittle in that setup:
+    the public `/api/torcs/control-status` route could flap to
+    CONTROL_UNREACHABLE while an authenticated `curl` from inside the same
+    container still reached `/control/status` immediately.
+
+    Route the HTTP call through a short-lived synchronous client in a worker
+    thread instead. That keeps the FastAPI handler non-blocking while avoiding
+    the long-lived async transport issue and preserving the same exception
+    surface for callers.
+
     Returns (status_code, response_body). Body is always a dict (decoded
     JSON or wrapped error). Raises HTTPException only for ``CONTROL_DISABLED``
     (config-time) and ``CONTROL_UNREACHABLE`` (network-level); other
@@ -1771,6 +1781,22 @@ async def _call_torcs_daemon(
     re-raise as appropriate. Keeps the proxy layer's exception surface
     narrow and predictable.
     """
+    return await asyncio.to_thread(
+        _call_torcs_daemon_sync,
+        method,
+        path,
+        json_body=json_body,
+        timeout=timeout,
+    )
+
+
+def _call_torcs_daemon_sync(
+    method: str,
+    path: str,
+    *,
+    json_body: Optional[dict] = None,
+    timeout: float = 10.0,
+) -> tuple[int, dict]:
     url, secret = _torcs_control_config()
     if url is None or secret is None:
         raise api_error(
@@ -1787,8 +1813,8 @@ async def _call_torcs_daemon(
         )
     headers = {"Authorization": f"Bearer {secret}"}
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.request(method, f"{url}{path}", headers=headers, json=json_body)
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
+            resp = client.request(method, f"{url}{path}", headers=headers, json=json_body)
     except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
         raise api_error(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -2056,6 +2082,323 @@ def _read_jsonl_safe(path: Path, *, max_lines: Optional[int] = None) -> list[dic
     return out
 
 
+def _scalar_obs_value(obs: dict, key: str) -> Optional[float]:
+    value = obs.get(key)
+    if isinstance(value, list) and value:
+        value = value[0]
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _split_live_segments(observations: list[dict]) -> list[list[dict]]:
+    segments: list[list[dict]] = [[]]
+    prev_dist: Optional[float] = None
+    for obs in observations:
+        dist = _scalar_obs_value(obs, "distFromStart")
+        if dist is None:
+            continue
+        if prev_dist is not None and dist < prev_dist * 0.5 and prev_dist > 100.0:
+            segments.append([])
+        segments[-1].append(obs)
+        prev_dist = dist
+    return segments
+
+
+def _segment_lap_time_s(segment: list[dict]) -> float:
+    if len(segment) < 2:
+        return 0.0
+    first_t = _scalar_obs_value(segment[0], "curLapTime") or 0.0
+    last_t = _scalar_obs_value(segment[-1], "curLapTime") or 0.0
+    return max(0.0, last_t - first_t)
+
+
+def _segment_speed_stats(segment: list[dict]) -> tuple[float, float, float]:
+    speeds_kmh = [
+        value for value in (_scalar_obs_value(obs, "speedX") for obs in segment) if value is not None
+    ]
+    if not speeds_kmh:
+        return 0.0, 0.0, 0.0
+    return speeds_kmh[-1], sum(speeds_kmh) / len(speeds_kmh), max(speeds_kmh)
+
+
+def _segment_energy_totals(segment: list[dict]) -> tuple[float, float]:
+    from analysis.torcs_energy import (
+        DEPLOY_KJ_PER_FULL_THROTTLE_SECOND,
+        HARVEST_KJ_PER_BRAKE_SECOND,
+        THROTTLE_DEPLOY_THRESHOLD,
+    )
+
+    brake_s = 0.0
+    throttle_s = 0.0
+    for index, obs in enumerate(segment):
+        prev_t = _scalar_obs_value(segment[index - 1], "curLapTime") if index > 0 else None
+        cur_t = _scalar_obs_value(obs, "curLapTime")
+        dt = (
+            (cur_t - prev_t)
+            if (prev_t is not None and cur_t is not None and cur_t > prev_t)
+            else 0.02
+        )
+        brake = _scalar_obs_value(obs, "brake") or 0.0
+        accel = _scalar_obs_value(obs, "accel") or 0.0
+        if brake > 0.05:
+            brake_s += dt
+        if accel * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
+            throttle_s += dt
+
+    harvest_mj = (HARVEST_KJ_PER_BRAKE_SECOND * brake_s) / 1000.0
+    deploy_mj = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * throttle_s) / 1000.0
+    return harvest_mj, deploy_mj
+
+
+def _segment_fuel_used_kg(segment: list[dict]) -> Optional[float]:
+    fuel_first: Optional[float] = None
+    fuel_last: Optional[float] = None
+    for obs in segment:
+        fuel = _scalar_obs_value(obs, "fuel")
+        if fuel is None:
+            continue
+        if fuel_first is None:
+            fuel_first = fuel
+        fuel_last = fuel
+    if fuel_first is None or fuel_last is None or fuel_last > fuel_first:
+        return None
+    return round(fuel_first - fuel_last, 4)
+
+
+def _segment_track_length_est(segment: list[dict]) -> Optional[float]:
+    dists = [
+        value for value in (_scalar_obs_value(obs, "distFromStart") for obs in segment) if value is not None
+    ]
+    return max(dists) if dists else None
+
+
+def _initial_live_soc() -> float:
+    from analysis.torcs_energy import SOC_INITIAL
+
+    return float(SOC_INITIAL)
+
+
+def _advance_soc_from_delta(start_soc: float, harvest_mj: float, deploy_mj: float) -> float:
+    from analysis.torcs_energy import BATTERY_CAPACITY_MJ
+
+    return max(0.0, min(1.0, start_soc + (harvest_mj - deploy_mj) / BATTERY_CAPACITY_MJ))
+
+
+def _advance_soc_through_segment(start_soc: float, segment: list[dict]) -> float:
+    harvest_mj, deploy_mj = _segment_energy_totals(segment)
+    return _advance_soc_from_delta(start_soc, harvest_mj, deploy_mj)
+
+
+def _balance_label_from_delta(harvest_mj: float, deploy_mj: float) -> Literal["spending", "recovering", "balanced"]:
+    net = harvest_mj - deploy_mj
+    if net > 0.1:
+        return "recovering"
+    if net < -0.1:
+        return "spending"
+    return "balanced"
+
+
+def _build_live_lap_stats_from_segment(
+    *,
+    segment: list[dict],
+    lap_index: int,
+    start_soc: float,
+) -> Optional[LiveLapStats]:
+    if len(segment) < 2:
+        return None
+
+    _speed_kmh, avg_speed_kmh, max_speed_kmh = _segment_speed_stats(segment)
+    harvest_mj, deploy_mj = _segment_energy_totals(segment)
+    soc_end = _advance_soc_from_delta(start_soc, harvest_mj, deploy_mj)
+
+    return LiveLapStats(
+        lap=lap_index,
+        lap_time_s=round(_segment_lap_time_s(segment), 3),
+        avg_speed_kmh=round(avg_speed_kmh, 2),
+        max_speed_kmh=round(max_speed_kmh, 2),
+        harvest_mj=round(harvest_mj, 4),
+        deploy_mj=round(deploy_mj, 4),
+        soc_end=round(soc_end, 6),
+        fuel_used_kg=_segment_fuel_used_kg(segment),
+    )
+
+
+def _build_live_snapshot_from_segment(
+    *,
+    current_segment: list[dict],
+    current_lap_num: int,
+    start_soc: float,
+    completed_track_length_est: Optional[float],
+) -> Optional[LiveLapSnapshot]:
+    if not current_segment:
+        return None
+
+    last_obs = current_segment[-1]
+    speed_kmh, avg_speed_kmh, max_speed_kmh = _segment_speed_stats(current_segment)
+    dist_from_start_m = _scalar_obs_value(last_obs, "distFromStart") or 0.0
+    track_length_est = completed_track_length_est if completed_track_length_est and completed_track_length_est > 0 else 3000.0
+    lap_progress_pct = (
+        min(100.0, dist_from_start_m / track_length_est * 100.0)
+        if track_length_est > 0
+        else 0.0
+    )
+
+    sector: Optional[Literal[1, 2, 3]]
+    if lap_progress_pct <= 33.3:
+        sector = 1
+    elif lap_progress_pct <= 66.6:
+        sector = 2
+    else:
+        sector = 3
+
+    harvest_mj, deploy_mj = _segment_energy_totals(current_segment)
+    soc_estimate = _advance_soc_from_delta(start_soc, harvest_mj, deploy_mj)
+    raw_gear = _scalar_obs_value(last_obs, "gear")
+
+    return LiveLapSnapshot(
+        lap=current_lap_num,
+        lap_time_s=round(max(0.0, _scalar_obs_value(last_obs, "curLapTime") or 0.0), 2),
+        speed_kmh=round(speed_kmh, 1),
+        avg_speed_kmh=round(avg_speed_kmh, 1),
+        max_speed_kmh=round(max_speed_kmh, 1),
+        dist_from_start_m=round(dist_from_start_m, 0),
+        lap_progress_pct=round(lap_progress_pct, 1),
+        sector=sector,
+        throttle_frac=round(_scalar_obs_value(last_obs, "accel"), 3) if _scalar_obs_value(last_obs, "accel") is not None else None,
+        brake_frac=round(_scalar_obs_value(last_obs, "brake"), 3) if _scalar_obs_value(last_obs, "brake") is not None else None,
+        steer_frac=round(_scalar_obs_value(last_obs, "steer"), 3) if _scalar_obs_value(last_obs, "steer") is not None else None,
+        gear=int(raw_gear) if raw_gear is not None else None,
+        fuel_kg=round(_scalar_obs_value(last_obs, "fuel"), 2) if _scalar_obs_value(last_obs, "fuel") is not None else None,
+        fuel_used_kg=_segment_fuel_used_kg(current_segment),
+        harvest_mj=round(harvest_mj, 4),
+        deploy_mj=round(deploy_mj, 4),
+        soc_estimate=round(soc_estimate, 6),
+        soc_source="derived",
+        balance_label=_balance_label_from_delta(harvest_mj, deploy_mj),
+    )
+
+
+class _LiveTelemetryCursor:
+    def __init__(self):
+        self._offset = 0
+        self._pending_partial_line = ""
+        self._current_segment: list[dict] = []
+        self._prev_dist: Optional[float] = None
+        self._seen_first_valid_dist = False
+        self._first_segment_partial = False
+        self._skipped_initial_partial = False
+        self._completed_laps = 0
+        self._current_lap_start_soc = _initial_live_soc()
+        self._completed_track_length_est: Optional[float] = None
+
+    @property
+    def completed_laps(self) -> int:
+        return self._completed_laps
+
+    def poll(self, path: Path) -> tuple[list[LiveLapStats], Optional[LiveLapSnapshot]]:
+        new_laps = self._consume_observations(self._read_new_observations(path))
+        return new_laps, self.snapshot()
+
+    def snapshot(self) -> Optional[LiveLapSnapshot]:
+        if self._first_segment_partial and not self._skipped_initial_partial:
+            return None
+        return _build_live_snapshot_from_segment(
+            current_segment=self._current_segment,
+            current_lap_num=self._completed_laps + 1,
+            start_soc=self._current_lap_start_soc,
+            completed_track_length_est=self._completed_track_length_est,
+        )
+
+    def _read_new_observations(self, path: Path) -> list[dict]:
+        file_size = path.stat().st_size
+        if file_size < self._offset:
+            raise OSError("telemetry file truncated")
+
+        with path.open("r") as handle:
+            handle.seek(self._offset)
+            chunk = handle.read()
+            self._offset = handle.tell()
+
+        if not chunk:
+            return []
+
+        text = self._pending_partial_line + chunk
+        lines = text.splitlines(keepends=True)
+        if lines and not lines[-1].endswith("\n"):
+            self._pending_partial_line = lines.pop()
+        else:
+            self._pending_partial_line = ""
+
+        observations: list[dict] = []
+        for line in lines:
+            try:
+                obs = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(obs, dict):
+                observations.append(obs)
+        return observations
+
+    def _consume_observations(self, observations: list[dict]) -> list[LiveLapStats]:
+        emitted: list[LiveLapStats] = []
+        for obs in observations:
+            emitted.extend(self._consume_observation(obs))
+        return emitted
+
+    def _consume_observation(self, obs: dict) -> list[LiveLapStats]:
+        dist = _scalar_obs_value(obs, "distFromStart")
+        if dist is None:
+            return []
+
+        if not self._seen_first_valid_dist:
+            self._seen_first_valid_dist = True
+            self._first_segment_partial = dist > 100.0
+
+        wraparound = (
+            self._prev_dist is not None
+            and dist < self._prev_dist * 0.5
+            and self._prev_dist > 100.0
+        )
+        self._prev_dist = dist
+
+        if wraparound:
+            finished_segment = self._current_segment
+            self._current_segment = [obs]
+
+            if self._first_segment_partial and not self._skipped_initial_partial:
+                self._skipped_initial_partial = True
+                return []
+
+            next_soc = _advance_soc_through_segment(self._current_lap_start_soc, finished_segment)
+            stats = _build_live_lap_stats_from_segment(
+                segment=finished_segment,
+                lap_index=self._completed_laps + 1,
+                start_soc=self._current_lap_start_soc,
+            )
+            self._current_lap_start_soc = next_soc
+            self._completed_laps += 1
+
+            track_length_est = _segment_track_length_est(finished_segment)
+            if track_length_est is not None:
+                self._completed_track_length_est = max(
+                    self._completed_track_length_est or 0.0,
+                    track_length_est,
+                )
+
+            return [stats] if stats is not None else []
+
+        self._current_segment.append(obs)
+        return []
+
+
+def _poll_live_telemetry_cursor(
+    cursor: _LiveTelemetryCursor,
+    path: Path,
+) -> tuple[float, list[LiveLapStats], Optional[LiveLapSnapshot]]:
+    cur_mtime = path.stat().st_mtime
+    new_laps, snapshot = cursor.poll(path)
+    return cur_mtime, new_laps, snapshot
+
+
 def _first_segment_is_partial(observations: list[dict]) -> bool:
     """True if the JSONL starts mid-lap.
 
@@ -2093,15 +2436,13 @@ def _get_current_lap(observations: list[dict]) -> int:
     wraparounds = 0
     prev_dist: Optional[float] = None
     for obs in observations:
-        raw = obs.get("distFromStart")
-        if isinstance(raw, list) and raw:
-            raw = raw[0]
-        if not isinstance(raw, (int, float)):
+        raw = _scalar_obs_value(obs, "distFromStart")
+        if raw is None:
             continue
         if prev_dist is not None and raw < prev_dist * 0.5 and prev_dist > 100.0:
             # Wraparound = lap completed
             wraparounds += 1
-        prev_dist = float(raw)
+        prev_dist = raw
     if _first_segment_is_partial(observations):
         return max(0, wraparounds - 1)
     return wraparounds
@@ -2115,28 +2456,7 @@ def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLap
     when the observations span doesn't contain a complete lap_index'th
     lap (caller skips and waits for the next poll).
     """
-    from analysis.torcs_energy import (
-        BATTERY_CAPACITY_MJ,
-        DEPLOY_KJ_PER_FULL_THROTTLE_SECOND,
-        HARVEST_KJ_PER_BRAKE_SECOND,
-        SOC_INITIAL,
-        THROTTLE_DEPLOY_THRESHOLD,
-    )
-
-    # Segment observations into laps by start-line crossings.
-    laps: list[list[dict]] = [[]]
-    prev_dist: Optional[float] = None
-    for obs in observations:
-        raw = obs.get("distFromStart")
-        if isinstance(raw, list) and raw:
-            raw = raw[0]
-        if not isinstance(raw, (int, float)):
-            continue
-        dist = float(raw)
-        if prev_dist is not None and dist < prev_dist * 0.5 and prev_dist > 100.0:
-            laps.append([])
-        laps[-1].append(obs)
-        prev_dist = dist
+    laps = _split_live_segments(observations)
 
     # Skip the partial first segment if we joined mid-lap (Phase 2 fix).
     # Without this, "L1" in the live table would show ~8s of an incomplete
@@ -2148,89 +2468,15 @@ def _aggregate_lap(observations: list[dict], lap_index: int) -> Optional[LiveLap
 
     if lap_index < 1 or lap_index > len(laps):
         return None
-    lap = laps[lap_index - 1]
-    if len(lap) < 2:
-        return None
 
-    def _scalar(o: dict, k: str) -> Optional[float]:
-        v = o.get(k)
-        if isinstance(v, list) and v:
-            v = v[0]
-        return float(v) if isinstance(v, (int, float)) else None
+    start_soc = _initial_live_soc()
+    for prev_lap in laps[:lap_index - 1]:
+        start_soc = _advance_soc_through_segment(start_soc, prev_lap)
 
-    # Lap time from curLapTime
-    first_t = _scalar(lap[0], "curLapTime") or 0.0
-    last_t = _scalar(lap[-1], "curLapTime") or 0.0
-    lap_time_s = max(0.0, last_t - first_t)
-
-    # TORCS' SCR protocol reports speedX in km/h already. Keep the live
-    # stream aligned with ingest/torcs_parser.py instead of inflating by 3.6x.
-    speeds_kmh = [
-        v for v in (_scalar(o, "speedX") for o in lap) if v is not None
-    ]
-    avg_speed = sum(speeds_kmh) / len(speeds_kmh) if speeds_kmh else 0.0
-    max_speed = max(speeds_kmh) if speeds_kmh else 0.0
-
-    # Brake / throttle integration → harvest / deploy. Single-sector
-    # approximation here (live stream doesn't need per-sector breakdown);
-    # post-hoc parser does the per-sector split via ingest/torcs_parser.py.
-    # dt between consecutive ticks.
-    brake_s = 0.0
-    throttle_s = 0.0
-    fuel_first: Optional[float] = None
-    fuel_last: Optional[float] = None
-    for i, obs in enumerate(lap):
-        prev_t = _scalar(lap[i - 1], "curLapTime") if i > 0 else None
-        cur_t = _scalar(obs, "curLapTime")
-        dt = (cur_t - prev_t) if (prev_t is not None and cur_t is not None and cur_t > prev_t) else 0.02
-        brake = _scalar(obs, "brake") or 0.0
-        accel = _scalar(obs, "accel") or 0.0
-        if brake > 0.05:
-            brake_s += dt
-        # accel is 0-1; threshold is 95% (THROTTLE_DEPLOY_THRESHOLD is on 0-100 scale)
-        if accel * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
-            throttle_s += dt
-        fuel = _scalar(obs, "fuel")
-        if fuel is not None:
-            if fuel_first is None:
-                fuel_first = fuel
-            fuel_last = fuel
-
-    harvest_mj = (HARVEST_KJ_PER_BRAKE_SECOND * brake_s) / 1000.0
-    deploy_mj = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * throttle_s) / 1000.0
-    # Walk SoC across all prior laps + this one to get the right end value.
-    soc = SOC_INITIAL
-    for li in range(lap_index):
-        prev_lap = laps[li]
-        b_s = 0.0
-        t_s = 0.0
-        for j, obs in enumerate(prev_lap):
-            prev_t = _scalar(prev_lap[j - 1], "curLapTime") if j > 0 else None
-            cur_t = _scalar(obs, "curLapTime")
-            dt = (cur_t - prev_t) if (prev_t is not None and cur_t is not None and cur_t > prev_t) else 0.02
-            br = _scalar(obs, "brake") or 0.0
-            ac = _scalar(obs, "accel") or 0.0
-            if br > 0.05:
-                b_s += dt
-            if ac * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
-                t_s += dt
-        h = (HARVEST_KJ_PER_BRAKE_SECOND * b_s) / 1000.0
-        d = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * t_s) / 1000.0
-        soc = max(0.0, min(1.0, soc + (h - d) / BATTERY_CAPACITY_MJ))
-
-    fuel_used: Optional[float] = None
-    if fuel_first is not None and fuel_last is not None and fuel_last <= fuel_first:
-        fuel_used = round(fuel_first - fuel_last, 4)
-
-    return LiveLapStats(
-        lap=lap_index,
-        lap_time_s=round(lap_time_s, 3),
-        avg_speed_kmh=round(avg_speed, 2),
-        max_speed_kmh=round(max_speed, 2),
-        harvest_mj=round(harvest_mj, 4),
-        deploy_mj=round(deploy_mj, 4),
-        soc_end=round(soc, 6),
-        fuel_used_kg=fuel_used,
+    return _build_live_lap_stats_from_segment(
+        segment=laps[lap_index - 1],
+        lap_index=lap_index,
+        start_soc=start_soc,
     )
 
 
@@ -2245,37 +2491,9 @@ def _aggregate_live_snapshot(observations: list[dict]) -> Optional[LiveLapSnapsh
     Returns None when there are no valid observations or when the current
     segment is empty after partial-start skip logic.
     """
-    from analysis.torcs_energy import (
-        BATTERY_CAPACITY_MJ,
-        DEPLOY_KJ_PER_FULL_THROTTLE_SECOND,
-        HARVEST_KJ_PER_BRAKE_SECOND,
-        SOC_INITIAL,
-        THROTTLE_DEPLOY_THRESHOLD,
-    )
-
     if not observations:
         return None
-
-    def _scalar(o: dict, k: str) -> Optional[float]:
-        v = o.get(k)
-        if isinstance(v, list) and v:
-            v = v[0]
-        return float(v) if isinstance(v, (int, float)) else None
-
-    # Segment observations into laps by wraparound (same logic as _aggregate_lap).
-    laps: list[list[dict]] = [[]]
-    prev_dist: Optional[float] = None
-    for obs in observations:
-        raw = obs.get("distFromStart")
-        if isinstance(raw, list) and raw:
-            raw = raw[0]
-        if not isinstance(raw, (int, float)):
-            continue
-        dist = float(raw)
-        if prev_dist is not None and dist < prev_dist * 0.5 and prev_dist > 100.0:
-            laps.append([])
-        laps[-1].append(obs)
-        prev_dist = dist
+    laps = _split_live_segments(observations)
 
     # Skip the partial first segment when the operator joined mid-lap.
     if _first_segment_is_partial(observations) and laps:
@@ -2283,147 +2501,19 @@ def _aggregate_live_snapshot(observations: list[dict]) -> Optional[LiveLapSnapsh
     if not laps:
         return None
 
-    # The last segment is always the current in-progress lap.
-    current_seg = laps[-1]
-    if not current_seg:
-        return None
+    start_soc = _initial_live_soc()
+    completed_track_length_est: Optional[float] = None
+    for seg in laps[:-1]:
+        start_soc = _advance_soc_through_segment(start_soc, seg)
+        track_length_est = _segment_track_length_est(seg)
+        if track_length_est is not None:
+            completed_track_length_est = max(completed_track_length_est or 0.0, track_length_est)
 
-    current_lap_num = len(laps)  # 1-indexed; completed so far is len(laps)-1
-
-    # Current lap time (from curLapTime of the latest tick)
-    lap_time_s = max(0.0, _scalar(current_seg[-1], "curLapTime") or 0.0)
-
-    # TORCS' SCR protocol reports speedX in km/h already. Keep the live
-    # stream aligned with ingest/torcs_parser.py instead of inflating by 3.6x.
-    speeds_kmh = [
-        v for v in (_scalar(o, "speedX") for o in current_seg) if v is not None
-    ]
-    speed_kmh = speeds_kmh[-1] if speeds_kmh else 0.0
-    avg_speed_kmh = sum(speeds_kmh) / len(speeds_kmh) if speeds_kmh else 0.0
-    max_speed_kmh = max(speeds_kmh) if speeds_kmh else 0.0
-
-    # Position
-    dist_from_start_m = _scalar(current_seg[-1], "distFromStart") or 0.0
-
-    # Track length estimate: max dist seen across *completed* segments (those
-    # bounded by a wraparound). When there are no completed segments yet (very
-    # start of race) fall back to 3000 m so progress % stays meaningful.
-    completed_segs = laps[:-1]  # exclude the in-progress tail
-    if completed_segs:
-        all_completed_dists = [
-            _scalar(o, "distFromStart")
-            for seg in completed_segs
-            for o in seg
-        ]
-        valid_completed_dists = [d for d in all_completed_dists if d is not None]
-        track_length_est = max(valid_completed_dists) if valid_completed_dists else 3000.0
-    else:
-        track_length_est = 3000.0
-
-    lap_progress_pct = (
-        min(100.0, dist_from_start_m / track_length_est * 100.0)
-        if track_length_est > 0
-        else 0.0
-    )
-
-    # Sector from distance thirds (approximate, acceptable for live HUD)
-    if lap_progress_pct <= 33.3:
-        sector: Optional[Literal[1, 2, 3]] = 1
-    elif lap_progress_pct <= 66.6:
-        sector = 2
-    else:
-        sector = 3
-
-    # Latest driver inputs from the most recent tick
-    last_obs = current_seg[-1]
-    throttle_frac = _scalar(last_obs, "accel")
-    brake_frac = _scalar(last_obs, "brake")
-    steer_frac = _scalar(last_obs, "steer")
-    raw_gear = _scalar(last_obs, "gear")
-    gear: Optional[int] = int(raw_gear) if raw_gear is not None else None
-    fuel_kg = _scalar(last_obs, "fuel")
-
-    fuel_first = _scalar(current_seg[0], "fuel")
-    fuel_last = _scalar(current_seg[-1], "fuel")
-    fuel_used_kg: Optional[float] = None
-    if fuel_first is not None and fuel_last is not None and fuel_last <= fuel_first:
-        fuel_used_kg = round(fuel_first - fuel_last, 4)
-
-    # Energy integration for the current partial lap segment
-    brake_s = 0.0
-    throttle_s = 0.0
-    for i, obs in enumerate(current_seg):
-        prev_t = _scalar(current_seg[i - 1], "curLapTime") if i > 0 else None
-        cur_t = _scalar(obs, "curLapTime")
-        dt = (
-            (cur_t - prev_t)
-            if (prev_t is not None and cur_t is not None and cur_t > prev_t)
-            else 0.02
-        )
-        brake = _scalar(obs, "brake") or 0.0
-        accel = _scalar(obs, "accel") or 0.0
-        if brake > 0.05:
-            brake_s += dt
-        if accel * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
-            throttle_s += dt
-
-    harvest_mj = (HARVEST_KJ_PER_BRAKE_SECOND * brake_s) / 1000.0
-    deploy_mj = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * throttle_s) / 1000.0
-
-    # SoC: walk all completed laps, then add the current partial lap's delta.
-    soc = SOC_INITIAL
-    for seg in laps[:-1]:  # all but the current in-progress segment
-        b_s = 0.0
-        t_s = 0.0
-        for j, obs in enumerate(seg):
-            prev_t = _scalar(seg[j - 1], "curLapTime") if j > 0 else None
-            cur_t = _scalar(obs, "curLapTime")
-            dt = (
-                (cur_t - prev_t)
-                if (prev_t is not None and cur_t is not None and cur_t > prev_t)
-                else 0.02
-            )
-            br = _scalar(obs, "brake") or 0.0
-            ac = _scalar(obs, "accel") or 0.0
-            if br > 0.05:
-                b_s += dt
-            if ac * 100.0 >= THROTTLE_DEPLOY_THRESHOLD:
-                t_s += dt
-        h = (HARVEST_KJ_PER_BRAKE_SECOND * b_s) / 1000.0
-        d = (DEPLOY_KJ_PER_FULL_THROTTLE_SECOND * t_s) / 1000.0
-        soc = max(0.0, min(1.0, soc + (h - d) / BATTERY_CAPACITY_MJ))
-
-    soc_estimate = max(0.0, min(1.0, soc + (harvest_mj - deploy_mj) / BATTERY_CAPACITY_MJ))
-
-    # Deterministic balance label from current-lap net energy
-    net = harvest_mj - deploy_mj
-    if net > 0.1:
-        balance_label: Literal["spending", "recovering", "balanced"] = "recovering"
-    elif net < -0.1:
-        balance_label = "spending"
-    else:
-        balance_label = "balanced"
-
-    return LiveLapSnapshot(
-        lap=current_lap_num,
-        lap_time_s=round(lap_time_s, 2),
-        speed_kmh=round(speed_kmh, 1),
-        avg_speed_kmh=round(avg_speed_kmh, 1),
-        max_speed_kmh=round(max_speed_kmh, 1),
-        dist_from_start_m=round(dist_from_start_m, 0),
-        lap_progress_pct=round(lap_progress_pct, 1),
-        sector=sector,
-        throttle_frac=round(throttle_frac, 3) if throttle_frac is not None else None,
-        brake_frac=round(brake_frac, 3) if brake_frac is not None else None,
-        steer_frac=round(steer_frac, 3) if steer_frac is not None else None,
-        gear=gear,
-        fuel_kg=round(fuel_kg, 2) if fuel_kg is not None else None,
-        fuel_used_kg=fuel_used_kg,
-        harvest_mj=round(harvest_mj, 4),
-        deploy_mj=round(deploy_mj, 4),
-        soc_estimate=round(soc_estimate, 6),
-        soc_source="derived",
-        balance_label=balance_label,
+    return _build_live_snapshot_from_segment(
+        current_segment=laps[-1],
+        current_lap_num=len(laps),
+        start_soc=start_soc,
+        completed_track_length_est=completed_track_length_est,
     )
 
 

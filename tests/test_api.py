@@ -937,10 +937,10 @@ def test_control_status_proxies_active_state(tmp_path, monkeypatch):
         })
 
     import api.main as main_mod
-    original_client = httpx.AsyncClient
+    original_client = httpx.Client
     transport = httpx.MockTransport(handler)
     monkeypatch.setattr(
-        main_mod.httpx, "AsyncClient",
+        main_mod.httpx, "Client",
         lambda **kw: original_client(transport=transport, **{k: v for k, v in kw.items() if k != "transport"}),
     )
 
