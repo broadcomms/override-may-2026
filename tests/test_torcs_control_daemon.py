@@ -16,6 +16,19 @@ def _auth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer test-secret"}
 
 
+def test_torcs_runtime_env_forces_software_renderer(monkeypatch):
+    monkeypatch.setenv("LIBGL_ALWAYS_SOFTWARE", "0")
+    monkeypatch.setenv("MESA_LOADER_DRIVER_OVERRIDE", "d3d12")
+    monkeypatch.setenv("GALLIUM_DRIVER", "d3d12")
+
+    env = daemon._torcs_runtime_env()
+
+    assert env["DISPLAY"] == daemon.TORCS_DISPLAY
+    assert env["LIBGL_ALWAYS_SOFTWARE"] == "1"
+    assert env["MESA_LOADER_DRIVER_OVERRIDE"] == "llvmpipe"
+    assert env["GALLIUM_DRIVER"] == "llvmpipe"
+
+
 def test_write_practice_config_patches_track_laps_and_scr_server(tmp_path, monkeypatch):
     template = tmp_path / "practice.xml"
     template.write_text(

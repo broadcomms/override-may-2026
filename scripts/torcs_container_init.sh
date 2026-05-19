@@ -97,19 +97,27 @@ pkill -f "code.*install-extension" 2>/dev/null || true
 sed -i 's|Xvfb :1 -screen 0 1920x1080x24 &|Xvfb :1 -screen 0 1280x800x24+32 -ac +extension RENDER +extension GLX \&|' \
     /usr/local/bin/start.sh
 
-# ── Fix 3.5 — x11vnc SIGSEGV in initialize_xfixes() ─────────────────────────
-# x11vnc crashes with signal 11 (SIGSEGV) during initialize_xfixes() when
-# TORCS or xfwm4 compositor is active. The xfixes extension provides
-# cursor-shape notifications; without it x11vnc falls back to polling, which
-# is fine for a kiosk or lab session (no precision cursor tracking needed).
+# ── Fix 3.5 — x11vnc xfixes / xdamage instability with TORCS 3D ───────────
+# x11vnc hits two separate display-bridge problems with the TORCS + Xvfb
+# stack:
 #
-# Adding -noxfixes disables the xfixes code path entirely, bypassing the
-# crash. No user-visible degradation: cursor still renders, display still
-# updates. The patch is unconditional — the crash reproducibly kills x11vnc
-# regardless of OVERRIDE_KIOSK_MODE.
+#   1. initialize_xfixes() SIGSEGV
+#      x11vnc crashes inside xfixes when TORCS or xfwm4 compositor is active.
+#      -noxfixes disables that code path.
 #
-# Idempotent: sed won't match a line already containing -noxfixes.
-sed -i 's|x11vnc -display :1 -nopw -listen 0\.0\.0\.0 -xkb -forever -shared|x11vnc -display :1 -nopw -listen 0.0.0.0 -xkb -forever -shared -noxfixes|' \
+#   2. Frozen noVNC canvas while TORCS keeps running
+#      With software-Mesa / llvmpipe, x11vnc can attach an XDamage object to
+#      the display and then stop pushing framebuffer deltas for the TORCS 3D
+#      window even though the race and telemetry continue. -noxdamage forces
+#      polling instead of trusting XDamage notifications, which is more stable
+#      for this OpenGL-ish workload.
+#
+# The combined `-noxfixes -noxdamage` bridge is deliberate: stability matters
+# more than the small incremental update optimization for a single local demo
+# viewer.
+#
+# Idempotent: sed won't match a line already containing the extra flags.
+sed -i 's|x11vnc -display :1 -nopw -listen 0\.0\.0\.0 -xkb -forever -shared|x11vnc -display :1 -nopw -listen 0.0.0.0 -xkb -forever -shared -noxfixes -noxdamage|' \
     /usr/local/bin/start.sh
 
 # ── Fix 4 — Desktop launcher for TORCS GUI (one-click in noVNC) ─────────────
@@ -355,6 +363,9 @@ XFDESKTOP_EOF
 # OVERRIDE hard-kiosk TORCS supervisor.
 # Written by scripts/torcs_container_init.sh — do not edit manually.
 export DISPLAY=:1
+export LIBGL_ALWAYS_SOFTWARE=1
+export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+export GALLIUM_DRIVER=llvmpipe
 
 MIN_RUNTIME=3    # seconds — shorter exit counts as a crash
 CRASH_LIMIT=3    # consecutive crash-exits before backoff
@@ -365,6 +376,12 @@ PAUSE_FILE=/tmp/override-managed-race.lock
 # Initial delay: let XFCE compositor fully initialise before the
 # first GL context opens.
 sleep 2
+
+# Force TORCS onto software Mesa inside Xvfb. On WSL hosts the container also
+# sees the D3D12 translation stack via /usr/lib/wsl/lib; that path can keep the
+# simulation alive while the visible 3D surface stops repainting mid-race.
+# The kiosk surface is display-bound, not throughput-bound, so stable llvmpipe
+# rendering is the better tradeoff here.
 
 # Disable X screen blanking so the display never fades to grey during
 # idle periods (e.g. between TORCS restarts or on a paused race).

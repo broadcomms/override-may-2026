@@ -660,6 +660,23 @@ TORCS_LAUNCH_LOG = "/tmp/torcs-launch.log"
 SCR_CLIENT_LOG = "/tmp/scr-client.log"
 
 
+def _torcs_runtime_env() -> dict[str, str]:
+    """Runtime env for TORCS itself.
+
+    Visible Practice freezes were traced to TORCS picking up WSL's D3D12 GL
+    stack from the container environment. The simulator kept advancing laps and
+    the SCR client kept writing telemetry, but the 3D surface stopped updating.
+    Force software Mesa for the TORCS process so the GUI path matches the
+    Xvfb/llvmpipe assumptions already baked into the kiosk display tuning.
+    """
+    env = os.environ.copy()
+    env["DISPLAY"] = TORCS_DISPLAY
+    env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+    env["MESA_LOADER_DRIVER_OVERRIDE"] = "llvmpipe"
+    env["GALLIUM_DRIVER"] = "llvmpipe"
+    return env
+
+
 # Upstream gym_torcs ships this exact sequence in autostart.sh to walk the
 # visible TORCS menu into a Practice server. We keep the same ordering here so
 # the kiosk-owned GUI path matches the lab's known-good launch contract.
@@ -890,8 +907,7 @@ def _launch_torcs(raceman_path: str) -> subprocess.Popen:
     is orphaned, and SCR :3001 goes dead — exactly the symptom observed
     2026-05-13. File-backed stdout drains naturally; daemon never blocks.
     """
-    env = os.environ.copy()
-    env["DISPLAY"] = TORCS_DISPLAY
+    env = _torcs_runtime_env()
     log = open(TORCS_LAUNCH_LOG, "w")  # closed when the process exits
     return subprocess.Popen(
         [TORCS_BIN, "-r", raceman_path],
