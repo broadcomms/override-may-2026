@@ -1,6 +1,7 @@
 from RaceYourCode.gym_torcs.torcs_jm_par import (
     DEFAULT_MAX_STEPS,
     STEPS_PER_LAP_BUDGET,
+    _stabilize_steering_command,
     apply_recovery,
     calculate_steering,
     calculate_throttle,
@@ -88,6 +89,18 @@ def test_calculate_steering_rate_limits_full_sign_flip() -> None:
     assert -0.2 < steer < 0.7
 
 
+def test_stabilize_steering_holds_tiny_neutral_sign_reversal() -> None:
+    steer = _stabilize_steering_command(raw_steer=-0.08, previous_steer=0.003, speed_kmh=70.0)
+
+    assert 0.0 <= steer < 0.003
+
+
+def test_stabilize_steering_still_allows_large_reversal_to_cross_zero() -> None:
+    steer = _stabilize_steering_command(raw_steer=-0.45, previous_steer=0.05, speed_kmh=70.0)
+
+    assert steer < 0.0
+
+
 def test_calculate_steering_damps_lateral_motion_in_same_direction() -> None:
     baseline_state = {
         "angle": 0.14,
@@ -134,6 +147,46 @@ def test_coordinate_longitudinal_controls_cuts_throttle_when_braking() -> None:
 def test_coordinate_longitudinal_controls_holds_throttle_until_corner_settles() -> None:
     server_state = {"speedX": 39.0, "speedY": 1.4, "trackPos": -0.52}
     driver_action = {"steer": 0.36, "accel": 0.7, "brake": 0.0}
+
+    accel, brake = coordinate_longitudinal_controls(server_state, driver_action, target_speed=36.0)
+
+    assert accel == 0.0
+    assert brake == 0.0
+
+
+def test_coordinate_longitudinal_controls_holds_throttle_during_large_recovery_even_after_steer_unwinds() -> None:
+    server_state = {"speedX": 28.0, "speedY": 0.82, "trackPos": -0.74, "angle": 0.03}
+    driver_action = {"steer": 0.18, "accel": 0.9, "brake": 0.0}
+
+    accel, brake = coordinate_longitudinal_controls(server_state, driver_action, target_speed=36.0)
+
+    assert accel == 0.0
+    assert brake == 0.0
+
+
+def test_coordinate_longitudinal_controls_applies_light_brake_during_fast_large_slide() -> None:
+    server_state = {"speedX": 44.0, "speedY": 1.7, "trackPos": -0.48, "angle": 0.15}
+    driver_action = {"steer": 0.33, "accel": 0.7, "brake": 0.0}
+
+    accel, brake = coordinate_longitudinal_controls(server_state, driver_action, target_speed=36.0)
+
+    assert accel == 0.0
+    assert brake == 0.25
+
+
+def test_coordinate_longitudinal_controls_keeps_coasting_while_still_far_off_line_at_low_speed() -> None:
+    server_state = {"speedX": 26.0, "speedY": 0.02, "trackPos": -0.59, "angle": -0.04}
+    driver_action = {"steer": 0.08, "accel": 0.9, "brake": 0.0}
+
+    accel, brake = coordinate_longitudinal_controls(server_state, driver_action, target_speed=36.0)
+
+    assert accel == 0.0
+    assert brake == 0.0
+
+
+def test_coordinate_longitudinal_controls_holds_throttle_for_large_yaw_recovery_before_track_pos_reaches_old_threshold() -> None:
+    server_state = {"speedX": 32.0, "speedY": 2.2, "trackPos": -0.33, "angle": -0.31}
+    driver_action = {"steer": -0.44, "accel": 0.9, "brake": 0.0}
 
     accel, brake = coordinate_longitudinal_controls(server_state, driver_action, target_speed=36.0)
 

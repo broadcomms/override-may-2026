@@ -555,13 +555,22 @@ def calculate_target_speed(S, config=DEFAULT_DRIVER_CONFIG):
 
 
 def _stabilize_steering_command(raw_steer, previous_steer, speed_kmh):
-    """Smooth steering so moderate heading error doesn't become a lock-to-lock oscillation."""
+    """Smooth steering and suppress tiny lock-to-lock chatter near centre."""
     target = math.tanh(raw_steer)
     speed = max(0.0, float(speed_kmh or 0.0))
     blend = clip(0.42 - (speed / 300.0), 0.18, 0.42)
     if target * previous_steer < 0.0:
-        blend *= 0.6
+        if abs(previous_steer) < 0.08 and abs(target) < 0.12:
+            target = 0.0
+            blend = max(blend, 0.35)
+        else:
+            blend *= 0.6
+    elif abs(previous_steer) < 0.08 and abs(target) < 0.02:
+        target = 0.0
+        blend = max(blend, 0.30)
     steer = previous_steer + ((target - previous_steer) * blend)
+    if target == 0.0 and abs(steer) < 0.002:
+        return 0.0
     return clip(steer, -1.0, 1.0)
 
 
@@ -627,15 +636,36 @@ def coordinate_longitudinal_controls(S, R, target_speed, config=DEFAULT_DRIVER_C
     accel = float(R.get('accel', 0.0) or 0.0)
     steer = abs(float(R.get('steer', 0.0) or 0.0))
     track_pos = abs(float(S.get('trackPos', 0.0) or 0.0))
+    angle = abs(float(S.get('angle', 0.0) or 0.0))
     lateral_speed = abs(float(S.get('speedY', 0.0) or 0.0))
     speed = float(S.get('speedX', 0.0) or 0.0)
 
     if brake > 0.0:
         return 0.0, brake
 
+    severe_slide = (
+        track_pos >= 0.40
+        and lateral_speed >= 1.5
+        and speed >= 35.0
+        and (steer >= 0.25 or angle >= 0.12)
+    )
+    if severe_slide:
+        return 0.0, 0.25
+
     # If the car is still yawed/off-line in a corner, don't reapply throttle
     # until it has settled enough to stop the visible weave/recover cycle.
-    if steer >= 0.28 and track_pos >= 0.35 and lateral_speed >= 0.8:
+    if steer >= 0.28 and track_pos >= 0.30 and lateral_speed >= 0.8:
+        return 0.0, brake
+
+    # A large recovery can briefly unwind steer near zero while the car is
+    # still far off-line. Reopening throttle there re-energizes the swing.
+    if track_pos >= 0.55 and (lateral_speed >= 0.6 or angle >= 0.05):
+        return 0.0, brake
+
+    # Once the car has drifted far to one side, keep it coasting until it is
+    # materially back toward centre. Low-speed throttle re-open here was still
+    # showing up near the finish-line approach and reloading the swing.
+    if track_pos >= 0.58 and speed <= 35.0:
         return 0.0, brake
 
     return accel, brake
