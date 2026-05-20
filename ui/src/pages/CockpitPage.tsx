@@ -68,7 +68,7 @@ export function CockpitPage() {
     };
   }, [sessionId]);
 
-  const { laps: liveLaps, latestLap, latestSnapshot, streamState } = useLiveTelemetry(sessionId, {
+  const { laps: liveLaps, insights, latestLap, latestSnapshot, streamState } = useLiveTelemetry(sessionId, {
     retryNoTelemetry: true,
   });
   const previousLap = useMemo(
@@ -208,6 +208,7 @@ export function CockpitPage() {
 
       <LapEnergyTimeline laps={liveLaps} />
       <LiveStrategyInsight
+        insights={insights}
         sessionId={sessionId}
         latestSnapshot={latestSnapshot}
         latestLap={latestLap}

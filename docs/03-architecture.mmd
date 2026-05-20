@@ -7,11 +7,12 @@ flowchart LR
         Sessions["/sessions + /sessions/compare"]
         Cockpit["/cockpit"]
         SessionView["/session/:session_id"]
+        LapView["/session/:session_id/laps/:lap_number"]
     end
 
     subgraph API["FastAPI (`api/main.py`)"]
         Metadata["health / version / regulation-source"]
-        SessionAPI["session create / read / delete / what-if"]
+        SessionAPI["session create / read / delete / what-if / report / lap / copilot"]
         StreamAPI["live SSE stream"]
         TorcsAPI["TORCS control + runs + driver profiles"]
         Storage["api/storage.py + data/sessions"]
@@ -20,6 +21,9 @@ flowchart LR
     subgraph Pipeline["Core pipeline"]
         Ingest["TORCS / FastF1 parsers"]
         Zones["Zone detector"]
+        LiveIntel["Live intelligence rules"]
+        Report["Post-race report + lap analysis"]
+        Copilot["Stateless session copilot"]
         Forecast["TTM-R2 forecast (optional)"]
         Regs["Reg retrieval"]
         Reason["Granite reasoning"]
@@ -41,15 +45,18 @@ flowchart LR
     User --> Sessions
     User --> Cockpit
     User --> SessionView
+    User --> LapView
 
     Upload --> SessionAPI
     Sessions --> SessionAPI
     SessionView --> SessionAPI
+    LapView --> SessionAPI
     Cockpit --> TorcsAPI
     Cockpit --> StreamAPI
     DriverLab --> TorcsAPI
 
     SessionAPI --> Ingest
+    StreamAPI --> LiveIntel
     Ingest --> Zones
     Ingest -.-> Forecast
     Zones --> Reason
@@ -60,8 +67,12 @@ flowchart LR
     Pass1 --> Pass2
     Pass2 --> Storage
     SessionAPI <--> Storage
+    SessionAPI -. lazy report/lap .-> Report
+    SessionAPI -. stateless Q&A .-> Copilot
+    Report --> Storage
     SessionAPI -. lazy fan .-> Fan
     Fan --> Storage
+    Copilot --> Storage
 
     TorcsAPI <--> Torcs
     TorcsAPI <--> Profiles
@@ -79,8 +90,8 @@ flowchart LR
     classDef validator fill:#00C853,stroke:#000,color:#fff
     classDef optional fill:#666,stroke:#000,color:#fff,stroke-dasharray: 5 5
 
-    class Upload,DriverLab,Sessions,Cockpit,SessionView ui
+    class Upload,DriverLab,Sessions,Cockpit,SessionView,LapView ui
     class Metadata,SessionAPI,StreamAPI,TorcsAPI,Storage api
-    class Reason,Pass2,Watsonx model
+    class Reason,Pass2,Watsonx,Copilot model
     class Pass1 validator
-    class Forecast,Fan optional
+    class Forecast,Fan,Report optional

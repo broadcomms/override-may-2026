@@ -11,10 +11,15 @@ module imports. See docs/04-schema.md for the canonical contract.
 
 from .fastf1_parser import LapInputs, parse_fastf1_lap, parse_fastf1_session
 from .schema import (
+    CopilotAnswer,
+    CopilotMessage,
     FanOutput,
     Forecast,
+    LapAnalysis,
     LapFeatures,
     LapWindow,
+    LiveInsight,
+    RaceReport,
     ReasoningInput,
     ReasoningOutput,
     Recommendation,
@@ -32,8 +37,13 @@ __all__ = [
     # Schemas
     "FanOutput",
     "Forecast",
+    "CopilotAnswer",
+    "CopilotMessage",
+    "LapAnalysis",
     "LapFeatures",
     "LapWindow",
+    "LiveInsight",
+    "RaceReport",
     "ReasoningInput",
     "ReasoningOutput",
     "Recommendation",

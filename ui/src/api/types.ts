@@ -140,7 +140,68 @@ export interface FanOutput {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// §11 API surface
+// §11 Shared intelligence contracts
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type LiveInsightKind =
+  | "strategy_recommendation"
+  | "anomaly"
+  | "prediction"
+  | "explanation";
+
+export interface LiveInsight {
+  insight_id: string;
+  rule_id: string | null;
+  kind: LiveInsightKind;
+  severity: Severity;
+  headline: string;
+  message: string;
+  recommended_action: string | null;
+  confidence: Confidence;
+  evidence: string[];
+  lap: number | null;
+  sector: 1 | 2 | 3 | null;
+}
+
+export interface LapAnalysis {
+  session_id: string;
+  lap_number: number;
+  headline: string;
+  summary: string;
+  sector_callouts: string[];
+  evidence: string[];
+  generated_at: string;
+}
+
+export interface RaceReport {
+  session_id: string;
+  title: string;
+  executive_summary: string;
+  driver_score: number;
+  battery_efficiency_score: number;
+  consistency_score: number;
+  risk_score: number;
+  key_moments: LiveInsight[];
+  ai_commentary: string[];
+  generated_at: string;
+}
+
+export interface CopilotMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface CopilotAnswer {
+  answer: string;
+  engine: "granite" | "deterministic";
+  supporting_laps: number[];
+  confidence: Confidence;
+  suggestions: string[];
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// §12 API surface
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface Recommendation {
@@ -324,6 +385,7 @@ export interface SessionListParams {
 export type LiveStreamEvent =
   | { event: "connected"; session_id: string; status: string }
   | { event: "snapshot"; snapshot: LiveLapSnapshot }
+  | { event: "insight"; insight: LiveInsight }
   | { event: "no_telemetry"; message: string }
   | {
       event: "lap";
@@ -545,6 +607,8 @@ export interface WhatIfRequest {
 export interface TorcsRunSummary {
   run_id: string;
   size_bytes: number;
+  // Preserved wire name for backward compatibility; the backend now
+  // populates this from the JSONL's completed-lap count.
   lap_count_estimate: number;
   // Phase 1 enrichment (already shipped by the backend; surfacing here)
   started_at?: string | null;

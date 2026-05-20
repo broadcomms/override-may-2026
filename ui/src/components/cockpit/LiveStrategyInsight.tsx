@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 
-import type { LiveLapSnapshot, LiveLapStats, Recommendation } from "@/api/types";
+import type { LiveInsight, LiveLapSnapshot, LiveLapStats, Recommendation } from "@/api/types";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { deriveLiveSignal } from "@/lib/cockpitTelemetry";
 
 interface Props {
+  insights: LiveInsight[];
   sessionId: string | null;
   latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function LiveStrategyInsight({
+  insights,
   sessionId,
   latestSnapshot,
   latestLap,
@@ -25,6 +27,7 @@ export function LiveStrategyInsight({
 }: Props) {
   const [mode, setMode] = useState<Mode>("engineer");
   const signal = deriveLiveSignal(latestLap, previousLap);
+  const latestInsight = insights[0] ?? null;
 
   return (
     <section className="rounded-card border border-border bg-surface p-4">
@@ -42,6 +45,8 @@ export function LiveStrategyInsight({
 
       {mode === "engineer" ? (
         <EngineerBody
+          insights={insights}
+          latestInsight={latestInsight}
           sessionId={sessionId}
           latestSnapshot={latestSnapshot}
           streamState={streamState}
@@ -49,19 +54,29 @@ export function LiveStrategyInsight({
           recommendation={recommendation ?? null}
         />
       ) : (
-        <FanBody latestSnapshot={latestSnapshot} signal={signal} streamState={streamState} />
+        <FanBody
+          insights={insights}
+          latestInsight={latestInsight}
+          latestSnapshot={latestSnapshot}
+          signal={signal}
+          streamState={streamState}
+        />
       )}
     </section>
   );
 }
 
 function EngineerBody({
+  insights,
+  latestInsight,
   sessionId,
   latestSnapshot,
   streamState,
   signal,
   recommendation,
 }: {
+  insights: LiveInsight[];
+  latestInsight: LiveInsight | null;
   sessionId: string | null;
   latestSnapshot: LiveLapSnapshot | null;
   streamState: LiveStreamState;
@@ -78,6 +93,40 @@ function EngineerBody({
         <p className="text-sm text-muted">
           Validation and Guardian review are attached to the completed recommendation.
         </p>
+      </div>
+      );
+  }
+
+  if (latestInsight) {
+    return (
+      <div className="space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-accent">
+          Live insight: {kindLabel(latestInsight)} · {latestInsight.severity}
+        </div>
+        <h3 className="text-lg text-text">{latestInsight.headline}</h3>
+        <p className="text-sm text-text">{latestInsight.message}</p>
+        {latestInsight.recommended_action && (
+          <p className="text-sm text-muted">{latestInsight.recommended_action}</p>
+        )}
+        {latestInsight.evidence.length > 0 && (
+          <ul className="space-y-1 text-sm text-muted">
+            {latestInsight.evidence.slice(0, 3).map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+        )}
+        <p className="text-sm text-muted">
+          Rule-backed live insight. If the structured live engine is unavailable, OVERRIDE falls back to the deterministic battery signal below.
+        </p>
+        <RecentInsightList insights={insights} />
+        {sessionId && streamState.kind === "ended" && (
+          <Link
+            to={`/session/${encodeURIComponent(sessionId)}`}
+            className="inline-flex rounded-pill border border-border px-3 py-1.5 text-sm text-accent transition-colors hover:text-text"
+          >
+            Open session debrief
+          </Link>
+        )}
       </div>
     );
   }
@@ -136,14 +185,34 @@ function EngineerBody({
 }
 
 function FanBody({
+  insights,
+  latestInsight,
   latestSnapshot,
   signal,
   streamState,
 }: {
+  insights: LiveInsight[];
+  latestInsight: LiveInsight | null;
   latestSnapshot: LiveLapSnapshot | null;
   signal: ReturnType<typeof deriveLiveSignal>;
   streamState: LiveStreamState;
 }) {
+  if (latestInsight) {
+    return (
+      <div className="space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-accent">
+          Live insight
+        </div>
+        <p className="text-lg text-text">{latestInsight.headline}</p>
+        <p className="text-sm text-muted">{fanFriendlyInsight(latestInsight)}</p>
+        {latestInsight.recommended_action && (
+          <p className="text-sm text-muted">{latestInsight.recommended_action}</p>
+        )}
+        <RecentInsightList insights={insights} />
+      </div>
+    );
+  }
+
   if (latestSnapshot) {
     return (
       <div className="space-y-3">
@@ -177,6 +246,24 @@ function FanBody({
       <p className="text-sm text-muted">
         Post-lap analysis can upgrade this with a grounded engineer recommendation after the review completes.
       </p>
+    </div>
+  );
+}
+
+function RecentInsightList({ insights }: { insights: LiveInsight[] }) {
+  if (insights.length <= 1) return null;
+  return (
+    <div className="space-y-2 border-t border-border/70 pt-3">
+      <div className="text-[11px] uppercase tracking-wider text-muted">Recent insight trace</div>
+      <div className="space-y-1 text-xs text-muted">
+        {insights.slice(1).map((insight) => (
+          <div key={insight.insight_id}>
+            {insight.headline}
+            {insight.lap != null ? ` · lap ${insight.lap}` : ""}
+            {insight.sector != null ? ` · sector ${insight.sector}` : ""}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -238,4 +325,23 @@ function snapshotFanSummary(snap: LiveLapSnapshot): string {
     case "balanced":
       return `Battery is at ${soc}% and holding steady. Energy in and out are evenly matched right now.`;
   }
+}
+
+function kindLabel(insight: LiveInsight): string {
+  switch (insight.kind) {
+    case "strategy_recommendation":
+      return "strategy";
+    case "anomaly":
+      return "anomaly";
+    case "prediction":
+      return "prediction";
+    case "explanation":
+      return "explanation";
+  }
+}
+
+function fanFriendlyInsight(insight: LiveInsight): string {
+  if (insight.lap == null) return insight.message;
+  const sector = insight.sector != null ? `, sector ${insight.sector}` : "";
+  return `${insight.message} This trend is centered on lap ${insight.lap}${sector}.`;
 }

@@ -77,6 +77,7 @@ COPY models.json ./
 COPY core/ ./core/
 COPY ingest/ ./ingest/
 COPY analysis/ ./analysis/
+COPY copilot/ ./copilot/
 COPY api/ ./api/
 COPY torcs_driver_profiles.py ./
 COPY config/torcs_driver_profiles/ ./config/torcs_driver_profiles/

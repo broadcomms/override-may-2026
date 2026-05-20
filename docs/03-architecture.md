@@ -28,7 +28,7 @@ Legend:
 
 ### 1. Web application surface
 
-- `ui/` is a React 18 + Vite + TypeScript SPA with routes for `/upload`, `/driver-lab`, `/sessions`, `/sessions/compare`, `/cockpit`, and `/session/:session_id`.
+- `ui/` is a React 18 + Vite + TypeScript SPA with routes for `/upload`, `/driver-lab`, `/sessions`, `/sessions/compare`, `/cockpit`, `/session/:session_id`, and `/session/:session_id/laps/:lap_number`.
 - In development, Vite serves the UI and proxies `/api/*` to FastAPI.
 - In the container image, `api/main.py` mounts `ui/dist` so the API and SPA ship from the same origin on `:8000`.
 
@@ -44,7 +44,7 @@ Legend:
 - The `torcs` compose service runs the SkillsBuild TORCS environment plus `RaceYourCode/gym_torcs/control_daemon.py`.
 - `POST /api/torcs/start-race` creates an `ACTIVE` stub session before asking the daemon to launch a managed race.
 - TORCS telemetry is written to the shared `torcs-telemetry` volume.
-- `GET /api/sessions/{id}/stream` tails that JSONL file, emits live snapshots and completed laps over SSE, and closes when the file stalls.
+- `GET /api/sessions/{id}/stream` tails that JSONL file, emits live snapshots, deterministic live insights, and completed laps over SSE, and closes when the file stalls.
 - `POST /api/sessions/torcs-live` parses the finished JSONL, re-runs the full pipeline, and upgrades the stub session to a completed debrief.
 
 ### 4. Driver profile path
@@ -77,6 +77,7 @@ Legend:
 
 - Fan Mode is not generated during the initial pipeline run. `GET /api/sessions/{id}/zones/{zid}?mode=fan|both` generates and caches it on demand.
 - What-if runs are not a forked pipeline. `analysis/perturbations.py` mutates lap features, then `core/pipeline.py` is re-run and cached under `data/sessions/{id}/whatif/`.
+- Session copilot answers are stateless follow-up reads. `POST /api/sessions/{id}/copilot` routes the question through `copilot/orchestrator.py`, retrieves focused session context, calls the same Granite chat runtime used elsewhere in OVERRIDE, and returns a grounded answer without storing transcripts server-side.
 - Session history enrichment is live-aware. Active TORCS rows patch in completed-lap counts from the shared telemetry file without waiting for final ingest.
 
 ## Safety Architecture
@@ -108,6 +109,9 @@ data/sessions/
     ├── recommendations.json
     ├── regulation_source.json         # optional
     ├── driver_config.json             # optional
+    ├── report.json                    # lazy-cached deterministic report
+    ├── laps/
+    │   └── {lap_number}.json          # lazy-cached deterministic lap analysis
     └── whatif/
         └── {cache_key}.json
 ```
@@ -124,14 +128,16 @@ Design implications:
 - `/sessions`: history, pagination, selection, bulk delete, compare launch.
 - `/sessions/compare`: side-by-side comparison of two sessions.
 - `/cockpit`: live race surface with control strip, noVNC/headless frame, timing rail, hybrid rail, lap timeline, and deterministic live insight.
-- `/session/:session_id`: completed or active session detail with KPI strip, live telemetry panel for active sessions, Engineer/Fan recommendation rendering, heatmap, energy curve, and what-if diffs.
+- `/session/:session_id`: completed or active session detail with KPI strip, live telemetry panel for active sessions, post-race report, session copilot, Engineer/Fan recommendation rendering, heatmap, energy curve, and what-if diffs.
+- `/session/:session_id/laps/:lap_number`: dedicated lap drill-down with deterministic lap summary, sector callouts, and matching recommendations.
 
 ## Repo Map
 
 ```text
 overdrive-may-2026/
 ├── api/                              # FastAPI runtime, storage, errors, tracing
-├── analysis/                         # Deterministic telemetry enrichment + perturbations
+├── analysis/                         # Deterministic telemetry enrichment, live insights, reports, + perturbations
+├── copilot/                          # Stateless session-scoped copilot orchestration
 ├── core/                             # Pipeline, reasoning, validation, Guardian, regs, forecasting
 ├── ingest/                           # Source parsers + shared Pydantic schemas
 ├── ui/                               # React/Vite app

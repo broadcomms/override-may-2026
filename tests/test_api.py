@@ -89,6 +89,23 @@ def _well_formed_fan_json() -> str:
     })
 
 
+def _well_formed_copilot_json() -> str:
+    return json.dumps({
+        "answer": (
+            "Lap 4 ran 0.00s against lap 2, but it finished with a lower battery reserve after another net-spend lap. "
+            "That supports a more conservative deployment pattern later in the run."
+        ),
+        "engine": "granite",
+        "supporting_laps": [2, 4],
+        "confidence": "high",
+        "suggestions": [
+            "Which lap was more efficient?",
+            "What happened in sector 2?",
+            "Summarize the battery trend",
+        ],
+    })
+
+
 class FakeChatClient:
     def __init__(self, *, responses=None, raises=None):
         self.responses = list(responses) if responses else []
@@ -105,6 +122,10 @@ class FakeChatClient:
         # Decide which response shape to return based on the system prompt
         if "OVERRIDE-Fan-Translator" in system:
             return _well_formed_fan_json()
+        if "OVERRIDE-Race-Copilot" in system:
+            if idx < len(self.responses):
+                return self.responses[idx]
+            return _well_formed_copilot_json()
         if idx < len(self.responses):
             return self.responses[idx]
         return _well_formed_reasoning_json()
@@ -1888,6 +1909,168 @@ def test_stream_emits_no_telemetry_when_session_lacks_telemetry_file(tmp_path):
     assert any(e["event"] == "no_telemetry" for e in events)
 
 
+def test_report_endpoint_builds_and_caches_report_artifact(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    response = client.get(f"/api/sessions/{sid}/report")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["session_id"] == sid
+    assert body["title"]
+    assert isinstance(body["key_moments"], list)
+
+    report_path = Path(os.environ["SESSIONS_DIR"]) / sid / "report.json"
+    assert report_path.is_file()
+
+
+def test_lap_analysis_endpoint_builds_and_caches_lap_artifact(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    response = client.get(f"/api/sessions/{sid}/laps/3")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["session_id"] == sid
+    assert body["lap_number"] == 3
+    assert body["headline"]
+
+    lap_path = Path(os.environ["SESSIONS_DIR"]) / sid / "laps" / "3.json"
+    assert lap_path.is_file()
+
+
+def test_lap_analysis_endpoint_404s_for_missing_lap(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    response = client.get(f"/api/sessions/{sid}/laps/99")
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "NOT_FOUND"
+
+
+def test_session_copilot_returns_grounded_lap_comparison(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={
+            "question": "Compare lap 2 and lap 4",
+            "recent_turns": [
+                {
+                    "role": "user",
+                    "content": "Give me a race summary",
+                    "timestamp": "2026-05-20T12:00:00+00:00",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine"] == "granite"
+    assert body["confidence"] == "high"
+    assert body["supporting_laps"] == [2, 4]
+    assert "Lap 4" in body["answer"]
+
+
+def test_session_copilot_falls_back_when_model_output_is_malformed(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    creator = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        sessions_dir=sessions_dir,
+    )
+    created = creator.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    client = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        chat=FakeChatClient(responses=["not-json"]),
+        sessions_dir=sessions_dir,
+    )
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={"question": "Why did the AI recommend the current strategy?", "recent_turns": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine"] == "deterministic"
+    assert len(body["supporting_laps"]) == 1
+    assert f"OVERRIDE highlighted lap {body['supporting_laps'][0]}" in body["answer"]
+
+
+def test_session_copilot_salvages_granite_prose_answer(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    creator = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        sessions_dir=sessions_dir,
+    )
+    created = creator.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    prose = (
+        "Lap 4 spent more net energy than lap 2 and finished the stint with a tighter battery reserve. "
+        "That is why OVERRIDE would support a more conservative deployment pattern later in the run."
+    )
+    client = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        chat=FakeChatClient(responses=[prose]),
+        sessions_dir=sessions_dir,
+    )
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={"question": "Compare lap 2 and lap 4", "recent_turns": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine"] == "granite"
+    assert body["supporting_laps"] == [4, 2] or body["supporting_laps"] == [2, 4]
+    assert "Lap 4 spent more net energy than lap 2" in body["answer"]
+
+
+def test_session_copilot_404s_for_missing_session(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    response = client.post(
+        "/api/sessions/s_missing/copilot",
+        json={"question": "Why was conservative mode recommended?", "recent_turns": []},
+    )
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "NOT_FOUND"
+
+
 def test_stream_waits_for_active_torcs_live_file_to_appear(tmp_path, monkeypatch):
     """A freshly-started 3D Cockpit run writes the ACTIVE session stub before
     the JSONL file may exist. The stream should wait and emit laps once the
@@ -2001,6 +2184,35 @@ def test_stream_emits_lap_events_then_race_ended_on_stall(tmp_path, monkeypatch)
     # 2 laps in the fixture → 1 completed lap detected (still mid-lap on #2 at
     # the time of stall — the second wraparound is at the boundary of lap 3).
     # Don't pin the exact count; just confirm at least one lap event fired.
+
+
+def test_stream_emits_deterministic_insight_events(tmp_path, monkeypatch):
+    """Live stream should now emit rule-backed insight events alongside the
+    existing snapshot/lap payloads."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "insightful.jsonl").write_bytes(_sse_jsonl_payload(n_laps=2))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    ingest = client.post("/api/sessions/torcs-live", json={"run_id": "insightful"})
+    assert ingest.status_code == 201
+    sid = ingest.json()["summary"]["session_id"]
+
+    events: list[dict] = []
+    with client.stream("GET", f"/api/sessions/{sid}/stream", timeout=15.0) as r:
+        assert r.status_code == 200
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                ev = json.loads(line[len("data: "):])
+                events.append(ev)
+                if ev.get("event") == "insight":
+                    break
+
+    insight = next(event["insight"] for event in events if event.get("event") == "insight")
+    assert insight["insight_id"].startswith("li_")
+    assert insight["rule_id"] is not None
+    assert insight["headline"]
+    assert isinstance(insight["evidence"], list)
 
 
 
@@ -2621,6 +2833,22 @@ def test_torcs_status_paginates(tmp_path, monkeypatch):
     r2 = client.get("/api/torcs-status?limit=2&offset=2")
     body2 = r2.json()
     assert [r["run_id"] for r in body2["runs"]] == ["run_2", "run_1"]
+
+
+def test_torcs_status_uses_same_completed_lap_count_as_sessions(tmp_path, monkeypatch):
+    """Regression: UploadPage used to show a size heuristic while the
+    Sessions page live-enriched ACTIVE rows from the JSONL itself. The
+    two surfaces must agree for the same TORCS capture."""
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    (telem / "active_run.jsonl").write_bytes(_sse_jsonl_payload(n_laps=3))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    r = client.get("/api/torcs-status")
+    assert r.status_code == 200
+    row = next(run for run in r.json()["runs"] if run["run_id"] == "active_run")
+    assert row["lap_count_estimate"] == 2
 
 
 def test_torcs_status_marks_ingested_runs(tmp_path, monkeypatch):

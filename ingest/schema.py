@@ -99,6 +99,7 @@ class ZoneType(str, Enum):
 
 
 Severity = Literal["low", "medium", "high"]
+Confidence = Literal["low", "medium", "high"]
 
 
 class Zone(BaseModel):
@@ -244,7 +245,7 @@ class ReasoningOutput(BaseModel):
         description="1 sentence; tone 'consider' / 'could explore', never 'optimal' / 'always'",
     )
     regulation_citation: Optional[RegulationCitation] = None
-    confidence: Literal["low", "medium", "high"]
+    confidence: Confidence
     confidence_justification: str = Field(min_length=1, description="1 sentence")
     reasoning_chain: list[str] = Field(
         min_length=3,
@@ -276,7 +277,96 @@ class FanOutput(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# §11  API surface types (consumed by core/pipeline.py and the FastAPI layer)
+# §11  Shared intelligence contracts
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+LiveInsightKind = Literal[
+    "strategy_recommendation",
+    "anomaly",
+    "prediction",
+    "explanation",
+]
+
+
+class LiveInsight(BaseModel):
+    """Deterministic live explainability unit shared across API/UI surfaces.
+
+    The live SSE envelope stays API-local, but the insight payload itself is
+    shared so cockpit rendering, cached report artifacts, and later lap/report
+    flows can reuse the same contract.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    insight_id: str = Field(min_length=1)
+    rule_id: Optional[str] = Field(default=None, min_length=1)
+    kind: LiveInsightKind
+    severity: Severity
+    headline: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    recommended_action: Optional[str] = None
+    confidence: Confidence
+    evidence: list[str] = Field(default_factory=list)
+    lap: Optional[int] = Field(default=None, ge=1)
+    sector: Optional[Literal[1, 2, 3]] = None
+
+
+class LapAnalysis(BaseModel):
+    """Cached lap-level intelligence artifact for the post-race debrief."""
+
+    model_config = ConfigDict(frozen=True)
+
+    session_id: str
+    lap_number: int = Field(ge=1)
+    headline: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    sector_callouts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    generated_at: datetime
+
+
+class RaceReport(BaseModel):
+    """Cached session-level post-race intelligence artifact."""
+
+    model_config = ConfigDict(frozen=True)
+
+    session_id: str
+    title: str = Field(min_length=1)
+    executive_summary: str = Field(min_length=1)
+    driver_score: float = Field(ge=0.0, le=100.0)
+    battery_efficiency_score: float = Field(ge=0.0, le=100.0)
+    consistency_score: float = Field(ge=0.0, le=100.0)
+    risk_score: float = Field(ge=0.0, le=100.0)
+    key_moments: list[LiveInsight] = Field(default_factory=list)
+    ai_commentary: list[str] = Field(default_factory=list)
+    generated_at: datetime
+
+
+class CopilotMessage(BaseModel):
+    """Stateless client-supplied conversational turn for the session copilot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
+    timestamp: datetime
+
+
+class CopilotAnswer(BaseModel):
+    """Grounded response returned by the session-scoped copilot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    answer: str = Field(min_length=1)
+    engine: Literal["granite", "deterministic"]
+    supporting_laps: list[int] = Field(default_factory=list)
+    confidence: Confidence
+    suggestions: list[str] = Field(default_factory=list)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# §12  API surface types (consumed by core/pipeline.py and the FastAPI layer)
 # ──────────────────────────────────────────────────────────────────────────────
 #
 # These import lazily because Recommendation references types defined in
@@ -500,12 +590,18 @@ __all__ = [
     "Severity",
     "Zone",
     "Forecast",
+    "Confidence",
     "RegulationSource",
     "RegulationChunk",
     "RegulationCitation",
     "ReasoningInput",
     "ReasoningOutput",
     "FanOutput",
+    "LiveInsight",
+    "LapAnalysis",
+    "RaceReport",
+    "CopilotMessage",
+    "CopilotAnswer",
     "Recommendation",
     "SessionSummary",
     "Session",

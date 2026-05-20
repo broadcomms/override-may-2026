@@ -28,6 +28,8 @@ import {
 import { KpiStrip } from "@/components/KpiStrip";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import { LiveTelemetry } from "@/components/LiveTelemetry";
+import { PostRaceReportPanel } from "@/components/PostRaceReportPanel";
+import { RaceCopilotPanel } from "@/components/RaceCopilotPanel";
 import { RecommendationCard } from "@/components/RecommendationCard";
 import { WhatIfDiff } from "@/components/WhatIfDiff";
 import { ZoneHeatmap } from "@/components/ZoneHeatmap";
@@ -315,6 +317,18 @@ export function SessionPage() {
       <div className="mb-4">
         <KpiStrip session={session} />
       </div>
+
+      {session.summary.status !== "active" && (
+        <div className="mb-6">
+          <PostRaceReportPanel sessionId={sessionId} session={session} fixture={fixture} />
+        </div>
+      )}
+
+      {session.summary.status !== "active" && (
+        <div className="mb-6">
+          <RaceCopilotPanel sessionId={sessionId} session={session} fixture={fixture} />
+        </div>
+      )}
 
       {/* Energy curve + zone heatmap — hidden while the race is still
           active; the stub Session has empty laps/forecast and the

@@ -61,7 +61,10 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from analysis.live_intelligence import derive_live_insights
+from analysis.post_race_report import build_lap_analysis, build_race_report
 from analysis.perturbations import apply_perturbation
+from copilot import answer_question
 from core.fan_mode import FanModeParseError, translate_to_fan_mode
 from core.forecasting import forecast_lap_window
 from core.guardian import WatsonxAIGuardianClient, WatsonxGuardianClient
@@ -97,6 +100,8 @@ from core.regs import (
 from ingest.fastf1_parser import parse_fastf1_session  # noqa: F401  — surfaced for future use
 from ingest.torcs_parser import parse_torcs_session
 from ingest.schema import (
+    CopilotAnswer,
+    CopilotMessage,
     LapFeatures,
     Recommendation,
     RegulationSource,
@@ -117,7 +122,11 @@ from .storage import (
     list_sessions as storage_list_sessions,
     list_telemetry_filenames,
     load_session,
+    load_lap_analysis,
+    load_race_report,
     save_recommendations_only,
+    save_lap_analysis,
+    save_race_report,
     save_session,
 )
 
@@ -263,6 +272,11 @@ class BulkDeleteSessionsResponse(BaseModel):
     """
     deleted: int
     telemetry_removed: int
+
+
+class SessionCopilotRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    recent_turns: list[CopilotMessage] = Field(default_factory=list)
 
 
 class TorcsStartRaceRequest(BaseModel):
@@ -650,6 +664,57 @@ def create_app() -> FastAPI:
             )
         return session.model_dump(mode="json")
 
+    @app.get("/api/sessions/{session_id}/report")
+    async def get_session_report(
+        request: Request,
+        session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+    ):
+        rid = getattr(request.state, "request_id", new_request_id())
+        session = load_session(session_id)
+        if session is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Session {session_id} not found.",
+                request_id=rid,
+            )
+        cached = load_race_report(session_id)
+        if cached is not None:
+            return cached.model_dump(mode="json")
+        report = build_race_report(session)
+        save_race_report(session_id, report)
+        return report.model_dump(mode="json")
+
+    @app.get("/api/sessions/{session_id}/laps/{lap_number}")
+    async def get_session_lap_analysis(
+        request: Request,
+        session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+        lap_number: int = PathParam(..., ge=1),
+    ):
+        rid = getattr(request.state, "request_id", new_request_id())
+        session = load_session(session_id)
+        if session is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Session {session_id} not found.",
+                request_id=rid,
+            )
+        cached = load_lap_analysis(session_id, lap_number)
+        if cached is not None:
+            return cached.model_dump(mode="json")
+        try:
+            lap_analysis = build_lap_analysis(session, lap_number)
+        except ValueError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=str(exc),
+                request_id=rid,
+            )
+        save_lap_analysis(session_id, lap_analysis)
+        return lap_analysis.model_dump(mode="json")
+
     @app.get("/api/sessions/{session_id}/zones/{zone_id}")
     async def get_zone(
         request: Request,
@@ -725,6 +790,33 @@ def create_app() -> FastAPI:
             rec = rec.model_copy(update={"fan": None})
 
         return rec.model_dump(mode="json")
+
+    @app.post("/api/sessions/{session_id}/copilot")
+    async def session_copilot(
+        request: Request,
+        body: SessionCopilotRequest,
+        session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+        chat_client: WatsonxChatClient = Depends(get_chat_client),
+    ):
+        rid = getattr(request.state, "request_id", new_request_id())
+        session = load_session(session_id)
+        if session is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Session {session_id} not found.",
+                request_id=rid,
+            )
+        try:
+            answer: CopilotAnswer = answer_question(
+                session,
+                body.question,
+                recent_turns=body.recent_turns,
+                client=chat_client,
+            )
+        except Exception as e:
+            raise map_watsonx_exception(e, request_id=rid)
+        return answer.model_dump(mode="json")
 
     @app.post("/api/sessions/{session_id}/what-if")
     async def what_if(
@@ -1015,9 +1107,11 @@ def create_app() -> FastAPI:
                     return
 
                 emitted_laps = 0
+                completed_lap_stats: list[LiveLapStats] = []
                 last_mtime: Optional[float] = None
                 stall_started: Optional[float] = None
                 last_snapshot_sig: Optional[str] = None
+                last_insight_state: dict[str, tuple[str, str]] = {}
                 cursor = _LiveTelemetryCursor()
 
                 while True:
@@ -1037,6 +1131,7 @@ def create_app() -> FastAPI:
                     # Emit any newly-completed laps.
                     for stats in new_laps:
                         yield _sse({"event": "lap", **stats.model_dump()})
+                        completed_lap_stats.append(stats)
                         # Yield control between lap emits so a multi-lap
                         # catch-up doesn't block the disconnect check.
                         await asyncio.sleep(0)
@@ -1049,6 +1144,18 @@ def create_app() -> FastAPI:
                         if sig != last_snapshot_sig:
                             yield _sse({"event": "snapshot", "snapshot": snapshot.model_dump()})
                             last_snapshot_sig = sig
+
+                    live_insights = derive_live_insights(snapshot, completed_lap_stats)
+                    active_insight_ids = {insight.insight_id for insight in live_insights}
+                    for stale_id in list(last_insight_state):
+                        if stale_id not in active_insight_ids:
+                            del last_insight_state[stale_id]
+                    for insight in live_insights:
+                        state = (insight.severity, insight.message)
+                        if last_insight_state.get(insight.insight_id) == state:
+                            continue
+                        yield _sse({"event": "insight", "insight": insight.model_dump()})
+                        last_insight_state[insight.insight_id] = state
 
                     # File-stall race-end heuristic
                     now = time.monotonic()
@@ -1542,10 +1649,6 @@ def create_app() -> FastAPI:
             except OSError:
                 continue
             size = stat.st_size
-            # Cheap lap-count estimate: gym_torcs ticks at ~50 Hz, lap is
-            # ~100 s typical → ~5000 ticks/lap. Surfaced as a guide for the
-            # UI banner, not authoritative.
-            tick_estimate = max(1, size // 1000)  # ~1 KB/tick observed
             # Phase 1: surface capture window from first-observation `t`
             # (logger injection) with mtime fallback. duration_seconds
             # gives the UI a glance at how long the run actually ran.
@@ -1553,16 +1656,30 @@ def create_app() -> FastAPI:
             started = _extract_start_time(p) or last_written
             duration = (last_written - started).total_seconds()
             all_runs.append({
+                "path": p,
                 "run_id": p.stem,
                 "size_bytes": size,
-                "lap_count_estimate": tick_estimate // 5000,
                 "started_at": started.isoformat(),
                 "last_written_at": last_written.isoformat(),
                 "duration_seconds": max(0.0, duration),
                 "ingested_session_id": ingested_map.get(p.name),
             })
         total = len(all_runs)
-        page = all_runs[offset : offset + limit]
+        page = []
+        for row in all_runs[offset : offset + limit]:
+            observations = _read_jsonl_safe(row["path"])
+            page.append({
+                "run_id": row["run_id"],
+                "size_bytes": row["size_bytes"],
+                # Match GET /api/sessions for ACTIVE torcs_live rows so the
+                # upload banner and sessions history show the same completed
+                # lap count for the same JSONL capture.
+                "lap_count_estimate": _get_current_lap(observations),
+                "started_at": row["started_at"],
+                "last_written_at": row["last_written_at"],
+                "duration_seconds": row["duration_seconds"],
+                "ingested_session_id": row["ingested_session_id"],
+            })
         return {
             "available": bool(all_runs),
             "runs": page,

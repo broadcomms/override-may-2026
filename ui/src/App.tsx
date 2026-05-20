@@ -6,6 +6,7 @@ import type { VersionResponse } from "@/api/types";
 import { hasTorcsSurface } from "@/lib/env";
 import { CockpitPage } from "@/pages/CockpitPage";
 import { DriverLabPage } from "@/pages/DriverLabPage";
+import { SessionLapPage } from "@/pages/SessionLapPage";
 import { SessionComparePage } from "@/pages/SessionComparePage";
 import { SessionPage } from "@/pages/SessionPage";
 import { SessionsPage } from "@/pages/SessionsPage";
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/sessions/compare" element={<SessionComparePage />} />
           <Route path="/cockpit" element={<CockpitPage />} />
+          <Route path="/session/:sessionId/laps/:lapNumber" element={<SessionLapPage />} />
           <Route path="/session/:sessionId" element={<SessionPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

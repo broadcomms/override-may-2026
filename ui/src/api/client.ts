@@ -36,9 +36,13 @@ import layeredDefenseFixtureRaw from "@fixtures/layered_defense_demo.json";
 import torcsEngineerFixtureRaw from "@fixtures/torcs_engineer_demo.json";
 import type {
   ApiError,
+  CopilotAnswer,
+  CopilotMessage,
   HealthResponse,
   LiveStreamEvent,
+  LapAnalysis,
   BulkDeleteSessionsResponse,
+  RaceReport,
   Recommendation,
   RegulationSource,
   Session,
@@ -219,6 +223,100 @@ function fixtureNameForSessionId(sessionId: string): FixtureName {
   return "fan_mode";
 }
 
+function fixtureLiveStreamEvents(sessionId: string): Array<{ delayMs: number; event: LiveStreamEvent }> {
+  return [
+    {
+      delayMs: 0,
+      event: { event: "connected", session_id: sessionId, status: "active" },
+    },
+    {
+      delayMs: 180,
+      event: {
+        event: "snapshot",
+        snapshot: {
+          lap: 4,
+          lap_time_s: 18.4,
+          speed_kmh: 232.0,
+          avg_speed_kmh: 198.2,
+          max_speed_kmh: 247.5,
+          dist_from_start_m: 1680,
+          lap_progress_pct: 56.0,
+          sector: 2,
+          throttle_frac: 0.92,
+          brake_frac: 0,
+          steer_frac: 0.08,
+          gear: 6,
+          fuel_kg: 86.4,
+          fuel_used_kg: 0.22,
+          harvest_mj: 0.18,
+          deploy_mj: 0.56,
+          soc_estimate: 0.48,
+          soc_source: "derived",
+          balance_label: "spending",
+        },
+      },
+    },
+    {
+      delayMs: 360,
+      event: {
+        event: "lap",
+        lap: 3,
+        lap_time_s: 36.4,
+        avg_speed_kmh: 201.8,
+        max_speed_kmh: 246.2,
+        harvest_mj: 0.31,
+        deploy_mj: 0.82,
+        soc_end: 0.52,
+        fuel_used_kg: 0.47,
+      },
+    },
+    {
+      delayMs: 540,
+      event: {
+        event: "insight",
+        insight: {
+          insight_id: "li_energy_pressure_v1_l3_s2",
+          rule_id: "energy_pressure_v1",
+          kind: "strategy_recommendation",
+          severity: "high",
+          headline: "Energy pressure building",
+          message: "Deploy exceeded harvest by 0.51 MJ on lap 3, and battery reserve is trending tighter.",
+          recommended_action: "Recommend a recover lap before repeating the same deployment pattern.",
+          confidence: "high",
+          evidence: [
+            "Lap 3 closed with 0.82 MJ deploy vs 0.31 MJ harvest.",
+            "SoC is tracking around 48%.",
+          ],
+          lap: 3,
+          sector: 2,
+        },
+      },
+    },
+    {
+      delayMs: 900,
+      event: {
+        event: "insight",
+        insight: {
+          insight_id: "li_battery_prediction_v1_l3_s0",
+          rule_id: "battery_prediction_v1",
+          kind: "prediction",
+          severity: "medium",
+          headline: "Battery reserve trending down",
+          message: "Recent SoC slope would bring the reserve near 35% around lap 5 if the same energy pattern continues.",
+          recommended_action: "Recommend conservative deployment until the reserve trend flattens.",
+          confidence: "medium",
+          evidence: [
+            "Recent SoC drops average 7.0% per lap.",
+            "Latest completed lap ended at 52% SoC.",
+          ],
+          lap: 3,
+          sector: null,
+        },
+      },
+    },
+  ];
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Fixture-mode synthesis for FR-8 what-if (offline dev + recording fallback)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -341,6 +439,118 @@ async function jsonFetch<T>(
   return (await res.json()) as T;
 }
 
+function _synthesizeFixtureRaceReport(sessionId: string, opts?: ApiOpts): RaceReport {
+  const session = fixtureSession(resolveFixtureName(opts, sessionId));
+  const laps = session.laps;
+  const keyMoments = session.recommendations.slice(0, 3).map((rec, index) => ({
+    insight_id: `li_fixture_report_${index + 1}`,
+    rule_id: `fixture_report_${rec.zone.zone_type}`,
+    kind: "explanation" as const,
+    severity: rec.zone.severity,
+    headline: rec.reasoning.recommendation,
+    message: `Lap ${rec.zone.lap_number}, sector ${rec.zone.sector}: ${rec.reasoning.cause} ${rec.reasoning.consequence}`,
+    recommended_action: rec.reasoning.recommendation,
+    confidence: rec.guardian.final_confidence,
+    evidence: rec.reasoning.reasoning_chain.slice(0, 3),
+    lap: rec.zone.lap_number,
+    sector: rec.zone.sector,
+  }));
+
+  const bestLap = laps.length > 0 ? laps.reduce((best, lap) => (lap.lap_time < best.lap_time ? lap : best), laps[0]) : null;
+  const finalSoc = laps.length > 0 ? laps[laps.length - 1].soc_end * 100 : 0;
+
+  return {
+    session_id: session.summary.session_id,
+    title: `Race report · ${session.summary.track_name ?? session.summary.track_id ?? "fixture"}`,
+    executive_summary: `Fixture session reviewed ${laps.length} laps and highlighted ${session.recommendations.length} explainability moments.`,
+    driver_score: 82,
+    battery_efficiency_score: 78,
+    consistency_score: 80,
+    risk_score: 24,
+    key_moments: keyMoments,
+    ai_commentary: [
+      bestLap
+        ? `Best lap was ${bestLap.lap_number} at ${bestLap.lap_time.toFixed(2)}s.`
+        : "No completed laps are available in this fixture.",
+      `Final battery reserve closed at ${finalSoc.toFixed(0)}%.`,
+      "Use the lap route to inspect one lap at a time with the same deterministic evidence trail.",
+    ],
+    generated_at: new Date().toISOString(),
+  };
+}
+
+function _synthesizeFixtureLapAnalysis(sessionId: string, lapNumber: number, opts?: ApiOpts): LapAnalysis {
+  const session = fixtureSession(resolveFixtureName(opts, sessionId));
+  const lap = session.laps.find((item) => item.lap_number === lapNumber) ?? session.laps[0];
+  if (!lap) {
+    throw new OverrideApiError(404, {
+      error_code: "NOT_FOUND",
+      message: `Lap ${lapNumber} not found in fixture session.`,
+      detail: null,
+      request_id: "fixture",
+    });
+  }
+  const related = session.recommendations.filter((rec) => rec.zone.lap_number === lap.lap_number);
+  return {
+    session_id: session.summary.session_id,
+    lap_number: lap.lap_number,
+    headline:
+      related[0]?.reasoning.recommendation
+      ?? `Lap ${lap.lap_number} ${lap.harvest_mj >= lap.deploy_mj ? "rebuilt" : "spent"} energy reserve`,
+    summary: `Lap ${lap.lap_number} ran ${lap.lap_time.toFixed(2)}s with SoC moving from ${(lap.soc_start * 100).toFixed(0)}% to ${(lap.soc_end * 100).toFixed(0)}%.`,
+    sector_callouts: [
+      `Sector 1: ${lap.sector1_time.toFixed(2)}s`,
+      `Sector 2: ${lap.sector2_time.toFixed(2)}s`,
+      `Sector 3: ${lap.sector3_time.toFixed(2)}s`,
+    ],
+    evidence: [
+      `Harvest ${lap.harvest_mj.toFixed(2)} MJ vs deploy ${lap.deploy_mj.toFixed(2)} MJ.`,
+      `Average speed ${lap.avg_speed.toFixed(1)} km/h; max speed ${lap.max_speed.toFixed(1)} km/h.`,
+      ...related.flatMap((rec) => rec.reasoning.reasoning_chain.slice(0, 2)),
+    ],
+    generated_at: new Date().toISOString(),
+  };
+}
+
+function _synthesizeFixtureCopilotAnswer(
+  sessionId: string,
+  question: string,
+  recentTurns: CopilotMessage[],
+  opts?: ApiOpts,
+): CopilotAnswer {
+  const session = fixtureSession(resolveFixtureName(opts, sessionId));
+  const normalized = question.toLowerCase();
+  if (normalized.includes("compare lap")) {
+    return {
+      answer: "Lap comparison is available in fixture mode. Use the lap drill-down route to inspect the two laps side by side with energy and pace evidence.",
+      engine: "deterministic",
+      supporting_laps: session.laps.slice(0, 2).map((lap) => lap.lap_number),
+      confidence: "medium",
+      suggestions: ["Ask about battery trend", "Ask why the recommendation was surfaced"],
+    };
+  }
+  if (normalized.includes("battery") || normalized.includes("energy")) {
+    const lastLap = session.laps[session.laps.length - 1];
+    return {
+      answer: `Fixture battery trend closed at ${Math.round(lastLap.soc_end * 100)}% SoC after ${session.laps.length} laps, which makes it a good debrief prompt for energy balance.`,
+      engine: "deterministic",
+      supporting_laps: [session.laps[0]?.lap_number ?? 1, lastLap.lap_number],
+      confidence: "medium",
+      suggestions: ["Compare two laps", "Ask why the strategy recommendation was surfaced"],
+    };
+  }
+  const anchor = session.recommendations[0];
+  return {
+    answer: recentTurns.length > 0
+      ? `Using the fixture session plus your recent turns, the best anchor is lap ${anchor.zone.lap_number}: ${anchor.reasoning.recommendation}`
+      : `The fixture copilot points first to lap ${anchor.zone.lap_number}: ${anchor.reasoning.recommendation}`,
+    engine: "deterministic",
+    supporting_laps: [anchor.zone.lap_number],
+    confidence: anchor.reasoning.confidence,
+    suggestions: ["Ask about battery trend", "Compare two laps", "Ask about sector 3"],
+  };
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Public API
 // ──────────────────────────────────────────────────────────────────────────────
@@ -416,6 +626,42 @@ export const api = {
     });
   },
 
+  async getRaceReport(sessionId: string, opts?: ApiOpts): Promise<RaceReport> {
+    if (resolveFixture(opts)) {
+      return _synthesizeFixtureRaceReport(sessionId, opts);
+    }
+    return jsonFetch<RaceReport>(`/api/sessions/${encodeURIComponent(sessionId)}/report`, {
+      signal: opts?.signal,
+    });
+  },
+
+  async getLapAnalysis(sessionId: string, lapNumber: number, opts?: ApiOpts): Promise<LapAnalysis> {
+    if (resolveFixture(opts)) {
+      return _synthesizeFixtureLapAnalysis(sessionId, lapNumber, opts);
+    }
+    return jsonFetch<LapAnalysis>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/laps/${encodeURIComponent(String(lapNumber))}`,
+      { signal: opts?.signal },
+    );
+  },
+
+  async askCopilot(
+    sessionId: string,
+    question: string,
+    recentTurns: CopilotMessage[] = [],
+    opts?: ApiOpts,
+  ): Promise<CopilotAnswer> {
+    if (resolveFixture(opts)) {
+      return _synthesizeFixtureCopilotAnswer(sessionId, question, recentTurns, opts);
+    }
+    return jsonFetch<CopilotAnswer>(`/api/sessions/${encodeURIComponent(sessionId)}/copilot`, {
+      method: "POST",
+      body: JSON.stringify({ question, recent_turns: recentTurns }),
+      headers: { "Content-Type": "application/json" },
+      signal: opts?.signal,
+    });
+  },
+
   async listSessions(
     params: SessionListParams = {},
     opts?: ApiOpts,
@@ -450,17 +696,19 @@ export const api = {
    * than four separate optional callbacks and matches how the
    * SessionPage live panel consumes the stream.
    *
-   * Fixture mode: returns a no-op teardown immediately; fixtures are
-   * deep-link demo assets, not live sessions, so there's nothing
-   * meaningful to stream.
+   * Fixture mode: replays a short mock live stream so the cockpit insight
+   * surfaces can be developed and demoed without a live backend.
    */
   streamSession(
     sessionId: string,
     onEvent: (e: LiveStreamEvent) => void,
     opts?: { fixture?: boolean; onError?: (e: Event) => void },
   ): () => void {
-    if (opts?.fixture) {
-      return () => {};
+    if (resolveFixture(opts)) {
+      const timers = fixtureLiveStreamEvents(sessionId).map(({ delayMs, event }) =>
+        window.setTimeout(() => onEvent(event), delayMs),
+      );
+      return () => timers.forEach((timer) => window.clearTimeout(timer));
     }
     const url = `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
     const es = new EventSource(url);

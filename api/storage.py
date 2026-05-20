@@ -4,6 +4,8 @@ Layout under `data/sessions/`:
   data/sessions/_index.json                 — `[SessionSummary, ...]`
   data/sessions/{session_id}/summary.json   — `SessionSummary`
   data/sessions/{session_id}/laps.parquet   — `LapFeatures` rows
+  data/sessions/{session_id}/report.json    — `RaceReport` (lazy cache)
+  data/sessions/{session_id}/laps/{n}.json  — `LapAnalysis` (lazy cache)
   data/sessions/{session_id}/forecast.json  — `Forecast` (optional)
   data/sessions/{session_id}/recommendations.json — list[Recommendation]
   data/sessions/{session_id}/regulation_source.json — RegulationSource (optional)
@@ -27,7 +29,9 @@ import pandas as pd
 
 from ingest.schema import (
     Forecast,
+    LapAnalysis,
     LapFeatures,
+    RaceReport,
     Recommendation,
     RegulationSource,
     Session,
@@ -136,6 +140,38 @@ def save_recommendations_only(
     return target
 
 
+def save_race_report(
+    session_id: str,
+    report: RaceReport,
+    *,
+    root: Optional[Path] = None,
+) -> Path:
+    """Persist ``report.json`` as a lazily-cached session artifact."""
+    base = (root or _sessions_root()) / session_id
+    if not base.exists():
+        raise FileNotFoundError(f"session {session_id!r} does not exist at {base}")
+    target = base / "report.json"
+    _write_json_atomic(target, report.model_dump(mode="json"))
+    return target
+
+
+def save_lap_analysis(
+    session_id: str,
+    lap_analysis: LapAnalysis,
+    *,
+    root: Optional[Path] = None,
+) -> Path:
+    """Persist one cached lap artifact under ``laps/{lap_number}.json``."""
+    base = (root or _sessions_root()) / session_id
+    if not base.exists():
+        raise FileNotFoundError(f"session {session_id!r} does not exist at {base}")
+    laps_dir = base / "laps"
+    laps_dir.mkdir(parents=True, exist_ok=True)
+    target = laps_dir / f"{lap_analysis.lap_number}.json"
+    _write_json_atomic(target, lap_analysis.model_dump(mode="json"))
+    return target
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Session reads
 # ──────────────────────────────────────────────────────────────────────────────
@@ -198,6 +234,25 @@ def delete_session(session_id: str, *, root: Optional[Path] = None) -> bool:
     return existed
 
 
+def load_race_report(session_id: str, *, root: Optional[Path] = None) -> Optional[RaceReport]:
+    path = (root or _sessions_root()) / session_id / "report.json"
+    if not path.is_file():
+        return None
+    return RaceReport.model_validate_json(path.read_text())
+
+
+def load_lap_analysis(
+    session_id: str,
+    lap_number: int,
+    *,
+    root: Optional[Path] = None,
+) -> Optional[LapAnalysis]:
+    path = (root or _sessions_root()) / session_id / "laps" / f"{lap_number}.json"
+    if not path.is_file():
+        return None
+    return LapAnalysis.model_validate_json(path.read_text())
+
+
 def get_session_telemetry_file(session_id: str, *, root: Optional[Path] = None) -> Optional[str]:
     """Return the ``telemetry_file`` basename stamped on the session's
     summary, or None when the session has no associated capture (uploads,
@@ -250,6 +305,22 @@ def list_telemetry_filenames(*, root: Optional[Path] = None) -> dict[str, str]:
 
 def _index_path(*, root: Optional[Path] = None) -> Path:
     return (root or _sessions_root()) / "_index.json"
+
+
+def _write_json_atomic(target: Path, payload: object) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=f".{target.stem}-", suffix=".json.tmp", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            json.dump(payload, handle, indent=2)
+        os.replace(tmp_path, target)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
 
 
 def _read_index(*, root: Optional[Path] = None) -> list[dict]:

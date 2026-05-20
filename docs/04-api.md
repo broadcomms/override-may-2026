@@ -33,6 +33,9 @@ Two important architectural notes:
 | `POST` | `/api/sessions` | Upload replay and run the full pipeline |
 | `GET` | `/api/sessions` | Paginated session history |
 | `GET` | `/api/sessions/{session_id}` | Load one full `Session` |
+| `GET` | `/api/sessions/{session_id}/report` | Load or build the cached `RaceReport` |
+| `GET` | `/api/sessions/{session_id}/laps/{lap_number}` | Load or build one cached `LapAnalysis` |
+| `POST` | `/api/sessions/{session_id}/copilot` | Ask the stateless session copilot a grounded question |
 | `GET` | `/api/sessions/{session_id}/zones/{zone_id}` | Load one `Recommendation`; lazy fan-mode fill via `mode=fan|both` |
 | `POST` | `/api/sessions/{session_id}/what-if` | Re-run the pipeline on a perturbation |
 | `DELETE` | `/api/sessions/{session_id}` | Delete one session, optionally its source telemetry JSONL |
@@ -145,6 +148,43 @@ Behavior:
 
 Returns the persisted full `Session`.
 
+### `GET /api/sessions/{session_id}/report`
+
+Behavior:
+- loads `data/sessions/{session_id}/report.json` when present
+- otherwise builds a deterministic `RaceReport`, caches it, and returns it
+
+### `GET /api/sessions/{session_id}/laps/{lap_number}`
+
+Behavior:
+- loads `data/sessions/{session_id}/laps/{lap_number}.json` when present
+- otherwise builds a deterministic `LapAnalysis`, caches it, and returns it
+- returns `404` when the requested lap does not exist in the session
+
+### `POST /api/sessions/{session_id}/copilot`
+
+Request body:
+
+```json
+{
+  "question": "Compare lap 2 and lap 4",
+  "recent_turns": [
+    {
+      "role": "user",
+      "content": "Why was conservative mode recommended?",
+      "timestamp": "2026-05-20T12:00:00+00:00"
+    }
+  ]
+}
+```
+
+Behavior:
+- reads the persisted session only; no transcript persistence in this milestone
+- retrieves focused session context, routes the prompt through Granite-backed orchestration, and validates a structured `CopilotAnswer`
+- returns `engine="granite"` on the main path and `engine="deterministic"` only when model output cannot be structured
+- returns grounded answer text, supporting lap links, confidence, and follow-up suggestions
+- returns `404` when the session does not exist
+
 ### `GET /api/sessions/{session_id}/zones/{zone_id}`
 
 Query param:
@@ -182,6 +222,7 @@ Event shapes:
 ```json
 {"event":"connected","session_id":"s_torcs_live_...","status":"active"}
 {"event":"snapshot","snapshot":{...}}
+{"event":"insight","insight":{"insight_id":"li_energy_pressure_v1_l3_s2","rule_id":"energy_pressure_v1","kind":"strategy_recommendation","severity":"high","headline":"Energy pressure building","message":"...","recommended_action":"...","confidence":"high","evidence":["..."],"lap":3,"sector":2}}
 {"event":"lap","lap":1,"lap_time_s":...}
 {"event":"no_telemetry","message":"..."}
 {"event":"race_ended","reason":"file_stall","total_laps":5}
@@ -190,6 +231,7 @@ Event shapes:
 Important behavior:
 - Waits briefly for a telemetry file when an active stub session was just launched
 - Deduplicates snapshots by a compact signature
+- Emits deterministic live `insight` events and suppresses consecutive duplicates for the same `insight_id` when severity/message do not change
 - Detects end-of-race by file-stall heuristics
 - Returns `404` only when the session itself does not exist
 

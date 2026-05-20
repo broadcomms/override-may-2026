@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/api/client";
-import type { LiveLapSnapshot, LiveLapStats, LiveStreamEvent } from "@/api/types";
+import type { LiveInsight, LiveLapSnapshot, LiveLapStats, LiveStreamEvent } from "@/api/types";
 
 export type LiveStreamState =
   | { kind: "idle" }
@@ -32,6 +32,7 @@ export function useLiveTelemetry(
   }: UseLiveTelemetryOptions = {},
 ) {
   const [laps, setLaps] = useState<LiveLapStats[]>([]);
+  const [insights, setInsights] = useState<LiveInsight[]>([]);
   const [latestSnapshot, setLatestSnapshot] = useState<LiveLapSnapshot | null>(null);
   const [streamState, setStreamState] = useState<LiveStreamState>({ kind: "idle" });
   const [raceEnded, setRaceEnded] = useState(false);
@@ -39,6 +40,7 @@ export function useLiveTelemetry(
   useEffect(() => {
     if (!sessionId) {
       setLaps([]);
+      setInsights([]);
       setLatestSnapshot(null);
       setStreamState({ kind: "idle" });
       setRaceEnded(false);
@@ -46,6 +48,7 @@ export function useLiveTelemetry(
     }
 
     setLaps([]);
+    setInsights([]);
     setLatestSnapshot(null);
     setStreamState({ kind: "connecting" });
     setRaceEnded(false);
@@ -82,6 +85,12 @@ export function useLiveTelemetry(
         case "snapshot":
           // Snapshot updates never clear completed laps — they coexist.
           setLatestSnapshot(ev.snapshot);
+          break;
+        case "insight":
+          setInsights((prev) => {
+            const withoutCurrent = prev.filter((insight) => insight.insight_id !== ev.insight.insight_id);
+            return [ev.insight, ...withoutCurrent].slice(0, 5);
+          });
           break;
         case "lap":
           setLaps((prev) => {
@@ -128,6 +137,7 @@ export function useLiveTelemetry(
 
   return {
     laps,
+    insights,
     streamState,
     latestLap: laps.length > 0 ? laps[laps.length - 1] : null,
     latestSnapshot,

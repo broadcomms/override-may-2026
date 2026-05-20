@@ -19,15 +19,22 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
+from analysis.live_intelligence import derive_live_insights
+from api.main import LiveLapSnapshot, LiveLapStats
 from ingest.fastf1_parser import (
     BATTERY_CAPACITY_MJ,
     LapInputs,
     parse_fastf1_lap,
 )
 from ingest.schema import (
+    CopilotAnswer,
+    CopilotMessage,
     Forecast,
+    LapAnalysis,
     LapFeatures,
     LapWindow,
+    LiveInsight,
+    RaceReport,
     RegulationChunk,
     RegulationCitation,
     RegulationSource,
@@ -250,6 +257,154 @@ def test_regulation_citation_carries_source_through():
         source=src,
     )
     assert rc.source.document_title == "FIA 2026 Formula 1 Technical Regulations"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# §11 Shared intelligence contracts
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_live_insight_round_trip():
+    insight = LiveInsight(
+        insight_id="li_energy_pressure_v1_l4_s2",
+        rule_id="energy_pressure_v1",
+        kind="strategy_recommendation",
+        severity="medium",
+        headline="Energy pressure building",
+        message="Deploy exceeded harvest by 0.42 MJ on lap 4.",
+        recommended_action="Recommend a recover lap before repeating the same deployment pattern.",
+        confidence="medium",
+        evidence=["Lap 4 closed with 0.75 MJ deploy vs 0.33 MJ harvest."],
+        lap=4,
+        sector=2,
+    )
+    assert insight.rule_id == "energy_pressure_v1"
+    assert insight.lap == 4
+
+
+def test_live_insight_rejects_bad_sector():
+    with pytest.raises(ValidationError):
+        LiveInsight(
+            insight_id="li_bad_l1_s9",
+            rule_id="bad_rule",
+            kind="anomaly",
+            severity="low",
+            headline="Bad sector",
+            message="x",
+            recommended_action=None,
+            confidence="low",
+            evidence=[],
+            lap=1,
+            sector=9,  # type: ignore[arg-type]
+        )
+
+
+def test_race_report_and_lap_analysis_contracts_round_trip():
+    generated_at = datetime(2026, 5, 19, 23, 0, tzinfo=timezone.utc)
+    moment = LiveInsight(
+        insight_id="li_strategy_mode_v1_l5_s0",
+        rule_id="strategy_mode_v1",
+        kind="strategy_recommendation",
+        severity="low",
+        headline="Balanced mode supported",
+        message="Energy use is close enough to balanced that the current deployment mode can stay steady.",
+        recommended_action="Recommend holding the current deployment pattern while telemetry stays balanced.",
+        confidence="medium",
+        evidence=["SoC estimate is 61%."],
+        lap=5,
+        sector=None,
+    )
+    report = RaceReport(
+        session_id="s_demo",
+        title="Demo report",
+        executive_summary="OVERRIDE highlights the strongest race moments here.",
+        driver_score=84.0,
+        battery_efficiency_score=79.0,
+        consistency_score=81.0,
+        risk_score=22.0,
+        key_moments=[moment],
+        ai_commentary=["Lap 5 stayed inside the expected battery envelope."],
+        generated_at=generated_at,
+    )
+    lap = LapAnalysis(
+        session_id="s_demo",
+        lap_number=5,
+        headline="Lap 5 held the energy window",
+        summary="The lap balanced deploy and harvest closely enough to avoid a recovery call.",
+        sector_callouts=["Sector 2 carried the strongest deploy window."],
+        evidence=["Net lap energy stayed within 0.10 MJ."],
+        generated_at=generated_at,
+    )
+    assert report.key_moments[0].headline == "Balanced mode supported"
+    assert lap.lap_number == 5
+
+
+def test_copilot_contracts_round_trip():
+    turn = CopilotMessage(
+        role="user",
+        content="Compare lap 4 and lap 8",
+        timestamp=datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc),
+    )
+    answer = CopilotAnswer(
+        answer="Lap 8 spent more energy than lap 4.",
+        engine="granite",
+        supporting_laps=[4, 8],
+        confidence="medium",
+        suggestions=["Ask why the strategy recommendation was surfaced"],
+    )
+    assert turn.role == "user"
+    assert answer.supporting_laps == [4, 8]
+
+
+def test_derive_live_insights_returns_ranked_deterministic_signals():
+    latest_lap = LiveLapStats(
+        lap=4,
+        lap_time_s=36.9,
+        avg_speed_kmh=198.4,
+        max_speed_kmh=242.0,
+        harvest_mj=0.28,
+        deploy_mj=0.84,
+        soc_end=0.46,
+        fuel_used_kg=0.41,
+    )
+    previous_lap = LiveLapStats(
+        lap=3,
+        lap_time_s=34.1,
+        avg_speed_kmh=209.7,
+        max_speed_kmh=248.0,
+        harvest_mj=0.35,
+        deploy_mj=0.66,
+        soc_end=0.54,
+        fuel_used_kg=0.39,
+    )
+    snapshot = LiveLapSnapshot(
+        lap=5,
+        lap_time_s=17.2,
+        speed_kmh=228.0,
+        avg_speed_kmh=201.1,
+        max_speed_kmh=244.0,
+        dist_from_start_m=1600.0,
+        lap_progress_pct=53.3,
+        sector=2,
+        throttle_frac=0.91,
+        brake_frac=0.0,
+        steer_frac=0.07,
+        gear=6,
+        fuel_kg=86.0,
+        fuel_used_kg=0.21,
+        harvest_mj=0.11,
+        deploy_mj=0.44,
+        soc_estimate=0.43,
+        soc_source="derived",
+        balance_label="spending",
+    )
+
+    insights = derive_live_insights(snapshot, [previous_lap, latest_lap])
+
+    assert insights
+    assert insights[0].kind in {"anomaly", "prediction", "strategy_recommendation"}
+    assert any(insight.rule_id == "energy_pressure_v1" for insight in insights)
+    assert any(insight.rule_id == "battery_prediction_v1" for insight in insights)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

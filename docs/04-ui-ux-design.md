@@ -22,6 +22,7 @@ The same backend session model feeds both Engineer and Fan renderings.
 ├── /sessions/compare?a=<id>&b=<id>
 ├── /cockpit
 └── /session/:session_id
+    ├── /laps/:lap_number
     ├── ?fixture=1
     └── ?zone=<zone_id>
 ```
@@ -136,6 +137,9 @@ For completed sessions it renders:
 - driver-profile snapshot chips when present
 - grounding-pending banner when regulation grounding is unavailable
 - KPI strip
+- post-race report panel
+- report export action via browser print/save-to-PDF
+- session copilot panel with suggested prompts and grounded lap links
 - energy curve
 - zone heatmap
 - recommendation list
@@ -158,11 +162,35 @@ Current layout:
 - center frame for noVNC or headless placeholder
 - hybrid-energy rail
 - lap timeline
-- deterministic live strategy insight block with Engineer/Fan toggle
+- deterministic live strategy insight block with Engineer/Fan toggle and recent insight trace
 
 Important UX rule:
 - cockpit insight is explicitly labelled as a live deterministic signal until completed-lap analysis exists
 - full grounded recommendations still belong to the completed session flow
+
+### `/session/:session_id/laps/:lap_number`
+
+Dedicated lap drill-down route for post-race review.
+
+Current layout:
+- back-link to the session debrief
+- lap headline and deterministic summary
+- lap metrics strip
+- sector callouts
+- evidence list
+- matching recommendations for that lap
+- if structured live insights are unavailable, the cockpit falls back to the older deterministic battery-signal copy rather than leaving the panel blank
+
+### Session copilot panel
+
+The session debrief now includes a lightweight race copilot surface.
+
+Current behavior:
+- offers suggested prompts derived from the loaded session
+- supports freeform question entry
+- returns a Granite-backed grounded answer card with engine label, confidence, supporting-lap links, and follow-up suggestions
+- surfaces deterministic fallback explicitly when the model response cannot be structured
+- stays scoped to the current session only; no cross-session memory and no faux chain-of-thought
 
 ## 6. Mode behavior
 
@@ -174,8 +202,8 @@ Important UX rule:
 
 ### Cockpit mode toggle
 
-- `Engineer`: deterministic live signal language
-- `Fan`: plain-language live summary
+- `Engineer`: structured deterministic live insights with evidence + fallback deterministic signal language
+- `Fan`: plain-language live summary of the same deterministic insight
 - neither pretends to be a completed grounded recommendation
 
 ## 7. Recommendation-card behavior
@@ -243,6 +271,7 @@ Summarizes the session in compact, high-visibility tiles above the main detail s
 - timing rail
 - hybrid-energy rail
 - deterministic live insight block
+- recent live insight trace (latest 5 unique insights)
 
 ## 10. Fixtures and demo affordances
 
@@ -255,6 +284,7 @@ Fixture usage surfaces:
 - sample replay list
 - upload-page preview strip
 - session routes with `?fixture=1`
+- cockpit-intelligence replay via the fixture-mode mock live stream
 
 ## 11. Responsive and operational constraints
 

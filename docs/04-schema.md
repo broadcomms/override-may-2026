@@ -260,6 +260,59 @@ class TorcsDriverConfigSnapshot(BaseModel):
     config: TorcsDriverConfigWire
 ```
 
+### Shared intelligence artifacts
+
+The live insight payload is shared across the cockpit, future lap artifacts,
+and the post-race report layer. The SSE envelope remains API-local.
+
+```python
+class LiveInsight(BaseModel):
+    insight_id: str
+    rule_id: str | None
+    kind: Literal["strategy_recommendation", "anomaly", "prediction", "explanation"]
+    severity: Literal["low", "medium", "high"]
+    headline: str
+    message: str
+    recommended_action: str | None
+    confidence: Literal["low", "medium", "high"]
+    evidence: list[str]
+    lap: int | None
+    sector: Literal[1, 2, 3] | None
+
+class LapAnalysis(BaseModel):
+    session_id: str
+    lap_number: int
+    headline: str
+    summary: str
+    sector_callouts: list[str]
+    evidence: list[str]
+    generated_at: datetime
+
+class RaceReport(BaseModel):
+    session_id: str
+    title: str
+    executive_summary: str
+    driver_score: float
+    battery_efficiency_score: float
+    consistency_score: float
+    risk_score: float
+    key_moments: list[LiveInsight]
+    ai_commentary: list[str]
+    generated_at: datetime
+
+class CopilotMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: datetime
+
+class CopilotAnswer(BaseModel):
+    answer: str
+    engine: Literal["granite", "deterministic"]
+    supporting_laps: list[int]
+    confidence: Literal["low", "medium", "high"]
+    suggestions: list[str]
+```
+
 ## 5. What-if contracts
 
 ### `WhatIfRequest`
@@ -296,7 +349,26 @@ class WhatIfResult(BaseModel):
 
 The result is cached on disk per session and request hash.
 
-## 6. Live telemetry contracts
+## 6. Session copilot contracts
+
+The shipped copilot is session-scoped and stateless on the server. The client
+sends recent turns for continuity; the backend does not persist them.
+
+```python
+class SessionCopilotRequest(BaseModel):
+    question: str
+    recent_turns: list[CopilotMessage]
+```
+
+Current answer behavior:
+- uses Granite-backed orchestration over retrieved session context
+- supports lap comparison prompts
+- explains the top surfaced recommendation
+- summarizes sector-specific recommendation evidence
+- summarizes battery / net-energy trend
+- falls back to deterministic session-grounded output only when model output cannot be structured
+
+## 7. Live telemetry contracts
 
 These are API-layer models defined in `api/main.py` and used by `/cockpit` and the active-session page.
 
@@ -349,11 +421,12 @@ class LiveLapSnapshot(BaseModel):
 
 - `{"event":"connected","session_id":...,"status":...}`
 - `{"event":"snapshot","snapshot": LiveLapSnapshot}`
+- `{"event":"insight","insight": LiveInsight}`
 - `{"event":"lap", ...LiveLapStats}`
 - `{"event":"no_telemetry","message":...}`
 - `{"event":"race_ended","reason":...,"total_laps":...}`
 
-## 7. TORCS control and driver-profile contracts
+## 8. TORCS control and driver-profile contracts
 
 ### `TorcsStartRaceRequest`
 

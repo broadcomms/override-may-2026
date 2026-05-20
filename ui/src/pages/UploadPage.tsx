@@ -231,7 +231,7 @@ export function UploadPage() {
                             {r.run_id}
                           </span>
                           <span className="text-xs text-muted">
-                            {(r.size_bytes / 1024).toFixed(0)} KB · ≈{r.lap_count_estimate} lap
+                            {(r.size_bytes / 1024).toFixed(0)} KB · {r.lap_count_estimate} lap
                             {r.lap_count_estimate === 1 ? "" : "s"}
                             {ingested && (
                               <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">
