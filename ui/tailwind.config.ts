@@ -8,19 +8,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        // bg / surface / border / text don't use the `/N` opacity modifier
-        // anywhere — keep them as raw hex var refs.
-        bg: "var(--color-bg)",
-        surface: "var(--color-surface)",
-        "surface-2": "var(--color-surface-2)",
-        "surface-3": "var(--color-surface-3)",
-        border: "var(--color-border)",
-        text: "var(--color-text)",
-        // The colours below are used with Tailwind's alpha-modifier syntax
-        // (e.g. `bg-warning/30`, `border-danger/40`). That requires the
-        // rgb(R G B / <alpha-value>) form so Tailwind can inject alpha.
-        // The RGB-triplet vars are defined alongside the hex vars in
-        // src/styles/tokens.css.
+        // All palette tokens use the rgb(R G B / <alpha-value>) form so
+        // dark-theme utilities like `bg-surface-2/30` and `border-border/70`
+        // render correctly on native controls as well as regular divs.
+        bg: "rgb(var(--color-bg-rgb) / <alpha-value>)",
+        surface: "rgb(var(--color-surface-rgb) / <alpha-value>)",
+        "surface-2": "rgb(var(--color-surface-2-rgb) / <alpha-value>)",
+        "surface-3": "rgb(var(--color-surface-3-rgb) / <alpha-value>)",
+        border: "rgb(var(--color-border-rgb) / <alpha-value>)",
+        text: "rgb(var(--color-text-rgb) / <alpha-value>)",
         muted: "rgb(var(--color-text-muted-rgb) / <alpha-value>)",
         accent: "rgb(var(--color-accent-rgb) / <alpha-value>)",
         success: "rgb(var(--color-success-rgb) / <alpha-value>)",

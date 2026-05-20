@@ -37,6 +37,8 @@ import torcsEngineerFixtureRaw from "@fixtures/torcs_engineer_demo.json";
 import type {
   ApiError,
   CopilotAnswer,
+  CopilotRequestContext,
+  CopilotStreamEvent,
   CopilotMessage,
   HealthResponse,
   LiveStreamEvent,
@@ -439,6 +441,38 @@ async function jsonFetch<T>(
   return (await res.json()) as T;
 }
 
+async function responseToApiError(res: Response): Promise<OverrideApiError> {
+  let payload: ApiError;
+  try {
+    payload = (await res.json()) as ApiError;
+  } catch {
+    payload = {
+      error_code: "INTERNAL_ERROR",
+      message: `HTTP ${res.status} ${res.statusText}`,
+      detail: null,
+      request_id: res.headers.get("X-Request-Id") ?? "unknown",
+    };
+  }
+  return new OverrideApiError(res.status, payload);
+}
+
+function chunkFixtureAnswer(answer: string): string[] {
+  const words = answer.split(/\s+/).filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > 44 && current) {
+      chunks.push(`${current} `);
+      current = word;
+      continue;
+    }
+    current = next;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function _synthesizeFixtureRaceReport(sessionId: string, opts?: ApiOpts): RaceReport {
   const session = fixtureSession(resolveFixtureName(opts, sessionId));
   const laps = session.laps;
@@ -649,6 +683,7 @@ export const api = {
     sessionId: string,
     question: string,
     recentTurns: CopilotMessage[] = [],
+    context: CopilotRequestContext | null = null,
     opts?: ApiOpts,
   ): Promise<CopilotAnswer> {
     if (resolveFixture(opts)) {
@@ -656,10 +691,75 @@ export const api = {
     }
     return jsonFetch<CopilotAnswer>(`/api/sessions/${encodeURIComponent(sessionId)}/copilot`, {
       method: "POST",
-      body: JSON.stringify({ question, recent_turns: recentTurns }),
+      body: JSON.stringify({ question, recent_turns: recentTurns, context }),
       headers: { "Content-Type": "application/json" },
       signal: opts?.signal,
     });
+  },
+
+  async streamCopilot(
+    sessionId: string,
+    question: string,
+    recentTurns: CopilotMessage[] = [],
+    context: CopilotRequestContext | null = null,
+    handlers?: { onEvent?: (event: CopilotStreamEvent) => void },
+    opts?: ApiOpts,
+  ): Promise<void> {
+    if (resolveFixture(opts)) {
+      const answer = _synthesizeFixtureCopilotAnswer(sessionId, question, recentTurns, opts);
+      handlers?.onEvent?.({ event: "start" });
+      for (const chunk of chunkFixtureAnswer(answer.answer)) {
+        await new Promise((resolve) => window.setTimeout(resolve, 35));
+        handlers?.onEvent?.({ event: "delta", delta: chunk });
+      }
+      handlers?.onEvent?.({ event: "complete", answer });
+      return;
+    }
+
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/copilot/stream`, {
+      method: "POST",
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question, recent_turns: recentTurns, context }),
+      signal: opts?.signal,
+    });
+    if (!res.ok) {
+      throw await responseToApiError(res);
+    }
+    if (!res.body) {
+      throw new OverrideApiError(500, {
+        error_code: "INTERNAL_ERROR",
+        message: "Copilot stream unavailable.",
+        detail: "The browser did not expose a readable response body.",
+        request_id: res.headers.get("X-Request-Id") ?? "unknown",
+      });
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const messages = buffer.split("\n\n");
+      buffer = messages.pop() ?? "";
+      for (const message of messages) {
+        const dataLines = message
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim());
+        if (dataLines.length === 0) continue;
+        try {
+          const parsed = JSON.parse(dataLines.join("\n")) as CopilotStreamEvent;
+          handlers?.onEvent?.(parsed);
+        } catch {
+          // Ignore malformed chunks — backend guarantees JSON payloads.
+        }
+      }
+    }
   },
 
   async listSessions(

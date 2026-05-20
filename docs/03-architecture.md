@@ -77,7 +77,7 @@ Legend:
 
 - Fan Mode is not generated during the initial pipeline run. `GET /api/sessions/{id}/zones/{zid}?mode=fan|both` generates and caches it on demand.
 - What-if runs are not a forked pipeline. `analysis/perturbations.py` mutates lap features, then `core/pipeline.py` is re-run and cached under `data/sessions/{id}/whatif/`.
-- Session copilot answers are stateless follow-up reads. `POST /api/sessions/{id}/copilot` routes the question through `copilot/orchestrator.py`, retrieves focused session context, calls the same Granite chat runtime used elsewhere in OVERRIDE, and returns a grounded answer without storing transcripts server-side.
+- Session copilot answers are still stateless on the server, but the UI now wraps them in a shell-level race-engineer widget. `POST /api/sessions/{id}/copilot` remains the one-shot contract, while `POST /api/sessions/{id}/copilot/stream` streams the same grounded answer into the widget. Both routes use `copilot/orchestrator.py`, retrieve focused session or live-race context, call the same Granite chat runtime used elsewhere in OVERRIDE, and avoid storing transcripts server-side.
 - Session history enrichment is live-aware. Active TORCS rows patch in completed-lap counts from the shared telemetry file without waiting for final ingest.
 
 ## Safety Architecture
@@ -127,8 +127,8 @@ Design implications:
 - `/driver-lab`: driver-profile editor for shipped defaults and user-saved variants.
 - `/sessions`: history, pagination, selection, bulk delete, compare launch.
 - `/sessions/compare`: side-by-side comparison of two sessions.
-- `/cockpit`: live race surface with control strip, noVNC/headless frame, timing rail, hybrid rail, lap timeline, and deterministic live insight.
-- `/session/:session_id`: completed or active session detail with KPI strip, live telemetry panel for active sessions, post-race report, session copilot, Engineer/Fan recommendation rendering, heatmap, energy curve, and what-if diffs.
+- `/cockpit`: live race surface with control strip, noVNC/headless frame, timing rail, hybrid rail, lap timeline, deterministic live insight, and the shared race-engineer widget grounded in the same live stream.
+- `/session/:session_id`: completed or active session detail with KPI strip, live telemetry panel for active sessions, post-race report, global race-engineer widget grounding, Engineer/Fan recommendation rendering, heatmap, energy curve, and what-if diffs.
 - `/session/:session_id/laps/:lap_number`: dedicated lap drill-down with deterministic lap summary, sector callouts, and matching recommendations.
 
 ## Repo Map
@@ -137,7 +137,7 @@ Design implications:
 overdrive-may-2026/
 ├── api/                              # FastAPI runtime, storage, errors, tracing
 ├── analysis/                         # Deterministic telemetry enrichment, live insights, reports, + perturbations
-├── copilot/                          # Stateless session-scoped copilot orchestration
+├── copilot/                          # Granite-backed session/live copilot orchestration
 ├── core/                             # Pipeline, reasoning, validation, Guardian, regs, forecasting
 ├── ingest/                           # Source parsers + shared Pydantic schemas
 ├── ui/                               # React/Vite app

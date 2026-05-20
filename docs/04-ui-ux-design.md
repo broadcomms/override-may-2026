@@ -139,7 +139,7 @@ For completed sessions it renders:
 - KPI strip
 - post-race report panel
 - report export action via browser print/save-to-PDF
-- session copilot panel with suggested prompts and grounded lap links
+- shell-level AI race engineer widget with persistent transcript and grounded lap links
 - energy curve
 - zone heatmap
 - recommendation list
@@ -181,16 +181,18 @@ Current layout:
 - matching recommendations for that lap
 - if structured live insights are unavailable, the cockpit falls back to the older deterministic battery-signal copy rather than leaving the panel blank
 
-### Session copilot panel
+### Global AI race engineer widget
 
-The session debrief now includes a lightweight race copilot surface.
+The app now mounts a persistent AI race engineer widget at the shell level instead of a page-local session panel.
 
 Current behavior:
-- offers suggested prompts derived from the loaded session
-- supports freeform question entry
-- returns a Granite-backed grounded answer card with engine label, confidence, supporting-lap links, and follow-up suggestions
-- surfaces deterministic fallback explicitly when the model response cannot be structured
-- stays scoped to the current session only; no cross-session memory and no faux chain-of-thought
+- stays mounted while the user moves between session debrief, lap detail, and cockpit routes in the same browser tab
+- persists per-session transcript state in `sessionStorage`
+- shows a real chat stream with user turns, streamed assistant turns, supporting-lap links, and follow-up chips
+- keeps completed-session and live-race grounding separate via route-aware context badges
+- uses Granite-backed grounded answers on the main path and surfaces deterministic fallback explicitly when the model response cannot be structured
+- on `/cockpit`, reuses the same live SSE telemetry source as the cockpit rails so the widget does not open a competing stream
+- carries a launcher unread badge when a response lands while the drawer is closed
 
 ## 6. Mode behavior
 

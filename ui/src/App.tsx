@@ -2,6 +2,8 @@ import { Link, Navigate, NavLink as RouterNavLink, Route, Routes, useLocation } 
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
+import { RaceEngineerWidget } from "@/components/copilot/RaceEngineerWidget";
+import { RaceEngineerProvider } from "@/context/RaceEngineerContext";
 import type { VersionResponse } from "@/api/types";
 import { hasTorcsSurface } from "@/lib/env";
 import { CockpitPage } from "@/pages/CockpitPage";
@@ -14,25 +16,28 @@ import { UploadPage } from "@/pages/UploadPage";
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <SkipToContent />
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-        <Routes>
-          <Route path="/" element={<Navigate to="/upload" replace />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/driver-lab" element={<DriverLabPage />} />
-          <Route path="/sessions" element={<SessionsPage />} />
-          <Route path="/sessions/compare" element={<SessionComparePage />} />
-          <Route path="/cockpit" element={<CockpitPage />} />
-          <Route path="/session/:sessionId/laps/:lapNumber" element={<SessionLapPage />} />
-          <Route path="/session/:sessionId" element={<SessionPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </main>
-      <SiteFooter />
-      <PageTitleManager />
-    </div>
+    <RaceEngineerProvider>
+      <div className="min-h-screen flex flex-col">
+        <SkipToContent />
+        <SiteHeader />
+        <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+          <Routes>
+            <Route path="/" element={<Navigate to="/upload" replace />} />
+            <Route path="/upload" element={<UploadPage />} />
+            <Route path="/driver-lab" element={<DriverLabPage />} />
+            <Route path="/sessions" element={<SessionsPage />} />
+            <Route path="/sessions/compare" element={<SessionComparePage />} />
+            <Route path="/cockpit" element={<CockpitPage />} />
+            <Route path="/session/:sessionId/laps/:lapNumber" element={<SessionLapPage />} />
+            <Route path="/session/:sessionId" element={<SessionPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </main>
+        <SiteFooter />
+        <PageTitleManager />
+        <RaceEngineerWidget />
+      </div>
+    </RaceEngineerProvider>
   );
 }
 

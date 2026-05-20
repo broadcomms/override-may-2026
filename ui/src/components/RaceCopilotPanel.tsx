@@ -43,7 +43,7 @@ export function RaceCopilotPanel({ fixture, session, sessionId }: Props) {
     setError(null);
     setQuestion("");
     try {
-      const nextAnswer = await api.askCopilot(sessionId, trimmed, payloadTurns, { fixture });
+        const nextAnswer = await api.askCopilot(sessionId, trimmed, payloadTurns, null, { fixture });
       const assistantTurn: CopilotMessage = {
         role: "assistant",
         content: nextAnswer.answer,

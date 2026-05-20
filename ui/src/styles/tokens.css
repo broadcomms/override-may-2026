@@ -21,12 +21,18 @@
      out of a hex value referenced via var(); it needs the modern
      rgb(R G B / <alpha-value>) form. The triplets below mirror the hex
      palette above. Update both when changing a colour. */
+  --color-bg-rgb: 10 10 10;
+  --color-surface-rgb: 20 20 20;
+  --color-surface-2-rgb: 31 31 31;
+  --color-surface-3-rgb: 24 24 24;
+  --color-border-rgb: 42 42 42;
+  --color-text-rgb: 245 245 245;
+  --color-text-muted-rgb: 154 154 154;
   --color-accent-rgb: 255 69 0;
   --color-success-rgb: 0 200 83;
   --color-warning-rgb: 249 168 37;
   --color-danger-rgb: 211 47 47;
   --color-granite-blue-rgb: 5 47 173;
-  --color-text-muted-rgb: 154 154 154;
 
   /* Motion — honor prefers-reduced-motion in components.
      The cubic-bezier curve is a "natural" decelerator (variant of iOS-spring)

@@ -36,6 +36,7 @@ Two important architectural notes:
 | `GET` | `/api/sessions/{session_id}/report` | Load or build the cached `RaceReport` |
 | `GET` | `/api/sessions/{session_id}/laps/{lap_number}` | Load or build one cached `LapAnalysis` |
 | `POST` | `/api/sessions/{session_id}/copilot` | Ask the stateless session copilot a grounded question |
+| `POST` | `/api/sessions/{session_id}/copilot/stream` | Stream a grounded copilot answer into the chat widget |
 | `GET` | `/api/sessions/{session_id}/zones/{zone_id}` | Load one `Recommendation`; lazy fan-mode fill via `mode=fan|both` |
 | `POST` | `/api/sessions/{session_id}/what-if` | Re-run the pipeline on a perturbation |
 | `DELETE` | `/api/sessions/{session_id}` | Delete one session, optionally its source telemetry JSONL |
@@ -174,16 +175,40 @@ Request body:
       "content": "Why was conservative mode recommended?",
       "timestamp": "2026-05-20T12:00:00+00:00"
     }
-  ]
+  ],
+  "context": {
+    "mode": "live_race",
+    "lap_number": 3,
+    "live": {
+      "latest_snapshot": null,
+      "completed_laps": [],
+      "insights": [],
+      "race_state": "active"
+    }
+  }
 }
 ```
 
 Behavior:
-- reads the persisted session only; no transcript persistence in this milestone
-- retrieves focused session context, routes the prompt through Granite-backed orchestration, and validates a structured `CopilotAnswer`
+- reads the persisted session plus optional client-supplied UI context; no transcript persistence on the server in this milestone
+- accepts `context.mode` values `session`, `lap`, or `live_race`
+- when `context.mode="live_race"`, the client may attach the latest snapshot, recent closed laps, live insights, and race state from the shared live stream
+- retrieves focused session/live context, routes the prompt through Granite-backed orchestration, and validates a structured `CopilotAnswer`
 - returns `engine="granite"` on the main path and `engine="deterministic"` only when model output cannot be structured
 - returns grounded answer text, supporting lap links, confidence, and follow-up suggestions
 - returns `404` when the session does not exist
+
+### `POST /api/sessions/{session_id}/copilot/stream`
+
+Request body:
+- same shape as `POST /api/sessions/{session_id}/copilot`
+
+Behavior:
+- opens a `text/event-stream` response for the shell-level race-engineer widget
+- emits `start`, then one or more `delta` events, then a final `complete` event carrying the full structured `CopilotAnswer`
+- emits `error` if the streamed request fails after the event stream has already opened
+- uses the same Granite-backed orchestration and deterministic fallback rules as the non-streaming endpoint
+- remains stateless on the server; transcript slice + current route context still come from the client
 
 ### `GET /api/sessions/{session_id}/zones/{zone_id}`
 

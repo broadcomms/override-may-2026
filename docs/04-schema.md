@@ -311,6 +311,20 @@ class CopilotAnswer(BaseModel):
     supporting_laps: list[int]
     confidence: Literal["low", "medium", "high"]
     suggestions: list[str]
+
+class SessionCopilotLiveState(BaseModel):
+    latest_snapshot: LiveLapSnapshot | None = None
+    completed_laps: list[LiveLapStats] = []
+    insights: list[LiveInsight] = []
+    race_state: str | None = None
+
+class SessionCopilotContext(BaseModel):
+    mode: Literal["session", "lap", "live_race"] = "session"
+    lap_number: int | None = None
+    live: SessionCopilotLiveState | None = None
+
+class CopilotStreamEvent(TypedDict):
+    event: Literal["start", "delta", "complete", "error"]
 ```
 
 ## 5. What-if contracts
@@ -358,14 +372,16 @@ sends recent turns for continuity; the backend does not persist them.
 class SessionCopilotRequest(BaseModel):
     question: str
     recent_turns: list[CopilotMessage]
+    context: SessionCopilotContext | None = None
 ```
 
 Current answer behavior:
-- uses Granite-backed orchestration over retrieved session context
+- uses Granite-backed orchestration over retrieved session or live-race context
 - supports lap comparison prompts
 - explains the top surfaced recommendation
 - summarizes sector-specific recommendation evidence
 - summarizes battery / net-energy trend
+- can ground live-race answers in the latest snapshot, recent closed laps, current live insights, and race state
 - falls back to deterministic session-grounded output only when model output cannot be structured
 
 ## 7. Live telemetry contracts

@@ -13,7 +13,7 @@
  *    from the struct — never a hardcoded string
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
@@ -29,10 +29,10 @@ import { KpiStrip } from "@/components/KpiStrip";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import { LiveTelemetry } from "@/components/LiveTelemetry";
 import { PostRaceReportPanel } from "@/components/PostRaceReportPanel";
-import { RaceCopilotPanel } from "@/components/RaceCopilotPanel";
 import { RecommendationCard } from "@/components/RecommendationCard";
 import { WhatIfDiff } from "@/components/WhatIfDiff";
 import { ZoneHeatmap } from "@/components/ZoneHeatmap";
+import { useRaceEngineerPageContext } from "@/context/RaceEngineerContext";
 
 export function SessionPage() {
   const { sessionId = "" } = useParams<{ sessionId: string }>();
@@ -224,6 +224,20 @@ export function SessionPage() {
     el?.scrollIntoView({ block: "start" });
   }, [session, searchParams]);
 
+  const raceEngineerContext = useMemo(() => {
+    if (!session) return null;
+    const liveRace = session.summary.status === "active" && fixture !== true;
+    return {
+      kind: liveRace ? "live_race" : "session",
+      sessionId,
+      fixture: fixture === true,
+      title: session.summary.track_name ?? session.summary.track_id ?? "session",
+      latestLapNumber: session.laps[session.laps.length - 1]?.lap_number ?? null,
+      raceState: null,
+    } as const;
+  }, [fixture, session, sessionId]);
+  useRaceEngineerPageContext(raceEngineerContext);
+
   if (error) {
     return (
       <div className="px-6 py-8 max-w-5xl mx-auto">
@@ -240,7 +254,6 @@ export function SessionPage() {
       </div>
     );
   }
-
   const groundingPending = session.regulation_source === null;
 
   return (
@@ -321,12 +334,6 @@ export function SessionPage() {
       {session.summary.status !== "active" && (
         <div className="mb-6">
           <PostRaceReportPanel sessionId={sessionId} session={session} fixture={fixture} />
-        </div>
-      )}
-
-      {session.summary.status !== "active" && (
-        <div className="mb-6">
-          <RaceCopilotPanel sessionId={sessionId} session={session} fixture={fixture} />
         </div>
       )}
 

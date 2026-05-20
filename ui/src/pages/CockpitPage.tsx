@@ -21,6 +21,7 @@ import { LiveStrategyInsight } from "@/components/cockpit/LiveStrategyInsight";
 import { TorcsRaceFrame } from "@/components/cockpit/TorcsRaceFrame";
 import { useLiveTelemetry } from "@/hooks/useLiveTelemetry";
 import { useTorcsControl } from "@/hooks/useTorcsControl";
+import { useRaceEngineerPageContext } from "@/context/RaceEngineerContext";
 import { hasTorcsSurface } from "@/lib/env";
 
 export function CockpitPage() {
@@ -130,6 +131,22 @@ export function CockpitPage() {
       }),
     [error, notice, preRunIdle, status, sessionId, streamState.kind],
   );
+  const raceEngineerContext = useMemo(
+    () =>
+      sessionId
+        ? {
+            kind: "live_race" as const,
+            sessionId,
+            fixture: false,
+            lapNumber: latestSnapshot?.lap ?? latestLap?.lap ?? null,
+            title: driverProfileName ?? "cockpit",
+            latestLapNumber: latestLap?.lap ?? null,
+            raceState: status?.state ?? null,
+          }
+        : null,
+    [driverProfileName, latestLap?.lap, latestSnapshot?.lap, sessionId, status?.state],
+  );
+  useRaceEngineerPageContext(raceEngineerContext);
 
   if (!torcsSurface) {
     return <Navigate to="/upload" replace />;

@@ -103,6 +103,7 @@ from ingest.schema import (
     CopilotAnswer,
     CopilotMessage,
     LapFeatures,
+    LiveInsight,
     Recommendation,
     RegulationSource,
     Session,
@@ -277,6 +278,7 @@ class BulkDeleteSessionsResponse(BaseModel):
 class SessionCopilotRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     recent_turns: list[CopilotMessage] = Field(default_factory=list)
+    context: SessionCopilotContext | None = None
 
 
 class TorcsStartRaceRequest(BaseModel):
@@ -428,6 +430,44 @@ class LiveLapSnapshot(BaseModel):
     balance_label: Literal["spending", "recovering", "balanced"] = Field(
         description="Deterministic live signal from current-lap net energy.",
     )
+
+
+class SessionCopilotLiveState(BaseModel):
+    latest_snapshot: LiveLapSnapshot | None = None
+    completed_laps: list[LiveLapStats] = Field(default_factory=list, max_length=8)
+    insights: list[LiveInsight] = Field(default_factory=list, max_length=5)
+    race_state: Optional[str] = None
+
+
+class SessionCopilotContext(BaseModel):
+    mode: Literal["session", "lap", "live_race"] = "session"
+    lap_number: Optional[int] = Field(default=None, ge=1)
+    live: SessionCopilotLiveState | None = None
+
+
+SessionCopilotRequest.model_rebuild()
+
+
+def _copilot_sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _chunk_copilot_answer(answer: str, *, target_chars: int = 48) -> list[str]:
+    words = answer.split()
+    if not words:
+        return []
+    chunks: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if len(candidate) > target_chars and current:
+            chunks.append(f"{current} ")
+            current = word
+            continue
+        current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 class VersionResponse(BaseModel):
@@ -813,10 +853,63 @@ def create_app() -> FastAPI:
                 body.question,
                 recent_turns=body.recent_turns,
                 client=chat_client,
+                request_context=body.context.model_dump(mode="json") if body.context is not None else None,
             )
         except Exception as e:
             raise map_watsonx_exception(e, request_id=rid)
         return answer.model_dump(mode="json")
+
+    @app.post("/api/sessions/{session_id}/copilot/stream")
+    async def session_copilot_stream(
+        request: Request,
+        body: SessionCopilotRequest,
+        session_id: str = PathParam(..., pattern=r"^s_[A-Za-z0-9_]+$"),
+        chat_client: WatsonxChatClient = Depends(get_chat_client),
+    ):
+        rid = getattr(request.state, "request_id", new_request_id())
+        session = load_session(session_id)
+        if session is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="NOT_FOUND",
+                message=f"Session {session_id} not found.",
+                request_id=rid,
+            )
+
+        async def event_generator():
+            try:
+                yield _copilot_sse({"event": "start"})
+                await asyncio.sleep(0)
+                answer: CopilotAnswer = await asyncio.to_thread(
+                    answer_question,
+                    session,
+                    body.question,
+                    recent_turns=body.recent_turns,
+                    client=chat_client,
+                    request_context=body.context.model_dump(mode="json") if body.context is not None else None,
+                )
+                for chunk in _chunk_copilot_answer(answer.answer):
+                    if await request.is_disconnected():
+                        return
+                    yield _copilot_sse({"event": "delta", "delta": chunk})
+                    await asyncio.sleep(0.02)
+                yield _copilot_sse({"event": "complete", "answer": answer.model_dump(mode="json")})
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                mapped = map_watsonx_exception(e, request_id=rid)
+                message = mapped.detail["message"] if isinstance(mapped.detail, dict) else "Copilot stream failed."
+                yield _copilot_sse({"event": "error", "message": message})
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post("/api/sessions/{session_id}/what-if")
     async def what_if(

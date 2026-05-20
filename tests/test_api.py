@@ -2061,6 +2061,204 @@ def test_session_copilot_salvages_granite_prose_answer(tmp_path):
     assert "Lap 4 spent more net energy than lap 2" in body["answer"]
 
 
+def test_session_copilot_uses_live_context_for_deterministic_fallback(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    creator = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        sessions_dir=sessions_dir,
+    )
+    created = creator.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    client = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        chat=FakeChatClient(responses=["not-json"]),
+        sessions_dir=sessions_dir,
+    )
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={
+            "question": "Are we under battery pressure now?",
+            "recent_turns": [],
+            "context": {
+                "mode": "live_race",
+                "lap_number": 3,
+                "live": {
+                    "race_state": "active",
+                    "latest_snapshot": {
+                        "lap": 3,
+                        "lap_time_s": 18.2,
+                        "speed_kmh": 198.0,
+                        "avg_speed_kmh": 193.4,
+                        "max_speed_kmh": 246.1,
+                        "dist_from_start_m": 1420.0,
+                        "lap_progress_pct": 47.5,
+                        "sector": 2,
+                        "throttle_frac": 0.88,
+                        "brake_frac": 0.0,
+                        "steer_frac": 0.06,
+                        "gear": 6,
+                        "fuel_kg": 84.5,
+                        "fuel_used_kg": 0.18,
+                        "harvest_mj": 0.22,
+                        "deploy_mj": 0.54,
+                        "soc_estimate": 0.48,
+                        "soc_source": "derived",
+                        "balance_label": "spending",
+                    },
+                    "completed_laps": [
+                        {
+                            "lap": 1,
+                            "lap_time_s": 36.9,
+                            "avg_speed_kmh": 198.1,
+                            "max_speed_kmh": 243.2,
+                            "harvest_mj": 0.28,
+                            "deploy_mj": 0.62,
+                            "soc_end": 0.61,
+                            "fuel_used_kg": 0.43,
+                        },
+                        {
+                            "lap": 2,
+                            "lap_time_s": 36.6,
+                            "avg_speed_kmh": 199.4,
+                            "max_speed_kmh": 244.6,
+                            "harvest_mj": 0.26,
+                            "deploy_mj": 0.71,
+                            "soc_end": 0.54,
+                            "fuel_used_kg": 0.44,
+                        },
+                    ],
+                    "insights": [
+                        {
+                            "insight_id": "li_energy_pressure_v1_l2_s2",
+                            "rule_id": "energy_pressure_v1",
+                            "kind": "strategy_recommendation",
+                            "severity": "high",
+                            "headline": "Energy pressure building",
+                            "message": "Deploy exceeded harvest across the last closed lap and the current lap trend is still net-spend.",
+                            "recommended_action": "Recommend conservative deployment until the reserve trend flattens.",
+                            "confidence": "high",
+                            "evidence": [
+                                "Lap 2 closed with 0.71 MJ deploy vs 0.26 MJ harvest.",
+                                "Current SoC estimate is 48%.",
+                            ],
+                            "lap": 2,
+                            "sector": 2,
+                        }
+                    ],
+                },
+            },
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine"] == "deterministic"
+    assert "Live battery reserve is tracking around" in body["answer"]
+    assert body["supporting_laps"]
+
+
+def test_session_copilot_stream_emits_deltas_then_complete(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    with client.stream(
+        "POST",
+        f"/api/sessions/{sid}/copilot/stream",
+        json={"question": "Compare lap 2 and lap 4", "recent_turns": []},
+    ) as r:
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+        events: list[dict] = []
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                payload = json.loads(line[len("data: "):])
+                events.append(payload)
+                if payload.get("event") == "complete":
+                    break
+
+    assert events[0]["event"] == "start"
+    assert any(event["event"] == "delta" for event in events)
+    assert events[-1]["event"] == "complete"
+    assert events[-1]["answer"]["engine"] == "granite"
+    assert events[-1]["answer"]["supporting_laps"] == [2, 4]
+
+
+def test_session_copilot_greeting_returns_conversational_reply(tmp_path):
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+    created = client.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={"question": "Hello", "recent_turns": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "Hello" in body["answer"]
+    assert "grounded in this session" in body["answer"]
+
+
+def test_session_copilot_sanitizes_metadata_and_fabricated_citation_in_answer(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    creator = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        sessions_dir=sessions_dir,
+    )
+    created = creator.post(
+        "/api/sessions",
+        files={"file": ("a.json", _laps_payload(), "application/json")},
+        data={"source": "fastf1"},
+    ).json()
+    sid = created["summary"]["session_id"]
+
+    raw = json.dumps({
+        "answer": (
+            "**Answer:** The recommendation focuses on lap 8, where excess harvest wasted energy under FIA 2026 Technical Regulation C5.2.9. "
+            "**Confidence:** high **Supporting laps:** 8 **Suggestions:** 1. Compare laps."
+        ),
+        "engine": "granite",
+        "supporting_laps": [8],
+        "confidence": "high",
+        "suggestions": ["Compare two laps"],
+    })
+    client = _build_client(
+        tmp_path=tmp_path,
+        chunks_path=_empty_chunks_path(tmp_path),
+        chat=FakeChatClient(responses=[raw]),
+        sessions_dir=sessions_dir,
+    )
+
+    response = client.post(
+        f"/api/sessions/{sid}/copilot",
+        json={"question": "Why did OVERRIDE recommend the current strategy?", "recent_turns": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine"] == "granite"
+    assert "**" not in body["answer"]
+    assert "Confidence:" not in body["answer"]
+    assert "Suggestions:" not in body["answer"]
+    assert "C5.2.9" not in body["answer"]
+    assert any(item.startswith("Compare lap ") for item in body["suggestions"])
+
+
 def test_session_copilot_404s_for_missing_session(tmp_path):
     client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
     response = client.post(

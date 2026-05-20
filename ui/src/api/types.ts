@@ -200,6 +200,27 @@ export interface CopilotAnswer {
   suggestions: string[];
 }
 
+export type CopilotContextMode = "session" | "lap" | "live_race";
+
+export interface CopilotLiveState {
+  latest_snapshot: LiveLapSnapshot | null;
+  completed_laps: LiveLapStats[];
+  insights: LiveInsight[];
+  race_state: TorcsRaceState | null;
+}
+
+export interface CopilotRequestContext {
+  mode: CopilotContextMode;
+  lap_number: number | null;
+  live: CopilotLiveState | null;
+}
+
+export type CopilotStreamEvent =
+  | { event: "start" }
+  | { event: "delta"; delta: string }
+  | { event: "complete"; answer: CopilotAnswer }
+  | { event: "error"; message: string };
+
 // ──────────────────────────────────────────────────────────────────────────────
 // §12 API surface
 // ──────────────────────────────────────────────────────────────────────────────

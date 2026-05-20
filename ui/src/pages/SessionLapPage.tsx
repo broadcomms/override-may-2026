@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { OverrideApiError, api } from "@/api/client";
 import type { LapAnalysis, Session } from "@/api/types";
 import { ErrorBanner, LoadingSkeleton } from "@/components/EmptyStates";
+import { useRaceEngineerPageContext } from "@/context/RaceEngineerContext";
 
 export function SessionLapPage() {
   const { lapNumber = "", sessionId = "" } = useParams<{ sessionId: string; lapNumber: string }>();
@@ -47,6 +48,23 @@ export function SessionLapPage() {
     };
   }, [fixture, parsedLapNumber, sessionId]);
 
+  const raceEngineerContext = useMemo(
+    () =>
+      session
+        ? {
+            kind: "lap" as const,
+            sessionId,
+            fixture: fixture === true,
+            lapNumber: parsedLapNumber,
+            title: session.summary.track_name ?? session.summary.track_id ?? "session",
+            latestLapNumber: session.laps[session.laps.length - 1]?.lap_number ?? null,
+            raceState: null,
+          }
+        : null,
+    [fixture, parsedLapNumber, session, sessionId],
+  );
+  useRaceEngineerPageContext(raceEngineerContext);
+
   const lap = useMemo(
     () => session?.laps.find((item) => item.lap_number === parsedLapNumber) ?? null,
     [parsedLapNumber, session],
@@ -68,7 +86,6 @@ export function SessionLapPage() {
       </div>
     );
   }
-
   const relatedRecommendations = session.recommendations.filter((rec) => rec.zone.lap_number === parsedLapNumber);
 
   return (
