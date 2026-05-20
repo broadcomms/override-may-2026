@@ -580,6 +580,7 @@ def calculate_steering(S, previous_steer=0.0, config=DEFAULT_DRIVER_CONFIG):
     track_pos = float(S.get('trackPos', 0.0) or 0.0)
     speed = float(S.get('speedX', 0.0) or 0.0)
     pitch = float(S.get('pitch', 0.0) or 0.0)
+    lateral_speed = float(S.get('speedY', 0.0) or 0.0)
 
     steer = (angle * steer_cfg.steer_gain / math.pi) - (track_pos * steer_cfg.centering_gain)
     triplet = _track_triplet(S)
@@ -587,13 +588,20 @@ def calculate_steering(S, previous_steer=0.0, config=DEFAULT_DRIVER_CONFIG):
         left, centre, right = triplet
         steer += ((left - right) / centre) * steer_cfg.track_sensor_gain
 
+    # Large recoveries were unwinding steer too early once the heading error
+    # crossed back through zero, even though the car was still far off-line.
+    # Keep a stronger cross-track pull while it is still displaced and moving
+    # back toward centre at low speed.
+    if abs(track_pos) >= 0.55 and speed < 35.0 and abs(angle) < 0.08 and (track_pos * lateral_speed) < 0.0:
+        steer -= track_pos * steer_cfg.centering_gain * 0.8
+
     # On the uphill crest, the car can drift sideways with only a tiny heading
     # error. Add a small cross-track bias there without touching the tighter
     # corner logic that we already stabilized elsewhere on the lap.
     if pitch > 0.06 and abs(angle) < 0.05 and abs(track_pos) > 0.2 and speed > 45.0:
         steer -= track_pos * steer_cfg.crest_centering_gain
 
-    steer -= float(S.get('speedY', 0.0) or 0.0) * steer_cfg.lateral_speed_damping_gain
+    steer -= lateral_speed * steer_cfg.lateral_speed_damping_gain
     return _stabilize_steering_command(steer, previous_steer, S.get('speedX', 0.0))
 
 def calculate_throttle(S, R, target_speed, config=DEFAULT_DRIVER_CONFIG):

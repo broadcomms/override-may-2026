@@ -134,6 +134,21 @@ def test_calculate_steering_adds_extra_cross_track_help_on_uphill_crest() -> Non
     assert crest_steer > base_steer
 
 
+def test_calculate_steering_keeps_recovery_bias_while_far_off_line() -> None:
+    server_state = {
+        "angle": -0.05,
+        "trackPos": -0.68,
+        "speedX": 28.0,
+        "speedY": 0.5,
+        "pitch": 0.14,
+        "track": [0.0] * 19,
+    }
+
+    steer = calculate_steering(server_state, previous_steer=0.1)
+
+    assert steer > 0.12
+
+
 def test_coordinate_longitudinal_controls_cuts_throttle_when_braking() -> None:
     server_state = {"speedX": 31.0, "speedY": 1.2, "trackPos": 0.42}
     driver_action = {"steer": 0.41, "accel": 0.3, "brake": 0.4}
