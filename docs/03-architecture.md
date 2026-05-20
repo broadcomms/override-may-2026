@@ -1,154 +1,167 @@
 # Architecture
 
-## Architecture Diagram (Mermaid)
-See [`docs/03-architecture.mmd`](../docs/03-architecture.mmd) for the Mermaid diagram.
+OVERRIDE now ships in three connected shapes:
+
+1. A replay-first web app served by FastAPI + the built React/Vite bundle.
+2. A managed live TORCS workflow with a control daemon, shared telemetry volume, cockpit UI, and post-race ingest.
+3. A Langflow design/demo layer that mirrors the production pipeline but does not replace it.
+
+The production path is `ui/` → `api/main.py` → `core/pipeline.py`. Langflow remains documentation and demo tooling.
+
+## Architecture Diagram
+
+See [`docs/03-architecture.mmd`](../docs/03-architecture.mmd) for the Mermaid source.
+
 ```sh
-# Generate the architecture diagram using mairmaid
-# #TODO: wire this into pre-commit hook so it updates on every edit.
- npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png
+npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png
 ```
+
 ![Architecture](../assets/architecture.png)
 
-**Legend:**
-- Optional/dashed: TTM forecaster (graceful degradation).
-- Green: deterministic Pass 1 validator (always passes before AI scoring).
-- Blue (dark): Granite components.
-- Blue (light): Docling.
-- Orange: UI surfaces.
+Legend:
+- Dashed edge: optional path or graceful-degradation path.
+- Green: deterministic safety layer.
+- Blue: model-backed reasoning and scoring.
+- Orange: user-facing surfaces.
 
-## Repo Folder structure
+## Runtime Topology
+
+### 1. Web application surface
+
+- `ui/` is a React 18 + Vite + TypeScript SPA with routes for `/upload`, `/driver-lab`, `/sessions`, `/sessions/compare`, `/cockpit`, and `/session/:session_id`.
+- In development, Vite serves the UI and proxies `/api/*` to FastAPI.
+- In the container image, `api/main.py` mounts `ui/dist` so the API and SPA ship from the same origin on `:8000`.
+
+### 2. Replay analysis path
+
+- `POST /api/sessions` accepts a TORCS replay or FastF1-derived payload.
+- `ingest/torcs_parser.py` and `ingest/fastf1_parser.py` normalize data into `LapFeatures`.
+- `core/pipeline.py` truncates to the most recent 30 laps for model context, detects zones, optionally forecasts, retrieves regulation chunks, reasons, validates, and scores.
+- The result is persisted under `data/sessions/{session_id}/` via `api/storage.py` and returned as a `Session`.
+
+### 3. Live TORCS path
+
+- The `torcs` compose service runs the SkillsBuild TORCS environment plus `RaceYourCode/gym_torcs/control_daemon.py`.
+- `POST /api/torcs/start-race` creates an `ACTIVE` stub session before asking the daemon to launch a managed race.
+- TORCS telemetry is written to the shared `torcs-telemetry` volume.
+- `GET /api/sessions/{id}/stream` tails that JSONL file, emits live snapshots and completed laps over SSE, and closes when the file stalls.
+- `POST /api/sessions/torcs-live` parses the finished JSONL, re-runs the full pipeline, and upgrades the stub session to a completed debrief.
+
+### 4. Driver profile path
+
+- Shipped defaults live in `config/torcs_driver_profiles/`.
+- User-saved profiles live in `data/torcs_driver_profiles/`.
+- `torcs_driver_profiles.py` owns CRUD, validation, duplication, and snapshotting.
+- Selected profiles are stamped into live-session launch metadata and preserved in the completed session payload as `driver_config_snapshot`.
+
+### 5. External model and regulation dependencies
+
+- Granite Instruct, Granite Guardian, and Granite Embedding run through watsonx.ai.
+- Regulation chunks are loaded from `data/regs/extracted_chunks.sample.json` and retrieved deterministically by `core/regs.py`.
+- TTM-R2 remains optional. If forecasting is unavailable or low-confidence, the pipeline continues with observed evidence only.
+
+## Core Backend Flow
+
+### Replay/session creation
+
+1. API parses upload or live-capture JSONL into `LapFeatures`.
+2. `analysis/zone_detector.py` emits deterministic `Zone` objects.
+3. `core/forecasting.py` may return a `Forecast`, otherwise `None`.
+4. `core/regs.py` retrieves the best matching regulation chunk for each zone.
+5. `core/reasoning.py` produces a `ReasoningOutput`.
+6. `core/validator.py` runs Pass 1 deterministic validation.
+7. `core/guardian.py` runs Pass 2 Guardian scoring.
+8. `core/pipeline.py` applies retry directives when either pass fails, then assembles `Recommendation` and `Session`.
+
+### Lazy follow-up flows
+
+- Fan Mode is not generated during the initial pipeline run. `GET /api/sessions/{id}/zones/{zid}?mode=fan|both` generates and caches it on demand.
+- What-if runs are not a forked pipeline. `analysis/perturbations.py` mutates lap features, then `core/pipeline.py` is re-run and cached under `data/sessions/{id}/whatif/`.
+- Session history enrichment is live-aware. Active TORCS rows patch in completed-lap counts from the shared telemetry file without waiting for final ingest.
+
+## Safety Architecture
+
+### Pass 1: deterministic validator
+
+- Source: [`core/validator.py`](../core/validator.py) + [`core/validator.yaml`](../core/validator.yaml)
+- Checks: energy bounds, harvest-cap logic, citation existence, language safety, and citation/source consistency.
+- On failure, `core/pipeline.py` retries reasoning with a stricter directive.
+
+### Pass 2: Granite Guardian BYOC
+
+- Source: [`core/guardian.py`](../core/guardian.py) + [`guardian/byoc_criteria.yaml`](../guardian/byoc_criteria.yaml)
+- Criteria: `energy_safety` and `regulation_consistency`.
+- Guardian scoring never replaces Pass 1; it follows it.
+- If retries are exhausted, the recommendation still ships with low confidence instead of disappearing silently.
+
+## Persistence Layout
+
+Session storage is intentionally file-based.
+
+```text
+data/sessions/
+├── _index.json
+└── {session_id}/
+    ├── summary.json
+    ├── laps.parquet
+    ├── forecast.json                  # optional
+    ├── recommendations.json
+    ├── regulation_source.json         # optional
+    ├── driver_config.json             # optional
+    └── whatif/
+        └── {cache_key}.json
 ```
-override-may-2026/
-├── README.md                      # The judge entry point — see §3
-├── LICENSE                        # Apache 2.0 (matches Granite licensing)
-├── CODE_OF_CONDUCT.md
-├── .gitignore
-├── requirements.txt               # Pinned versions
-├── models.json                    # Granite/Guardian/TTM model versions + hashes
-├── docker-compose.yml             # Four services, three profiles (torcs, observability, langflow)
-├── Dockerfile                     # Multi-stage Node-20 → Python-3.12 → single image
-│
-├── assets/
-│   ├── banner.png                 # 1920×600 BeMyApp banner
-│   ├── banner.svg
-│   ├── logo.png                   # 512×512
-│   ├── logo.svg
-│   ├── architecture.png           # Rendered from Mermaid (see top of this doc)
-│   ├── demo.gif                   # ≤8s, ≤6MB, looped
-│   └── screenshots/
-│       ├── engineer-mode.png
-│       ├── fan-mode.png
-│       ├── guardian-rejection.png
-│       ├── langflow-canvas.png
-│       └── jaeger-trace.png
-│
+
+Design implications:
+- No database is required for the demo or local workflow.
+- Session history, comparison, and lazy fan-mode writes all operate on this disk layout.
+- `save_recommendations_only()` performs atomic rewrites for concurrent fan-mode requests.
+
+## Frontend Surface Map
+
+- `/upload`: sample replays, bring-your-own upload, live capture controls, capture list, preview strip.
+- `/driver-lab`: driver-profile editor for shipped defaults and user-saved variants.
+- `/sessions`: history, pagination, selection, bulk delete, compare launch.
+- `/sessions/compare`: side-by-side comparison of two sessions.
+- `/cockpit`: live race surface with control strip, noVNC/headless frame, timing rail, hybrid rail, lap timeline, and deterministic live insight.
+- `/session/:session_id`: completed or active session detail with KPI strip, live telemetry panel for active sessions, Engineer/Fan recommendation rendering, heatmap, energy curve, and what-if diffs.
+
+## Repo Map
+
+```text
+overdrive-may-2026/
+├── api/                              # FastAPI runtime, storage, errors, tracing
+├── analysis/                         # Deterministic telemetry enrichment + perturbations
+├── core/                             # Pipeline, reasoning, validation, Guardian, regs, forecasting
+├── ingest/                           # Source parsers + shared Pydantic schemas
+├── ui/                               # React/Vite app
+├── RaceYourCode/gym_torcs/           # TORCS driver + control daemon sidecar code
+├── config/torcs_driver_profiles/     # Shipped read-only driver profiles
 ├── data/
-│   ├── samples/                   # Real TORCS-lab captures (baseline + modified .jsonl)
-│   ├── regs/                      # extracted_chunks.sample.json (Docling output, committed)
-│   │                              # FIA PDFs (Section C Issue 18, Section B Issue 06) are
-│   │                              # NOT committed — downloaded at build time via
-│   │                              # scripts/download_regulations.py per R14 (licensing)
-│   ├── sessions/                  # Persisted Session JSONs (host-mounted in compose)
-│   └── README.md                  # Data sources + licensing note
-│
-├── scripts/
-│   ├── build_chunks.py            # Re-run Docling on a new FIA Issue
-│   ├── test_watsonx.py            # G-1 connectivity gate
-│   └── torcs_container_init.sh    # Compose entrypoint override for the TORCS lab image
-│                                  # (absorbs Ollama chown + VS Code hang bugs from RESULTS.md)
-│
-├── RaceYourCode/                  # Committed unzip of gym_torcs from hands-on-labs/01_torcs_lab/
-│   └── gym_torcs/                 # Lab driver source; bind-mounted into the torcs compose service
-│
-├── ingest/
-│   ├── __init__.py
-│   ├── torcs_parser.py            # TORCS JSONL → lap features (calibrated; safe-read for live tail)
-│   ├── fastf1_parser.py           # FastF1 session → lap features
-│   └── schema.py                  # Pydantic cross-cutting schemas (incl. WhatIfRequest/Result)
-│
-├── analysis/
-│   ├── __init__.py
-│   ├── zone_detector.py           # Pure-Python heuristics
-│   ├── feature_engineering.py
-│   ├── perturbations.py           # FR-8 — delay_first_deploy / skip_harvest_zone / extend_override
-│   └── torcs_energy.py            # Shared 2026-hybrid bookkeeping constants + SoC math
-│
-├── core/
-│   ├── __init__.py
-│   ├── pipeline.py                # End-to-end orchestrator (run_pipeline)
-│   ├── reasoning.py               # Granite 4.x Instruct via WatsonxChatClient Protocol
-│   ├── fan_mode.py                # Plain-language translator (lazy, per-zone)
-│   ├── regs.py                    # Docling reg retrieval + chunker
-│   ├── guardian.py                # Granite Guardian BYOC scorer (Pass-2)
-│   ├── forecasting.py             # TTM-R2 wrapper — STUB; v1.1 (graceful-degradation guardrail)
-│   ├── validator.py               # Pass-1 deterministic checks
-│   ├── validator.yaml             # Pass-1 rule set
-│   └── llm_clients/
-│       └── ollama.py              # OllamaChatClient — implements WatsonxChatClient Protocol
-│                                  # (selected via OVERRIDE_LLM_RUNTIME=ollama)
-│
-├── api/                           # FastAPI production runtime (see docs/04-api.md)
-│   ├── main.py                    # Endpoints: /api/sessions, /api/sessions/torcs-live,
-│   │                              # /api/sessions/{id}/what-if, /api/torcs-status, /api/health
-│   │                              # + StaticFiles mount serving the built UI from ui/dist
-│   └── storage.py                 # Session persistence (atomic writes via tempfile + os.replace)
-│
-├── prompts/
-│   ├── reasoning.system.md
-│   ├── fan_mode.system.md
-│   └── grounding.system.md
-│
-├── guardian/
-│   └── byoc_criteria.yaml         # Pass-2 BYOC criteria
-│
-├── langflow/
-│   └── override.flow.json         # Exported Langflow canvas (design layer, not runtime)
-│
-├── ui/                            # React + Vite + TypeScript
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   ├── api/                   # client.ts, types.ts (fixture-mode synthesis included)
-│   │   ├── components/            # FileUpload, WhatIfDiff, RecommendationCard, etc.
-│   │   │   └── cockpit/           # cockpit HUD: command strip, rails, timeline, race frame, live insight
-│   │   ├── hooks/                 # useTorcsControl, useLiveTelemetry
-│   │   ├── lib/                   # shared frontend helpers incl. cockpit telemetry derivations
-│   │   ├── pages/                 # UploadPage, CockpitPage, SessionPage
-│   │   └── styles/
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.ts             # @fixtures alias → ../tests/fixtures/
-│
-├── tests/
-│   ├── test_torcs_parser.py       # Golden + calibration-regression
-│   ├── test_perturbations.py      # FR-8 unit tests
-│   ├── test_llm_clients_ollama.py # Mocked HTTP layer + startup-probe behavior
-│   ├── test_api.py                # Endpoint integration (incl. live-ingest + what-if)
-│   ├── test_zone_detector.py
-│   ├── test_validator.py
-│   ├── test_guardian.py
-│   ├── test_regs.py
-│   ├── test_pipeline.py
-│   └── fixtures/                  # Including torcs_engineer_demo.json (real-TORCS-derived)
-│
-└── docs/                          # numbered scheme, all sections cross-referenced
-    ├── 03-architecture.md         # this file
-    ├── 03-architecture.mmd        # Mermaid source
-    ├── 03-prd.md
-    ├── 04-{schema,api,ui-ux-design,langflow-canvas}.md
-    ├── 05-{risk-register,security}.md
-    ├── 06-{roadmap,testing}.md
-    ├── 07-deployment.md
-    ├── adrs/                      # ADR-001 watsonx runtime, ADR-002 TORCS sandbox,
-    │                              # ADR-003 LLM-runtime abstraction, ADR-004 TORCS control plane
-    ├── plans/                     # per-feature plans, deleted on ship
-    └── user/                      # CHANGELOG, end-user documentation
+│   ├── regs/                         # Regulation chunks sample
+│   ├── samples/                      # Real TORCS lab captures
+│   ├── sessions/                     # Persisted app sessions
+│   └── torcs_driver_profiles/        # User-created driver profiles
+├── langflow/override_components/     # Langflow mirror components
+├── prompts/                          # System prompts for reasoning/fan/grounding
+├── guardian/                         # BYOC scoring criteria
+├── scripts/                          # Utility, evaluation, and runtime support scripts
+└── tests/                            # 419 collected tests as of 2026-05-19
 ```
 
-CI workflows are not in v1.0 scope (see README "What's coming next"). The quality gate is `pytest -q -m "not network"` + `npm run build`, walked at the T-72h pre-flight in [`docs/plans/final-lock-checklist.md`](plans/final-lock-checklist.md).
-### Branch strategy
-- `main` — only stable, demoable code.
-- `dev` — daily working branch.
-- Tag `v0.0.1` for first prototype.
-- Tag `v0.1.0` when core features are complete.
-- Tag `v1.0.0-submission` at the IBM SkillsBuild submission commit (per `docs/plans/final-lock-checklist.md` T-12h).
+## Verification Snapshot
+
+- `npm --prefix ui run build` succeeds against the current UI bundle.
+- `pytest --collect-only -q -s tests` currently collects **419 tests**, including **4** network-marked tests.
+- The documentation below should be kept aligned with:
+  - [`docs/04-schema.md`](./04-schema.md)
+  - [`docs/04-api.md`](./04-api.md)
+  - [`docs/04-ui-ux-design.md`](./04-ui-ux-design.md)
+  - [`docs/07-deployment.md`](./07-deployment.md)
+
+## Branch Strategy
+
+- `main`: stable, demoable state only.
+- `dev`: daily working branch.
+- ADRs are cumulative and edited in place under `docs/adrs/`.
+- Ship plans belong in `docs/plans/` and should be deleted when the feature is complete.

@@ -167,7 +167,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 ### 3.11 Frontend (`ui/`)
 
-**Role.** Engineer Mode and Fan Mode rendering against the FastAPI surface. Built with Next.js 14 (or Vite + React) + Tailwind + shadcn/ui. Full UI/UX spec in [`04-ui-ux-design.md`](./04-ui-ux-design.md).
+**Role.** Engineer Mode and Fan Mode rendering against the FastAPI surface. Built with React + Vite + Tailwind. Full UI/UX spec in [`04-ui-ux-design.md`](./04-ui-ux-design.md).
 
 ---
 

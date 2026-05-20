@@ -47,4 +47,4 @@ Loops:
 ## Demo behavior
 
 - The canvas executes one end-to-end sample flow for the demo recording (one TORCS replay → one `Recommendation`).
-- The canvas does **not** serve user uploads in production. The Next.js UI calls FastAPI per [`04-api.md`](./04-api.md).
+- The canvas does **not** serve user uploads in production. The React/Vite UI calls FastAPI per [`04-api.md`](./04-api.md).

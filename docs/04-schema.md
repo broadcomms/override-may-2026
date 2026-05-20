@@ -1,93 +1,58 @@
 # OVERRIDE — Data Schemas
 
-> Single source of truth for the typed contracts shared by every component in the OVERRIDE pipeline. All schemas are **Pydantic v2** and live in `ingest/schema.py` (cross-cutting types) or beside the component that owns them. Backend, prompts, validator, Guardian, and UI all consume these definitions — divergence is a bug.
+This document describes the shipped typed contracts behind OVERRIDE as of the current app surface. The canonical Python definitions live in [`ingest/schema.py`](../ingest/schema.py), with API-specific request/response models in [`api/main.py`](../api/main.py), error models in [`api/errors.py`](../api/errors.py), and TORCS driver-profile models in [`torcs_driver_profiles.py`](../torcs_driver_profiles.py). The frontend mirrors these contracts in [`ui/src/api/types.ts`](../ui/src/api/types.ts).
 
----
+If this document disagrees with those files, the code wins and this document should be updated in the same change.
 
-## 1. Where each schema lives
+## 1. Conventions
 
-| Schema | File | Used by |
-|---|---|---|
-| `LapFeatures`, `LapWindow` | `ingest/schema.py` | ingest, analysis, forecasting, reasoning |
-| `Zone` | `analysis/zone_detector.py` | reasoning, validator, UI |
-| `Forecast` | `core/forecasting.py` | reasoning, UI (energy curve) |
-| `RegulationChunk`, `RegulationCitation` | `core/regs.py` | reasoning, validator, UI |
-| `ReasoningInput`, `ReasoningOutput` | `core/reasoning.py` | validator, Guardian, UI |
-| `ValidatorResult` | `core/validator.py` | pipeline glue, UI badge |
-| `GuardianResult` | `core/guardian.py` | pipeline glue, UI badge |
-| `FanOutput` | `core/fan_mode.py` | UI (Fan Mode card) |
-| `Recommendation` | `api/routes/sessions.py` | API response, UI |
-| `Session`, `SessionSummary`, `SessionList` | `api/routes/sessions.py` | API response, UI |
-| `LapsResponse`, `ZonesResponse` | `api/routes/sessions.py` | API response, UI |
-| `WhatIfRequest`, `WhatIfResult` | `api/routes/whatif.py` | API, UI |
-| `ApiError` | `api/errors.py` | every API endpoint |
+- Times are seconds as `float`.
+- Energies are megajoules as `float`.
+- Powers are kilowatts as `float`.
+- Speeds are km/h as `float`.
+- `lap_number` and live `lap` values are 1-indexed.
+- Unknown values use `None` / `null`, never sentinel strings.
+- JSON keys are snake_case end-to-end.
+- Session IDs are short slugs like `s_...`; zone IDs are short slugs like `z_...`.
 
-> **Forward-looking note.** The `core/`, `api/`, and `analysis/` modules above are scaffolded in the repo but most are still empty stubs at the time of writing — they get implemented during roadmap **P1.4 → P2.7** (`pipeline.py` arrives at P2.7). This table is the destination, not the current state.
-
-The reasoning, fan, and grounding **prompt contracts** (in `prompts/*.system.md`) are the JSON shape the LLM must produce — they must match `ReasoningOutput`, `FanOutput`, and the grounding step input/output described below. If a prompt and its schema disagree, the schema wins and the prompt is updated.
-
----
-
-## 2. Conventions
-
-- All times in **seconds** (float).
-- All energies in **megajoules (MJ)** (float). Megajoules is the FIA's unit; do not mix with kJ or J in transit.
-- All powers in **kilowatts (kW)** (float).
-- All speeds in **km/h** (float).
-- All `lap_number` values are **1-indexed** to match FIA convention.
-- Fields that may be unknown are typed `Optional[T]` with default `None`. Never use sentinel strings like `"N/A"`.
-- All JSON keys use `snake_case`. The frontend may map to camelCase at the boundary.
-- Timestamps are ISO-8601 UTC strings.
-- IDs are short, URL-safe slugs (e.g., `s_20260512_a4f9`), generated server-side.
-
----
-
-## 3. Lap-level features
+## 2. Core pipeline types
 
 ### `LapFeatures`
 
-Produced by `ingest/torcs_parser.py` and `ingest/fastf1_parser.py`. One row per completed lap.
+One completed lap after ingest normalization.
 
 ```python
 class LapFeatures(BaseModel):
-    lap_number: int                    # 1-indexed
-    soc_start: float                   # battery state-of-charge at lap start, [0, 1]
-    soc_end: float                     # battery state-of-charge at lap end, [0, 1]
-    harvest_mj: float                  # total harvested energy this lap, MJ
-    deploy_mj: float                   # total deployed energy this lap, MJ
-    lap_time: float                    # full lap time, seconds
-    sector1_time: float                # seconds
-    sector2_time: float                # seconds
-    sector3_time: float                # seconds
-    avg_speed: float                   # km/h
-    max_speed: float                   # km/h
-    override_uses: int                 # count of Override Mode activations this lap
-    boost_uses: int                    # count of additional MGU-K boost windows
-    recharge_zones: list[int]          # sector indices (1, 2, 3) where harvest > 0.1 MJ
-    soc_source: Literal["measured", "derived"]    # provenance flag (risk R1)
+    lap_number: int
+    soc_start: float
+    soc_end: float
+    harvest_mj: float
+    deploy_mj: float
+    lap_time: float
+    sector1_time: float
+    sector2_time: float
+    sector3_time: float
+    avg_speed: float
+    max_speed: float
+    override_uses: int
+    boost_uses: int
+    recharge_zones: list[int]
+    soc_source: Literal["measured", "derived"]
 ```
-
-**Derivation flag.** When `soc_start` / `soc_end` / `harvest_mj` / `deploy_mj` are not directly exposed by the source (TORCS may not), they are derived from throttle/brake integrals and `soc_source` is set to `"derived"`. The derivation routine is documented in code comments and in `docs/plans/torcs-telemetry-map.md`.
 
 ### `LapWindow`
 
-A 30-lap rolling context fed into TTM-R2 forecasting and reasoning. Constructed by `core/pipeline.py`.
+The bounded model context used by reasoning and optional forecasting.
 
 ```python
 class LapWindow(BaseModel):
     session_id: str
-    laps: list[LapFeatures]            # length 1–30; reasoning accepts shorter, TTM does not
-    soc_max: float                     # battery capacity, MJ (used for [0, max] bounds)
-    track_id: Optional[str] = None     # e.g., "monza", "silverstone"; informational only
+    laps: list[LapFeatures]   # 1..30
+    soc_max: float
+    track_id: str | None
 ```
 
-Reasoning never receives more than 30 laps to keep prompt size bounded. If the session has more laps, the most recent 30 are used.
-
----
-
-## 4. Zone detection
-
-### `ZoneType` (enum)
+### `ZoneType` and `Zone`
 
 ```python
 class ZoneType(str, Enum):
@@ -95,375 +60,426 @@ class ZoneType(str, Enum):
     LATE_RECHARGE = "late-recharge"
     OVER_HARVEST = "over-harvest"
     UNUSED_OVERRIDE = "unused-override"
-```
 
-These four values are the only zone types in scope. They mirror the patterns identified in P1.5 of the roadmap and the `zone_type` enum in `prompts/grounding.system.md`.
-
-### `Zone`
-
-```python
 class Zone(BaseModel):
-    zone_id: str                       # short slug, e.g., "z_t16_l23"
+    zone_id: str
     zone_type: ZoneType
-    lap_number: int                    # 1-indexed
+    lap_number: int
     sector: Literal[1, 2, 3]
     severity: Literal["low", "medium", "high"]
-    metrics: dict[str, float]          # supporting numbers, schema below
-    description: str                   # one-sentence English summary, deterministic (no LLM)
+    metrics: dict[str, float]
+    description: str
 ```
 
-`metrics` keys depend on `zone_type`:
-
-| `zone_type` | Required `metrics` keys |
-|---|---|
-| `low-roi-deploy` | `deploy_mj`, `time_gain_s`, `roi_mj_per_s` |
-| `late-recharge` | `harvest_mj`, `lap_time_cost_s`, `available_window_s` |
-| `over-harvest` | `harvest_mj`, `cap_mj`, `headroom_mj` |
-| `unused-override` | `gap_to_leader_s`, `available_override_mj`, `straight_length_m` |
-
----
-
-## 5. Forecasting
+`metrics` is intentionally flexible in v1. Typical keys:
+- `low-roi-deploy`: `deploy_mj`, `time_gain_s`, `roi_mj_per_s`
+- `late-recharge`: `harvest_mj`, `lap_time_cost_s`, `available_window_s`
+- `over-harvest`: `harvest_mj`, `cap_mj`, `headroom_mj`
+- `unused-override`: `gap_to_leader_s`, `available_override_mj`, `straight_length_m`
 
 ### `Forecast`
 
-Optional. Produced by `core/forecasting.py` only when `len(laps) >= 30` and the prediction-interval width is below the configured threshold.
+Optional 5-lap SoC forecast. The pipeline must still run when this is `None`.
 
 ```python
 class Forecast(BaseModel):
-    horizon_laps: int                  # always 5
-    point: list[float]                 # length 5, predicted SoC, [0, 1]
-    lower: list[float]                 # length 5, prediction-interval lower bound
-    upper: list[float]                 # length 5, prediction-interval upper bound
-    mae_validation: Optional[float]    # held-out MAE recorded during P2.2
-    model_version: str                 # pinned, e.g., "ibm-granite/granite-timeseries-ttm-r2@<hash>"
+    horizon_laps: int              # default 5
+    point: list[float]             # len == 5
+    lower: list[float]             # len == 5
+    upper: list[float]             # len == 5
+    mae_validation: float | None
+    model_version: str
 ```
 
-When forecasting is unavailable, the field carrying a `Forecast` is set to `None` and the UI renders the empty state ("forecast unavailable"). **No partial / fabricated forecast is ever returned.**
-
----
-
-## 6. Regulation grounding
-
-### `RegulationChunk`
-
-Produced by `core/regs.py` from Docling DocTags extraction.
-
-```python
-class RegulationChunk(BaseModel):
-    chunk_id: str                      # short slug, stable across runs
-    text: str                          # verbatim passage, ≤ 1000 chars
-    source: RegulationSource
-    keywords: list[str]                # extracted at index time
-    embedding: Optional[list[float]] = None    # 768-dim from ibm/granite-embedding-278m-multilingual via watsonx (see ADR-001); None if vector search is disabled
-```
-
-### `RegulationSource`
+### Regulation types
 
 ```python
 class RegulationSource(BaseModel):
-    document_title: str                # e.g., "FIA 2026 Formula 1 Technical Regulations"
-    issue: str                         # e.g., "Issue 12 — 2025-06-10"
-    section: str                       # e.g., "C.5.4" — read from extracted DocTag, never hardcoded
-    public_url: str                    # the FIA URL the PDF was fetched from
-    fetched_at: datetime               # ISO-8601 UTC
-```
+    document_title: str
+    issue: str
+    section: str
+    public_url: str
+    fetched_at: datetime
 
-**Hard rule.** No prompt, schema default, test fixture, or user-facing string carries a hardcoded FIA article string — ever. Before verification gate **G-4** (per `06-roadmap.md` §4 P2.5), prompts use generic phrasing and the `RegulationSource` API field is null. After G-4, every `section` value is read out of the Docling extraction at runtime and lives only in this struct — never as a literal in code, prompts, or templates.
+class RegulationChunk(BaseModel):
+    chunk_id: str
+    text: str
+    source: RegulationSource
+    keywords: list[str]
+    embedding: list[float] | None
 
-### `RegulationCitation`
-
-The reduced form attached to a `ReasoningOutput`.
-
-```python
 class RegulationCitation(BaseModel):
-    passage: str                       # ≤ 25 words, verbatim from RegulationChunk.text
-    source: RegulationSource           # passed through from the chunk
+    passage: str
+    source: RegulationSource
 ```
 
----
+Hard rule: regulation section labels come from runtime extraction, never hardcoded literals in UI strings, prompts, schemas, or tests.
 
-## 7. Reasoning
-
-### `ReasoningInput`
-
-Constructed by `core/pipeline.py` and passed into `core/reasoning.py`.
+### Reasoning and fan-mode types
 
 ```python
 class ReasoningInput(BaseModel):
     session_id: str
     lap_window: LapWindow
-    forecast: Optional[Forecast]       # None = forecast unavailable
-    zone: Zone                         # one input -> one ReasoningOutput
-    regulation: Optional[RegulationChunk]   # None if grounding found nothing relevant
-```
+    forecast: Forecast | None
+    zone: Zone
+    regulation: RegulationChunk | None
 
-### `ReasoningOutput`
-
-Produced by Granite Instruct under `prompts/reasoning.system.md`. **This shape is normative — the prompt must match it.**
-
-```python
 class ReasoningOutput(BaseModel):
-    cause: str                         # 1 sentence
-    consequence: str                   # 1 sentence
-    recommendation: str                # 1 sentence; tone: "consider", "could explore"
-    regulation_citation: Optional[RegulationCitation]
+    cause: str
+    consequence: str
+    recommendation: str
+    regulation_citation: RegulationCitation | None
     confidence: Literal["low", "medium", "high"]
-    confidence_justification: str      # 1 sentence
-    reasoning_chain: list[str]         # 3–5 short steps, each ≤ 20 words
+    confidence_justification: str
+    reasoning_chain: list[str]     # 3..5 steps
+
+class FanOutput(BaseModel):
+    headline: str
+    what_happened: str
+    why_it_mattered: str
+    the_rule: str | None
 ```
 
-When `regulation` is `None` in the input, `regulation_citation` is `None` in the output and `confidence` is `"low"`. The prompt enforces this; the validator re-checks it.
+When `regulation` is absent, `regulation_citation` must be `None` and confidence must drop to `low`.
 
----
-
-## 8. Validation (Pass 1)
+## 3. Safety and recommendation types
 
 ### `ValidatorResult`
 
-Produced by `core/validator.py`. Mirrors the rule set in `core/validator.yaml`.
+Pass 1 deterministic outcome from `core/validator.py`.
 
 ```python
 class ValidatorResult(BaseModel):
     passed: bool
-    failed_rules: list[str]            # rule IDs from validator.yaml
-    retry_count: int                   # 0, 1, or 2
-    notes: list[str]                   # short messages per failed rule
+    failed_rules: list[str]
+    retry_count: int
+    notes: list[str]
 ```
 
-Rule IDs:
+Current rule IDs:
 - `energy_bounds`
-- `harvest_cap` — **before gate G-4 this rule is a no-op** (returns pass). The per-lap cap is loaded from `RegulationSource` at G-4; until the verified cap exists there is nothing to check against.
-- `citation_existence` — before G-4, no chunks are retrieved, so this rule is automatically satisfied for `regulation_citation = null`.
+- `harvest_cap`
+- `citation_existence`
 - `language_safety`
-- `source_consistency` — before G-4, the rule is satisfied for `regulation_citation = null`.
-
-On `passed=False` and `retry_count<2`, the pipeline regenerates the reasoning with a stricter prompt. On `retry_count==2` and still failing, the recommendation is **not** shipped — the API returns it with a low-confidence flag and the failed rules in the response so the UI can render the failure (no silent drop).
-
----
-
-## 9. AI safety scoring (Pass 2)
+- `source_consistency`
 
 ### `GuardianResult`
 
-Produced by `core/guardian.py`. Mirrors `guardian/byoc_criteria.yaml`.
+Pass 2 AI safety outcome from `core/guardian.py`.
 
 ```python
 class GuardianResult(BaseModel):
-    passed: bool                       # True iff every criterion >= pass_threshold
-    pass_threshold: float              # default 0.70, mirrors YAML
-    scores: dict[str, float]           # {"energy_safety": 0.84, "regulation_consistency": 0.91}
-    rationales: dict[str, str]         # {"energy_safety": "stays under cap...", ...}
-    retry_count: int                   # 0, 1, or 2
-    final_confidence: Literal["low", "medium", "high"]   # set after retries
+    passed: bool
+    pass_threshold: float
+    scores: dict[str, float]
+    rationales: dict[str, str]
+    retry_count: int
+    final_confidence: Literal["low", "medium", "high"]
 ```
-
-If both criteria score ≥ `pass_threshold`, `passed=True` and the recommendation ships. If a criterion fails, the pipeline regenerates with the explicit-citation prompt (max 2 retries). After 2 retries, the recommendation ships with `final_confidence="low"` — never silently dropped.
-
----
-
-## 10. Fan Mode
-
-### `FanOutput`
-
-Produced by Granite Instruct under `prompts/fan_mode.system.md`. Consumes a `ReasoningOutput`.
-
-```python
-class FanOutput(BaseModel):
-    headline: str                      # ≤ 14 words
-    what_happened: str                 # 1–2 sentences, no acronyms
-    why_it_mattered: str               # 1–2 sentences, qualitative impact
-    the_rule: Optional[str]            # 1 sentence paraphrase; None if regulation_citation was None
-```
-
-If the underlying `ReasoningOutput.confidence` is `"low"`, the prompt prepends `"It looks like"` to `what_happened` (per `prompts/fan_mode.system.md`).
-
----
-
-## 11. API surface types
-
-These are the response shapes the FastAPI layer returns. Detailed endpoint behavior lives in `04-api.md`; this section defines only the data shapes.
 
 ### `Recommendation`
 
-The unit the UI renders per zone. One per detected zone.
+The per-zone unit rendered by the UI.
 
 ```python
 class Recommendation(BaseModel):
     zone: Zone
     reasoning: ReasoningOutput
-    fan: Optional[FanOutput]                 # populated only when mode == "fan" or both
+    fan: FanOutput | None
     validator: ValidatorResult
     guardian: GuardianResult
 ```
 
-### `SessionSummary`
+`fan` is lazily populated and may stay `None` until a `mode=fan|both` read.
 
-Lightweight session-level metadata (returned by `GET /api/sessions`).
+## 4. Session types
+
+### `SessionSource` and `SessionStatus`
 
 ```python
 class SessionSource(str, Enum):
-    UPLOAD = "upload"          # default; POST /api/sessions (multipart) or fixture-mode
-    TORCS_LIVE = "torcs_live"  # POST /api/sessions/torcs-live volume-ingest path
+    UPLOAD = "upload"
+    TORCS_LIVE = "torcs_live"
 
 class SessionStatus(str, Enum):
-    COMPLETED = "completed"    # default; pipeline finished, recommendations available
-    ACTIVE = "active"          # race in progress (v1.1 control daemon — not emitted in v1.0)
-    CANCELLED = "cancelled"    # race stopped before completion (v1.1)
+    COMPLETED = "completed"
+    ACTIVE = "active"
+    CANCELLED = "cancelled"
+```
 
+`source` and `session_source` are different:
+- `source`: telemetry/parser shape, currently `torcs` or `fastf1`
+- `session_source`: ingest path, currently `upload` or `torcs_live`
+
+### `SessionSummary`
+
+```python
 class SessionSummary(BaseModel):
     session_id: str
     uploaded_at: datetime
     source: Literal["torcs", "fastf1"]
-    lap_count: int                     # post-truncation, if any
+    lap_count: int
     forecast_available: bool
     zone_count: int
-    track_id: Optional[str] = None
-    note: Optional[str] = None         # surface-level message about the session
-                                       # (e.g., "Truncated from 147 to 120 laps")
-    # Phase 1 lifecycle metadata (all optional, backward-compatible defaults).
-    session_source: SessionSource = SessionSource.UPLOAD
-    status: SessionStatus = SessionStatus.COMPLETED
-    track_name: Optional[str] = None       # human-readable track label, e.g. "Monza"
-    target_laps: Optional[int] = None      # operator-supplied lap-count goal
-    started_at: Optional[datetime] = None  # first-observation `t` from the JSONL capture
-    completed_at: Optional[datetime] = None  # capture file st_mtime at ingest time
-    telemetry_file: Optional[str] = None   # basename only (no path); set when session_source=TORCS_LIVE
+    track_id: str | None
+    note: str | None
+    session_source: SessionSource
+    status: SessionStatus
+    track_name: str | None
+    target_laps: int | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    telemetry_file: str | None
+    driver_profile_id: str | None
+    driver_profile_name: str | None
+    driver_profile_origin: Literal["shipped_default", "user_saved", "session_snapshot"] | None
 ```
 
-`note` is rendered as a small caption on the session card and on `/sessions`. It is not error-channel — errors use `ApiError`. Use it for non-fatal events the user should know about (truncation, derived energy state, missing track ID, etc.).
-
-**Backward compatibility**: existing entries in `data/sessions/_index.json` from before the Phase 1 ship don't carry the new fields; Pydantic applies the `UPLOAD` / `COMPLETED` defaults at load time. No migration step needed.
-
-**`source` vs `session_source`** — orthogonal concepts. `source` describes which parser ran (TORCS observation shape vs FastF1 parquet shape). `session_source` describes how the session got into the system (multipart upload vs volume-ingest endpoint). A TORCS-source session can come from either ingest path; a FastF1-source session always comes from `UPLOAD`.
-
 ### `Session`
-
-Full debrief (returned by `GET /api/sessions/{id}` and as the `201` body of `POST /api/sessions`).
 
 ```python
 class Session(BaseModel):
     summary: SessionSummary
     laps: list[LapFeatures]
-    forecast: Optional[Forecast]
-    recommendations: list[Recommendation]    # ordered by lap_number
-    regulation_source: Optional[RegulationSource]   # for the citations cited; null if none used
+    forecast: Forecast | None
+    recommendations: list[Recommendation]
+    regulation_source: RegulationSource | None
+    driver_config_snapshot: TorcsDriverConfigSnapshot | None
 ```
+
+### `TorcsDriverConfigSnapshot`
+
+The profile/config embedded into a launched live session.
+
+```python
+class TorcsDriverConfigSnapshot(BaseModel):
+    driver_profile_id: str
+    driver_profile_name: str
+    driver_profile_origin: Literal["shipped_default", "user_saved", "session_snapshot"]
+    config: TorcsDriverConfigWire
+```
+
+## 5. What-if contracts
+
+### `WhatIfRequest`
+
+```python
+PerturbationKind = Literal[
+    "delay_first_deploy",
+    "skip_harvest_zone",
+    "extend_override",
+]
+
+class WhatIfRequest(BaseModel):
+    perturbation: PerturbationKind
+    zone_id: str | None
+    n: int | None
+    extra_laps: int = 1
+```
+
+Validation rules:
+- `delay_first_deploy` requires `n`
+- `skip_harvest_zone` requires `zone_id`
+- `extend_override` requires `zone_id`
+
+### `WhatIfResult`
+
+```python
+class WhatIfResult(BaseModel):
+    request: WhatIfRequest
+    cache_key: str
+    original: list[Recommendation]
+    perturbed: list[Recommendation]
+    note: str | None
+```
+
+The result is cached on disk per session and request hash.
+
+## 6. Live telemetry contracts
+
+These are API-layer models defined in `api/main.py` and used by `/cockpit` and the active-session page.
 
 ### `LiveLapStats`
 
-One lap-complete record emitted on the Phase 3 SSE stream
-(`GET /api/sessions/{id}/stream`). Energy fields use the same
-`analysis.torcs_energy` constants as the post-hoc parser so live totals
-agree with the eventual `LapFeatures` to within a few percent (live uses
-a single-sector approximation; post-race splits into three sectors).
+One completed live lap emitted over SSE.
 
 ```python
 class LiveLapStats(BaseModel):
-    lap: int                         # 1-indexed, FIA convention
-    lap_time_s: float                # seconds
+    lap: int
+    lap_time_s: float
     avg_speed_kmh: float
     max_speed_kmh: float
-    harvest_mj: float                # ≥ 0
-    deploy_mj: float                 # ≥ 0
-    soc_end: float                   # 0..1
-    fuel_used_kg: Optional[float]    # Δ fuel sensor across the lap; None if parser couldn't extract
+    harvest_mj: float
+    deploy_mj: float
+    soc_end: float
+    fuel_used_kg: float | None
 ```
 
-The SSE event envelope wraps this with an `event: "lap"` discriminator; see [`04-api.md` §4.15](./04-api.md#415-get-apisessionssession_idstream-server-sent-events) for the full event-type union.
+### `LiveLapSnapshot`
 
-### `SessionListResponse`
-
-Paged listing returned by `GET /api/sessions` (Phase 1 ship).
+One in-progress lap snapshot emitted at roughly 4 Hz.
 
 ```python
-class SessionListResponse(BaseModel):
-    sessions: list[SessionSummary]   # newest first by uploaded_at
-    total: int                       # total session count across all pages
-    limit: int                       # echoes the query param (default 50, max 200)
-    offset: int                      # echoes the query param (default 0)
+class LiveLapSnapshot(BaseModel):
+    lap: int
+    lap_time_s: float
+    speed_kmh: float
+    avg_speed_kmh: float
+    max_speed_kmh: float
+    dist_from_start_m: float
+    lap_progress_pct: float
+    sector: Literal[1, 2, 3] | None
+    throttle_frac: float | None
+    brake_frac: float | None
+    steer_frac: float | None
+    gear: int | None
+    fuel_kg: float | None
+    fuel_used_kg: float | None
+    harvest_mj: float
+    deploy_mj: float
+    soc_estimate: float
+    soc_source: Literal["derived"]
+    balance_label: Literal["spending", "recovering", "balanced"]
 ```
 
-The historical `SessionList` shape (`{sessions, next_offset, total}`) was a v6-plan-era draft; v1.0 ships `SessionListResponse` with explicit `limit` / `offset` echo so the client can render page indicators without computing them locally.
+### Live stream event union
 
-### `LapsResponse`
+`GET /api/sessions/{session_id}/stream` emits JSON SSE frames with one of these shapes:
 
-Lap-level slice returned by `GET /api/sessions/{id}/laps`. Kept narrow so chart renders are cheap.
+- `{"event":"connected","session_id":...,"status":...}`
+- `{"event":"snapshot","snapshot": LiveLapSnapshot}`
+- `{"event":"lap", ...LiveLapStats}`
+- `{"event":"no_telemetry","message":...}`
+- `{"event":"race_ended","reason":...,"total_laps":...}`
+
+## 7. TORCS control and driver-profile contracts
+
+### `TorcsStartRaceRequest`
 
 ```python
-class LapsResponse(BaseModel):
-    session_id: str
-    laps: list[LapFeatures]
+class TorcsStartRaceRequest(BaseModel):
+    track: str = "aalborg"
+    laps: int = 75
+    track_name: str | None
+    notes: str | None
+    driver_profile_id: str = "baseline"
+    launch_mode: Literal["cockpit_practice", "headless_quickrace"] | None
+    auto_launch_torcs: bool = False
 ```
 
-### `ZonesResponse`
-
-Recommendations slice returned by `GET /api/sessions/{id}/zones`.
+### `TorcsControlPlaneStatus`
 
 ```python
-class ZonesResponse(BaseModel):
-    session_id: str
-    recommendations: list[Recommendation]
-    regulation_source: Optional[RegulationSource]
+class TorcsControlPlaneStatus(BaseModel):
+    enabled: bool
+    reachable: bool
+    starting: bool = False
+    active: bool = False
+    state: str | None
+    session_id: str | None
+    last_error: str | None
+    last_exit_code: int | None
+    track: str | None
+    laps: int | None
+    launch_mode: Literal["cockpit_practice", "headless_quickrace"] | None
+    detail: str | None
 ```
 
-### `WhatIfRequest` / `WhatIfResult`
+### Track metadata
 
 ```python
-class WhatIfRequest(BaseModel):
-    zone_id: str
-    parameter: Literal["delay_first_deploy", "skip_harvest_zone", "extend_override"]
-    delta: float                       # parameter-specific magnitude (e.g., laps to delay)
-
-
-class WhatIfResult(BaseModel):
-    original: Recommendation           # the recommendation before the what-if
-    modified: Recommendation           # regenerated with the perturbation applied
-    forecast_delta: Optional[Forecast] # forecast under the perturbed scenario; None if N/A
-    note: str                          # one sentence summarizing the perturbation
+class TorcsTrack(BaseModel):
+    name: str
+    category: str
+    display_name: str
+    author: str | None
+    description: str | None
+    length_m: float | None
+    width_m: float | None
+    pits: int | None
+    preview_url: str | None
+    map_url: str | None
 ```
 
-`WhatIfResult` runs the full pipeline (detect → ground → reason → validate → guardian) on the perturbed zone, so both passes apply. A what-if can fail Pass 1 or Pass 2 — that result is shown, not hidden.
+### Driver profile surface
 
----
+```python
+class TorcsDriverProfileSummary(BaseModel):
+    profile_id: str
+    name: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+    origin: Literal["shipped_default", "user_saved", "session_snapshot"]
+    read_only: bool
 
-## 12. Errors
+class TorcsDriverProfile(BaseModel):
+    profile_id: str
+    name: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+    origin: Literal["shipped_default", "user_saved", "session_snapshot"]
+    config: TorcsDriverConfigWire
+    read_only: bool
+```
+
+`TorcsDriverConfigWire` is the validated runtime config shared with the TORCS driver. Its top-level sections are:
+- `speed`
+- `steering`
+- `throttle`
+- `braking`
+- `gear`
+- `traction`
+- `launch_guard`
+- `recovery`
+
+The exact field-level contract lives in:
+- [`RaceYourCode/gym_torcs/driver_config_contract.py`](../RaceYourCode/gym_torcs/driver_config_contract.py)
+- [`ui/src/api/types.ts`](../ui/src/api/types.ts)
+
+## 8. Metadata and error contracts
+
+### `VersionResponse`
+
+```python
+class VersionResponse(BaseModel):
+    build: str
+    git_sha: str | None
+    runtime: Literal["watsonx"]
+    watsonx_region: str
+    granite_instruct: str
+    granite_guardian: str
+    granite_embedding: str
+    granite_ttm_r2: str
+    regulation_source_present: bool
+```
 
 ### `ApiError`
 
-Returned by any FastAPI endpoint on failure. The frontend renders error states from this shape.
-
 ```python
 class ApiError(BaseModel):
-    error_code: Literal[
-        "INVALID_FILE_FORMAT",
-        "FILE_TOO_LARGE",
-        "PARSE_FAILED",
-        "FORECAST_UNAVAILABLE",
-        "MODEL_UNAVAILABLE",
-        "RATE_LIMITED",
-        "NOT_FOUND",
-        "INTERNAL_ERROR",
-    ]
-    message: str                       # human-readable, safe to display in UI
-    detail: Optional[str] = None       # diagnostic; never PII; never stack traces in prod
-    request_id: str                    # for log correlation
+    error_code: ErrorCode
+    message: str
+    detail: str | None
+    request_id: str
 ```
 
-`FORECAST_UNAVAILABLE` is **not** an error for the pipeline as a whole — only for endpoints that explicitly serve the forecast resource (e.g., `GET /api/sessions/{id}/forecast`). A short session, or one with a wide TTM prediction interval, still produces zones, reasoning, and recommendations; the forecast is simply absent. The specific reason (`lap_count < 30` vs. `prediction_interval_width > threshold`) is carried in `ApiError.detail`, not in the `error_code` — the user-facing meaning is the same: "we could not give you a confident forecast for this session."
+Current `ErrorCode` values:
+- `INVALID_FILE_FORMAT`
+- `FILE_TOO_LARGE`
+- `PARSE_FAILED`
+- `FORECAST_UNAVAILABLE`
+- `MODEL_UNAVAILABLE`
+- `RATE_LIMITED`
+- `NOT_FOUND`
+- `INTERNAL_ERROR`
+- `CONTROL_DISABLED`
+- `CONTROL_UNREACHABLE`
+- `CONTROL_FAILED`
+- `RACE_ACTIVE`
+- `READ_ONLY_PROFILE`
+- `PERSISTENCE_FAILED`
 
----
-
-## 13. Schema versioning
-
-- Schemas are versioned implicitly by the repo tag (`v0.0.1`, `v0.1.0`, `v1.0.0`).
-- Until `v1.0.0`, breaking changes are allowed in the same PR that updates every consumer (parsers, prompts, validator, Guardian, UI).
-- After `v1.0.0`, breaking changes require an ADR in `docs/adrs/` and a deprecation period.
-
----
-
-## 14. Open items
-
-- **`metrics` validation** — current spec leaves `Zone.metrics` as a free-form `dict[str, float]`. Tightening this into per-`zone_type` Pydantic discriminated unions is a P2.1 follow-up; tracked as ADR-002 candidate.
-- ~~**Embedding storage** — decide model and dimensionality before committing chunks.~~ **Resolved 2026-05-08:** `ibm/granite-embedding-278m-multilingual` on watsonx.ai, dimension 768. See `docs/adrs/ADR-001-watsonx-runtime.md` § "Embeddings for retrieval".
-- **`SessionSummary.track_id`** — populated only when the source clearly identifies a circuit; informational only, never used for control flow.
+Every API error response uses this shape. `X-Request-Id` mirrors `request_id`.

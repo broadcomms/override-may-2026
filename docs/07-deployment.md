@@ -19,7 +19,7 @@ This document is the runbook for the Cloudflare Tunnel deployment (v6 plan §3.7
 ┌──────────────────────┐        ┌─────────────────────┐        ┌────────────────────┐
 │ Judge's browser      │  HTTPS │ Cloudflare edge     │  WSS   │ cloudflared daemon │
 │ override.patrick…    │───────▶│ (TLS termination,   │───────▶│ on local WSL2      │
-│ torcs.patrick…       │        │ Access policies)    │        │ (rootless tunnel)  │
+│ torcs-run.patrick…   │        │ Access policies)    │        │ (rootless tunnel)  │
 │ jaeger.patrick…      │        └─────────────────────┘        └─────────┬──────────┘
 └──────────────────────┘                                                  │ loopback
                                                                           ▼
@@ -36,7 +36,7 @@ Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → 
 
 | Subdomain | → Local service | Auth | Purpose |
 |---|---|---|---|
-| `override.patrickndille.com` | `http://localhost:8000` | **Public** | The demo. UI + API. |
+| `override.patrickndille.com` | `http://localhost:8000` | **Public** | The demo. UI + API, including `/upload`, `/sessions`, `/session/:id`, `/driver-lab`, and `/cockpit`. |
 | `torcs-run.patrickndille.com` | `http://localhost:6080` | **Cloudflare Access** (email allowlist) | Remote noVNC surface for the cockpit iframe and optional "drive TORCS yourself" affordance. |
 | `jaeger.patrickndille.com` | `http://localhost:16686` | **Cloudflare Access** (email allowlist) | Observability proof. Same gate as torcs. |
 | ~~`ollama.patrickndille.com`~~ | ~~`http://localhost:11434`~~ | **Route deleted** | No legitimate external consumer; OVERRIDE reaches Ollama internally via the compose network at `http://torcs:11434`. |

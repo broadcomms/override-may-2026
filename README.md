@@ -255,7 +255,7 @@ End-to-end pipeline run on watsonx.ai Essentials, single zone, no retries:
 | Live TORCS ingest (`POST /api/sessions/torcs-live`) | ~9 s | reads the shared `torcs-telemetry` volume, parses JSONL, pipes through `run_pipeline()` |
 | Total (engineer happy path) | **~8.2 s** | first-try pass; with one what-if, ~14–16 s end-to-end |
 
-Test suite: **301 unit tests + 4 network integration tests = 305 green** (TORCS parser, FR-8 perturbations, Ollama client, live-ingest endpoint, what-if cache, concurrency). UI bundle: ~182 kB gzipped (React 18 + Recharts + Engineer/Fan/What-if components). Container image: multi-stage Node-20-alpine → Python-3.12-slim, ~6.5 GB final (Python ML wheels dominate — pyarrow, docling, granite-related deps; multi-stage drops the Node toolchain after the UI build). The 10 GB TORCS lab image is profile-gated so it doesn't ship by default.
+Test inventory currently stands at **419 collected tests**, including **4** network-marked watsonx integration tests. The frontend production build passes via `npm --prefix ui run build`. The container image remains multi-stage Node-20-alpine → Python-3.12-slim, and the 10 GB TORCS lab image is still profile-gated so it does not ship by default in the simplest app-only run.
 
 ## Design decisions
 

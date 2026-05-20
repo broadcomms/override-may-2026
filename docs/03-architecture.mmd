@@ -1,30 +1,86 @@
-flowchart TB
-    A[Session Upload<br/>TORCS replay or FastF1 export] --> B[Ingest Layer<br/>torcs_parser / fastf1_parser]
-    B --> C[Lap-Aggregated Features<br/>SoC, harvest, deploy, lap_time, speed]
-    C -.->|optional, if 30+ laps| D[TTM-R2 Forecaster<br/>5-lap SoC trajectory]
-    C --> N[Cockpit UI<br/>noVNC hero + live telemetry rails]
-    C --> E[Zone Detector<br/>Heuristics — always runs]
-    D -.-> F[Reasoning Engine<br/>Granite Instruct]
-    E --> F
-    G[FIA 2026 Regs PDF<br/>fetched via downloader] --> H[Docling DocTags Extractor<br/>Energy-mgmt section]
-    H --> F
-    F --> V[Pass 1: Deterministic Validator<br/>energy bounds, citation, language]
-    V -->|fail| F
-    V -->|pass| I[Pass 2: Granite Guardian BYOC<br/>energy-safety + reg-consistency]
-    I -->|score < 0.7| F
-    I -->|score >= 0.7| J{UI Mode}
-    J -->|Engineer| K[Engineer Mode UI<br/>Reasoning + reg + validator + Guardian badges]
-    J -->|Fan| L[Fan Mode Translator<br/>Granite Instruct, plain language]
-    L --> M[Fan Mode UI<br/>Why-this-mattered cards]
-    
-    classDef granite fill:#052FAD,stroke:#000,color:#fff
-    classDef docling fill:#1A73E8,stroke:#000,color:#fff
+flowchart LR
+    User["Browser / Judge / Operator"]
+
+    subgraph UI["React + Vite UI"]
+        Upload["/upload"]
+        DriverLab["/driver-lab"]
+        Sessions["/sessions + /sessions/compare"]
+        Cockpit["/cockpit"]
+        SessionView["/session/:session_id"]
+    end
+
+    subgraph API["FastAPI (`api/main.py`)"]
+        Metadata["health / version / regulation-source"]
+        SessionAPI["session create / read / delete / what-if"]
+        StreamAPI["live SSE stream"]
+        TorcsAPI["TORCS control + runs + driver profiles"]
+        Storage["api/storage.py + data/sessions"]
+    end
+
+    subgraph Pipeline["Core pipeline"]
+        Ingest["TORCS / FastF1 parsers"]
+        Zones["Zone detector"]
+        Forecast["TTM-R2 forecast (optional)"]
+        Regs["Reg retrieval"]
+        Reason["Granite reasoning"]
+        Pass1["Pass 1 validator"]
+        Pass2["Pass 2 Guardian"]
+        Fan["Fan translation (lazy)"]
+    end
+
+    subgraph External["External / sidecar systems"]
+        Watsonx["watsonx.ai\nInstruct / Guardian / Embedding"]
+        Chunks["Regulation chunks JSON"]
+        Torcs["TORCS control daemon\n+ gym_torcs"]
+        Telemetry["Shared telemetry volume"]
+        Profiles["Driver profile storage"]
+    end
+
+    User --> Upload
+    User --> DriverLab
+    User --> Sessions
+    User --> Cockpit
+    User --> SessionView
+
+    Upload --> SessionAPI
+    Sessions --> SessionAPI
+    SessionView --> SessionAPI
+    Cockpit --> TorcsAPI
+    Cockpit --> StreamAPI
+    DriverLab --> TorcsAPI
+
+    SessionAPI --> Ingest
+    Ingest --> Zones
+    Ingest -.-> Forecast
+    Zones --> Reason
+    Forecast -.-> Reason
+    Chunks --> Regs
+    Regs --> Reason
+    Reason --> Pass1
+    Pass1 --> Pass2
+    Pass2 --> Storage
+    SessionAPI <--> Storage
+    SessionAPI -. lazy fan .-> Fan
+    Fan --> Storage
+
+    TorcsAPI <--> Torcs
+    TorcsAPI <--> Profiles
+    Torcs --> Telemetry
+    StreamAPI <--> Telemetry
+    SessionAPI <--> Telemetry
+
+    Reason --> Watsonx
+    Pass2 --> Watsonx
+    Regs --> Watsonx
+
     classDef ui fill:#FF4500,stroke:#000,color:#fff
+    classDef api fill:#222,stroke:#000,color:#fff
+    classDef model fill:#052FAD,stroke:#000,color:#fff
     classDef validator fill:#00C853,stroke:#000,color:#fff
     classDef optional fill:#666,stroke:#000,color:#fff,stroke-dasharray: 5 5
-    
-    class D optional
-    class F,I,L granite
-    class H docling
-    class V validator
-    class K,M,N ui
+
+    class Upload,DriverLab,Sessions,Cockpit,SessionView ui
+    class Metadata,SessionAPI,StreamAPI,TorcsAPI,Storage api
+    class Reason,Pass2,Watsonx model
+    class Pass1 validator
+    class Forecast,Fan optional
