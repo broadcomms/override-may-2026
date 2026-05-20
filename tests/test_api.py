@@ -1630,6 +1630,55 @@ def _sse_jsonl_payload_partial_start(
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def _sse_jsonl_payload_with_dist_raced(
+    n_laps: int,
+    *,
+    ticks_per_lap: int = 50,
+    join_distance: float = 0.0,
+) -> bytes:
+    track_length = 3000.0
+    lap_duration_s = 36.0
+    dt = lap_duration_s / ticks_per_lap
+    wall_t = 1_700_000_000.0
+    lines: list[str] = []
+
+    distances: list[float] = []
+    if join_distance > 0.0:
+        partial_ticks = max(1, int(ticks_per_lap * (1 - join_distance / track_length)))
+        for tick_i in range(partial_ticks):
+            distances.append(
+                join_distance + tick_i * (track_length - join_distance) / partial_ticks
+            )
+    for _lap in range(n_laps):
+        for tick_i in range(ticks_per_lap):
+            distances.append((tick_i / ticks_per_lap) * track_length)
+
+    dist_raced = 0.0
+    prev_dist: float | None = None
+    lap_time = 0.0
+    for dist in distances:
+        if prev_dist is not None:
+            if dist < prev_dist:
+                dist_raced += (track_length - prev_dist) + dist
+                lap_time = 0.0
+            else:
+                dist_raced += dist - prev_dist
+                lap_time += dt
+        prev_dist = dist
+        lines.append(json.dumps({
+            "t": wall_t,
+            "curLapTime": [lap_time],
+            "distFromStart": [dist],
+            "distRaced": dist_raced,
+            "speedX": [60.0],
+            "accel": [1.0],
+            "brake": [0.0],
+            "fuel": [90.0],
+        }))
+        wall_t += dt
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 def test_first_segment_is_partial_detects_mid_lap_join():
     """SCR client joining at distFromStart=2500m → partial=True; starting
     at 0 → partial=False. Threshold is 100m."""
@@ -1659,6 +1708,20 @@ def test_get_current_lap_skips_partial_first_segment():
         obs = _read_jsonl_safe(Path(p))
         # 1 full lap completed (partial-end wraparound skipped from the count)
         assert _get_current_lap(obs) == 1
+    finally:
+        _os.unlink(p)
+
+
+def test_estimate_current_lap_from_dist_raced_matches_wraparound_counter():
+    import tempfile, os as _os
+    from api.main import _estimate_current_lap_from_dist_raced, _get_current_lap, _read_jsonl_safe
+
+    with tempfile.NamedTemporaryFile("wb", suffix=".jsonl", delete=False) as f:
+        f.write(_sse_jsonl_payload_with_dist_raced(3, join_distance=2500.0))
+        p = f.name
+    try:
+        obs = _read_jsonl_safe(Path(p))
+        assert _estimate_current_lap_from_dist_raced(Path(p)) == _get_current_lap(obs)
     finally:
         _os.unlink(p)
 

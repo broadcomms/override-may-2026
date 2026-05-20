@@ -23,10 +23,12 @@ Auth: none (single-user, replay-first per §1 + §10). CORS allows
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import json
 import logging
 import os
 import re
+import statistics
 import time
 
 # Load .env at module import so uvicorn picks up watsonx credentials etc.
@@ -159,6 +161,19 @@ def _chunks_path() -> Path:
 
 
 _BUILD_STARTED_AT = time.monotonic()
+_TELEMETRY_TAIL_READ_CAP_BYTES = 16 * 1024 * 1024
+_TELEMETRY_TAIL_READ_START_BYTES = 1 * 1024 * 1024
+
+
+@dataclass(slots=True)
+class _TelemetryFileSummary:
+    file_size: int
+    file_mtime: float
+    started_at: datetime
+    lap_count_estimate: int
+
+
+_telemetry_summary_cache: dict[str, _TelemetryFileSummary] = {}
 
 # Per-session asyncio.Lock for serializing the lazy fan-mode read-modify-write
 # in get_zone. Use setdefault to avoid the TOCTOU race where two parallel
@@ -674,7 +689,7 @@ def create_app() -> FastAPI:
                 jsonl_path = tdir / s.telemetry_file
                 if jsonl_path.is_file():
                     try:
-                        live = _get_current_lap(_read_jsonl_safe(jsonl_path))
+                        live = _telemetry_file_summary(jsonl_path).lap_count_estimate
                     except Exception:
                         live = s.lap_count  # fall back gracefully
                     if live != s.lap_count:
@@ -1738,36 +1753,35 @@ def create_app() -> FastAPI:
         all_runs = []
         for p in sorted(tdir.glob("*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True):
             try:
-                stat = p.stat()
+                summary = _telemetry_file_summary(p)
             except OSError:
                 continue
-            size = stat.st_size
             # Phase 1: surface capture window from first-observation `t`
             # (logger injection) with mtime fallback. duration_seconds
             # gives the UI a glance at how long the run actually ran.
-            last_written = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
-            started = _extract_start_time(p) or last_written
+            last_written = datetime.fromtimestamp(summary.file_mtime, tz=timezone.utc)
+            started = summary.started_at
             duration = (last_written - started).total_seconds()
             all_runs.append({
                 "path": p,
                 "run_id": p.stem,
-                "size_bytes": size,
+                "size_bytes": summary.file_size,
                 "started_at": started.isoformat(),
                 "last_written_at": last_written.isoformat(),
                 "duration_seconds": max(0.0, duration),
                 "ingested_session_id": ingested_map.get(p.name),
+                "lap_count_estimate": summary.lap_count_estimate,
             })
         total = len(all_runs)
         page = []
         for row in all_runs[offset : offset + limit]:
-            observations = _read_jsonl_safe(row["path"])
             page.append({
                 "run_id": row["run_id"],
                 "size_bytes": row["size_bytes"],
                 # Match GET /api/sessions for ACTIVE torcs_live rows so the
                 # upload banner and sessions history show the same completed
                 # lap count for the same JSONL capture.
-                "lap_count_estimate": _get_current_lap(observations),
+                "lap_count_estimate": row["lap_count_estimate"],
                 "started_at": row["started_at"],
                 "last_written_at": row["last_written_at"],
                 "duration_seconds": row["duration_seconds"],
@@ -2292,6 +2306,168 @@ def _read_jsonl_safe(path: Path, *, max_lines: Optional[int] = None) -> list[dic
     return out
 
 
+def _read_jsonl_tail_safe(path: Path, *, max_bytes: int) -> list[dict]:
+    """Read up to ``max_bytes`` from the tail of a JSONL file.
+
+    Drops a partial first line when seeking into the middle of the file and
+    skips incomplete final lines, mirroring ``_read_jsonl_safe`` semantics.
+    """
+    if max_bytes <= 0:
+        return []
+
+    out: list[dict] = []
+    try:
+        file_size = path.stat().st_size
+        with path.open("rb") as handle:
+            if file_size > max_bytes:
+                handle.seek(file_size - max_bytes)
+                payload = handle.read(max_bytes)
+            else:
+                payload = handle.read()
+    except OSError:
+        return out
+
+    if file_size > max_bytes:
+        newline = payload.find(b"\n")
+        if newline < 0:
+            return out
+        payload = payload[newline + 1 :]
+
+    for raw_line in payload.splitlines():
+        try:
+            obs = json.loads(raw_line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(obs, dict):
+            out.append(obs)
+    return out
+
+
+def _read_first_jsonl_observation(path: Path, *, max_bytes: int = 4096) -> Optional[dict]:
+    try:
+        with path.open("rb") as handle:
+            payload = handle.read(max_bytes)
+    except OSError:
+        return None
+    for raw_line in payload.splitlines():
+        try:
+            obs = json.loads(raw_line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(obs, dict):
+            return obs
+    return None
+
+
+def _count_wraparounds(observations: list[dict]) -> int:
+    wraparounds = 0
+    prev_dist: Optional[float] = None
+    for obs in observations:
+        raw = _scalar_obs_value(obs, "distFromStart")
+        if raw is None:
+            continue
+        if prev_dist is not None and raw < prev_dist * 0.5 and prev_dist > 100.0:
+            wraparounds += 1
+        prev_dist = raw
+    return wraparounds
+
+
+def _estimate_current_lap_from_dist_raced(path: Path) -> Optional[int]:
+    """Estimate completed laps from head/tail telemetry without a full scan.
+
+    TORCS logs ``distRaced`` cumulatively from the moment capture starts.
+    Combined with the first observed ``distFromStart`` and the largest
+    ``distFromStart`` seen in a recent tail window, we can reconstruct the
+    completed-lap count for long active captures without reparsing the entire
+    JSONL on every page load.
+    """
+    first_obs = _read_first_jsonl_observation(path)
+    first_dist = _scalar_obs_value(first_obs, "distFromStart") if first_obs is not None else None
+    if first_dist is None:
+        return None
+
+    try:
+        file_size = path.stat().st_size
+    except OSError:
+        return None
+
+    tail_bytes = min(_TELEMETRY_TAIL_READ_START_BYTES, file_size)
+    max_tail_bytes = min(_TELEMETRY_TAIL_READ_CAP_BYTES, file_size)
+    tail_observations: list[dict] = []
+
+    while tail_bytes > 0:
+        tail_observations = _read_jsonl_tail_safe(path, max_bytes=tail_bytes)
+        if not tail_observations:
+            return None
+        if _count_wraparounds(tail_observations) > 0 or tail_bytes >= max_tail_bytes:
+            break
+        tail_bytes = min(tail_bytes * 2, max_tail_bytes)
+
+    max_dist = max(
+        (_scalar_obs_value(obs, "distFromStart") for obs in tail_observations),
+        default=None,
+    )
+    if max_dist is None or max_dist <= 0:
+        return None
+
+    positive_steps: list[float] = []
+    prev_dist: Optional[float] = None
+    for obs in tail_observations:
+        raw = _scalar_obs_value(obs, "distFromStart")
+        if raw is None:
+            continue
+        if prev_dist is not None and raw >= prev_dist:
+            positive_steps.append(raw - prev_dist)
+        prev_dist = raw
+    step_est = statistics.median(positive_steps) if positive_steps else 0.0
+    track_length_est = max_dist + step_est
+
+    dist_raced = next(
+        (
+            value
+            for value in (
+                _scalar_obs_value(obs, "distRaced")
+                for obs in reversed(tail_observations)
+            )
+            if value is not None
+        ),
+        None,
+    )
+    if dist_raced is None:
+        return None
+
+    completed = int((first_dist + dist_raced) // track_length_est)
+    if first_dist > 100.0:
+        completed = max(0, completed - 1)
+    return completed
+
+
+def _telemetry_file_summary(path: Path) -> _TelemetryFileSummary:
+    stat = path.stat()
+    key = str(path)
+    cached = _telemetry_summary_cache.get(key)
+    if (
+        cached is not None
+        and cached.file_size == stat.st_size
+        and cached.file_mtime == stat.st_mtime
+    ):
+        return cached
+
+    started_at = _extract_start_time(path) or datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+    lap_count_estimate = _estimate_current_lap_from_dist_raced(path)
+    if lap_count_estimate is None:
+        lap_count_estimate = _get_current_lap(_read_jsonl_safe(path))
+
+    summary = _TelemetryFileSummary(
+        file_size=stat.st_size,
+        file_mtime=stat.st_mtime,
+        started_at=started_at,
+        lap_count_estimate=lap_count_estimate,
+    )
+    _telemetry_summary_cache[key] = summary
+    return summary
+
+
 def _scalar_obs_value(obs: dict, key: str) -> Optional[float]:
     value = obs.get(key)
     if isinstance(value, list) and value:
@@ -2643,16 +2819,7 @@ def _get_current_lap(observations: list[dict]) -> int:
     wraparound — which only completed the partial — doesn't inflate the
     displayed lap number.
     """
-    wraparounds = 0
-    prev_dist: Optional[float] = None
-    for obs in observations:
-        raw = _scalar_obs_value(obs, "distFromStart")
-        if raw is None:
-            continue
-        if prev_dist is not None and raw < prev_dist * 0.5 and prev_dist > 100.0:
-            # Wraparound = lap completed
-            wraparounds += 1
-        prev_dist = raw
+    wraparounds = _count_wraparounds(observations)
     if _first_segment_is_partial(observations):
         return max(0, wraparounds - 1)
     return wraparounds
@@ -2757,22 +2924,15 @@ def _extract_start_time(jsonl_path: Path) -> Optional[datetime]:
     JSON without raising. Reads at most ~4 KB to find a valid first
     observation.
     """
-    try:
-        with jsonl_path.open("rb") as fh:
-            head = fh.read(4096)
-    except OSError:
+    obs = _read_first_jsonl_observation(jsonl_path)
+    if obs is None:
         return None
-    for line in head.splitlines():
+    t = obs.get("t")
+    if isinstance(t, (int, float)) and t > 0:
         try:
-            obs = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        t = obs.get("t") if isinstance(obs, dict) else None
-        if isinstance(t, (int, float)) and t > 0:
-            try:
-                return datetime.fromtimestamp(t, tz=timezone.utc)
-            except (OverflowError, OSError, ValueError):
-                return None
+            return datetime.fromtimestamp(t, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     return None
 
 
