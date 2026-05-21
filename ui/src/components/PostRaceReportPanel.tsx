@@ -56,7 +56,7 @@ export function PostRaceReportPanel({ fixture, session, sessionId }: Props) {
     );
   }
 
-  const lapLinks = session.laps.slice(0, 6);
+  const lapLinks = session.laps;
 
   return (
     <section className="rounded-card border border-border bg-surface p-4">
@@ -114,7 +114,10 @@ export function PostRaceReportPanel({ fixture, session, sessionId }: Props) {
 
           <div>
             <div className="text-[11px] uppercase tracking-wider text-muted">Lap drill-down</div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-1 text-xs text-muted">
+              Open any lap from this run for a lap-specific debrief.
+            </div>
+            <div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
               {lapLinks.map((lap) => (
                 <Link
                   key={lap.lap_number}

@@ -17,7 +17,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
-import type { FanOutput, PerturbationKind, Session, WhatIfRequest, WhatIfResult } from "@/api/types";
+import type {
+  FanOutput,
+  PerturbationKind,
+  Session,
+  TorcsControlStatus,
+  WhatIfRequest,
+  WhatIfResult,
+} from "@/api/types";
 import { EnergyCurve } from "@/components/EnergyCurve";
 import {
   EmptyState,
@@ -68,6 +75,7 @@ export function SessionPage() {
   const [whatIfErrors, setWhatIfErrors] = useState<Record<string, string>>({});
   const [ingestError, setIngestError] = useState<string | null>(null);
   const [ingestBusy, setIngestBusy] = useState(false);
+  const [controlStatus, setControlStatus] = useState<TorcsControlStatus | null>(null);
 
   // Load the session
   useEffect(() => {
@@ -247,12 +255,50 @@ export function SessionPage() {
     retryNoTelemetry: true,
   });
 
+  useEffect(() => {
+    if (!session || fixture || session.summary.status !== "active" || session.summary.session_source !== "torcs_live") {
+      setControlStatus(null);
+      return;
+    }
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const poll = () => {
+      api.torcsControlStatus({ fixture }).then(
+        (status) => {
+          if (cancelled) return;
+          setControlStatus(status);
+          timer = window.setTimeout(poll, 2000);
+        },
+        () => {
+          if (cancelled) return;
+          timer = window.setTimeout(poll, 4000);
+        },
+      );
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [fixture, session]);
+
   const isLiveTorcsSession =
     session?.summary.session_source === "torcs_live"
     && Boolean(session.summary.telemetry_file)
     && fixture !== true;
+  const raceStoppedInControlPlane = Boolean(
+    controlStatus
+      && (!controlStatus.active || controlStatus.session_id !== sessionId)
+      && controlStatus.state !== "launching"
+      && controlStatus.state !== "waiting_scr"
+      && controlStatus.state !== "connecting",
+  );
   const raceFinishedForIngest =
-    session?.summary.status !== "active" || liveTelemetry.streamState.kind === "ended";
+    session?.summary.status !== "active"
+    || liveTelemetry.streamState.kind === "ended"
+    || raceStoppedInControlPlane;
 
   const ingestActionLabel = session?.summary.status === "active"
     ? raceFinishedForIngest
@@ -327,9 +373,9 @@ export function SessionPage() {
             </time>
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {isLiveTorcsSession && (
-            <div className="flex flex-col items-end gap-1">
+        <div className="ml-auto flex min-w-[280px] flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {isLiveTorcsSession && (
               <button
                 type="button"
                 onClick={onIngestFromSession}
@@ -338,10 +384,12 @@ export function SessionPage() {
               >
                 {ingestBusy ? "Running ingest…" : ingestActionLabel}
               </button>
-              <span className="text-xs text-muted">{ingestActionHint}</span>
-            </div>
+            )}
+            <ModeToggle mode={mode} onChange={setMode} />
+          </div>
+          {isLiveTorcsSession && (
+            <span className="text-right text-xs text-muted">{ingestActionHint}</span>
           )}
-          <ModeToggle mode={mode} onChange={setMode} />
         </div>
       </header>
 
@@ -393,11 +441,18 @@ export function SessionPage() {
             className="rounded-card border border-muted/40 bg-surface/40 p-4 text-sm text-muted"
             role="status"
           >
-            <strong className="text-text">Race in progress.</strong> Per-lap stats are
-            streaming live above. Full analysis (energy curve, zone heatmap, regulation-grounded
-            recommendations, what-if simulation) lands once you ingest this race from this page or from{" "}
-            <a href="/upload" className="text-accent hover:underline">/upload</a> after the stream ends.
-            The session will stay <em>active</em> until that ingest step completes.
+            <strong className="text-text">
+              {raceFinishedForIngest ? "Race complete." : "Race in progress."}
+            </strong>{" "}
+            {raceFinishedForIngest
+              ? "TORCS has stopped, so you can ingest this captured run from this page now even if the historical telemetry replay is still syncing."
+              : "Per-lap stats are streaming live above. Full analysis (energy curve, zone heatmap, regulation-grounded recommendations, what-if simulation) lands once you ingest this race from this page or from "}
+            {!raceFinishedForIngest && (
+              <>
+                <a href="/upload" className="text-accent hover:underline">/upload</a> after the stream ends.
+                {" "}The session will stay <em>active</em> until that ingest step completes.
+              </>
+            )}
           </div>
         </>
       )}
