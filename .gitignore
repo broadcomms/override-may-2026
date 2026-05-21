@@ -100,3 +100,4 @@ recordings/*.mp4
 # Temporary dev artifacts
 *.tmp
 temp/
+.DS_Store

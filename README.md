@@ -146,13 +146,24 @@ If the URL is offline, fall through to the local-clone path below — the demo i
 
 ### Run with podman-compose (recommended)
 
-Prerequisite: install Podman and the separate `podman-compose` package before using this path. In this repo's tested WSL environment, `podman compose` is not the supported default.
+Prerequisite: [install Podman](https://podman.io/docs/installation) and the separate [`podman-compose`](https://github.com/containers/podman-compose) package before using this path.
 
 The shipping shape. One image, explicit service selection, and copy/paste commands that match the path verified in this repo environment.
 
 ```bash
-git clone <repository-url> && cd overdrive-may-2026
+git clone https://github.com/broadcomms/override-may-2026.git && cd override-may-2026
 cp .env.example .env       # then fill WATSONX_API_KEY + WATSONX_PROJECT_ID
+
+# Prerequisite: install the `podman-compose` package, this install podman dependencies.
+# debian linux: WSL 2.0+ (Ubuntu 24.04)
+apt-get update && apt-get install -y curl
+apt install podman 
+apt install podman-compose
+podman --version
+podman-compose --version                        # verify the package is installed
+podman machine init                             # initialize the podman VM
+podman machine start                            # start the podman VM
+
 
 # Mode 1 — OVERRIDE alone (fast; default; fixture-driven demo path)
 podman-compose up                                  # → UI + API at http://localhost:8000

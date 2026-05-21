@@ -4,7 +4,7 @@ This file provides guidance to agents when working with code in this repository.
 
 ## Critical Non-Obvious Architecture Constraints
 
-**Early-stage scaffold**: Most files are empty stubs. When planning, base decisions on `docs/04-schema.md` (schemas), `docs/03-architecture.md` (structure), `docs/06-roadmap.md` (phases/gates), not on empty implementation files.
+**Intentional stub**: `core/forecasting.py` is docstring-only — TTM-R2 deferred to v1.1. Pipeline runs end-to-end without it. This is intentional architecture, not a limitation to fix.
 
 **Verification gates are hard stops**: Roadmap has gates G-1 through G-4. Work below a gate cannot proceed until gate passes. G-1: model tags verified. G-2: SoC source decided. G-4: regulation document selected. Plan around these dependencies.
 
@@ -24,6 +24,8 @@ This file provides guidance to agents when working with code in this repository.
 
 **Architecture sync requirement**: `docs/03-architecture.md` and `docs/03-architecture.mmd` must stay in sync with code/folder changes. Plan to update both when adding components.
 
-**Branch strategy**: `main` = stable/demoable only. `dev` = daily work. Plan features to land on `dev` first, merge to `main` only when demoable.
+**Model runtime**: Granite served via watsonx.ai (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`); IDs pinned in `models.json` at G-1. Original Ollama path superseded by `docs/adrs/ADR-001-watsonx-runtime.md`. Plan around the watsonx chat API `/ml/v1/text/chat` (not deprecated `/ml/v1/text/generation`).
 
-**Model version verification**: Granite served via watsonx.ai (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`); IDs pinned in `models.json` at G-1. Original Ollama path superseded by `docs/adrs/ADR-001-watsonx-runtime.md`. Plan around the watsonx chat API, not local model serving.
+**SoC derivation architecture**: When battery SoC not directly available, derive from throttle/brake integrals via `analysis/torcs_energy.derive_lap_energy`. Set `soc_source: "derived"` in `LapFeatures`. Shared constants in `analysis/torcs_energy.py` prevent parser drift between TORCS and FastF1 sources.
+
+**JSONL safe-read pattern**: `ingest/torcs_parser.py` reads while telemetry logger appends. Last line may be partial write without newline. Parser skips incomplete lines silently—this is intentional for live-ingest path.

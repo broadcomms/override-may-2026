@@ -2,39 +2,69 @@
 
 This file provides guidance to agents when working with code in this repository.
 
+## Build/Test Commands
+
+```bash
+# Python 3.12 venv at .venv — use venv binaries directly
+.venv/bin/pip install -r requirements.txt
+
+# Run full test suite (419 tests: 415 unit, 4 network-marked)
+.venv/bin/pytest
+
+# Run single test file or specific test
+.venv/bin/pytest tests/test_pipeline.py
+.venv/bin/pytest tests/test_pipeline.py::test_name -xvs
+
+# Include network tests (live watsonx/FastF1 calls)
+.venv/bin/pytest -m network
+
+# watsonx.ai smoke test (gate G-1, ~5s)
+.venv/bin/python scripts/test_watsonx.py
+
+# Run FastAPI server
+.venv/bin/uvicorn api.main:app --reload --port 8000
+
+# UI (separate terminal, Node 20)
+cd ui && npm install && npm run dev        # dev server :3000
+cd ui && npm run typecheck                 # tsc --noEmit (no eslint)
+cd ui && npm run build                     # production build
+
+# Render architecture diagram
+npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png
+```
+
 ## Critical Non-Obvious Rules
 
-**Repo state (substantially shipped)**: `api/`, `core/`, `ingest/`, `analysis/`, `tests/`, `ui/`, `scripts/`, and `langflow/override_components/` all contain working code. `requirements.txt`, `Dockerfile`, `Dockerfile.langflow`, `docker-compose.yml`, `models.json`, `core/validator.yaml`, `guardian/byoc_criteria.yaml`, `prompts/*.system.md` are populated. 305 tests green (301 unit + 4 network-marked).
+**Intentional stub (do NOT "fix")**: `core/forecasting.py` is docstring-only — TTM-R2 deferred to v1.1. Pipeline runs end-to-end without it.
 
-**Intentional stubs (do NOT treat as work-in-progress)**: `core/forecasting.py` is a docstring-only stub — TTM-R2 is deferred to v1.1 per the graceful-degradation guardrail; the pipeline runs end-to-end without it.
+**Deleted (do NOT recreate)**: `.github/workflows/ci.yml` removed — CI deferred to v1.1.
 
-**Removed (do NOT recreate)**: `.github/workflows/ci.yml` was deleted (CI deferred to v1.1; never spec'd for v1). The empty placeholder was misleading.
+**NEVER hardcode FIA article numbers** anywhere (code/prompts/schemas/tests/UI). Before G-4: generic phrasing. After G-4: citations render from `RegulationSource` at runtime via Docling.
 
-**Regulation citation rule**: NEVER hardcode FIA article numbers in code, prompts, schemas, tests, or UI strings. Before gate G-4, use generic phrasing. After G-4, citations render dynamically from Docling extraction at runtime via `RegulationSource` struct only.
+**Language safety (IBM challenge requirement)**: Use "supports/explains/highlights/recommends" — NEVER "decides/autonomously/optimal". This is decision support, not replacement.
 
-**Language constraints**: Use "supports/explains/highlights/recommends"—NEVER "decides/autonomously/optimal". This is decision support, not replacement (IBM challenge requirement).
+**Two-pass validation order**: Pass 1 (`core/validator.yaml` deterministic) MUST complete before Pass 2 (`guardian/byoc_criteria.yaml` AI-based). Both results shown to user.
 
-**TTM-R2 graceful degradation**: Pipeline MUST run end-to-end without TTM forecasting. TTM enhances but doesn't gate. Sessions <30 laps skip forecast; reasoning continues from observed data.
+**TTM-R2 graceful degradation**: All code must handle `forecast=None`. Sessions <30 laps skip TTM; reasoning continues from observed data.
 
-**Two-pass validation architecture**: Pass 1 (deterministic `core/validator.yaml`) always runs first. Pass 2 (Granite Guardian BYOC `guardian/byoc_criteria.yaml`) scores after. Both results shown to user.
+**watsonx.ai runtime (not Ollama)**: Granite Instruct + Guardian served via watsonx.ai US-South. Model IDs (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`) pinned in `models.json`. Use chat API `/ml/v1/text/chat` — `/ml/v1/text/generation` is deprecated. Smoke test: `scripts/test_watsonx.py`.
 
-**Model version verification**: Granite Instruct + Guardian are served via **watsonx.ai** (US-South), not local Ollama. Model IDs (`ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`) and project ID are pinned in `models.json` at gate G-1. See `docs/adrs/ADR-001-watsonx-runtime.md` for the migration rationale. Smoke-test via `scripts/test_watsonx.py`. Use the watsonx **chat** API (`/ml/v1/text/chat`) — the legacy `/ml/v1/text/generation` is deprecated.
+**Unit conventions (FIA-aligned, not typical)**: Times=seconds (float), energies=MJ (float), powers=kW (float), speeds=km/h (float). `lap_number` is 1-indexed. Use `Optional[T]` with `None` for unknowns—never sentinel strings.
 
-**Schema conventions**: Times in seconds (float), energies in MJ (float), powers in kW (float), speeds in km/h (float). `lap_number` is 1-indexed. Use `Optional[T]` with `None` for unknowns—never sentinel strings like "N/A". All JSON keys `snake_case`.
+**SoC derivation flag**: When battery SoC not directly available, derive from throttle/brake integrals via `analysis/torcs_energy.derive_lap_energy`. Set `soc_source: "derived"` in `LapFeatures`. Shared constants in `analysis/torcs_energy.py` prevent parser drift.
 
-**SoC derivation flag**: When battery state-of-charge not directly exposed by source, derive from throttle/brake integrals and set `soc_source: "derived"` in `LapFeatures`. Document derivation in code comments and `docs/plans/torcs-telemetry-map.md`.
+**Prompt contracts must match schemas**: JSON shapes in `prompts/*.system.md` must match Pydantic schemas in `docs/04-schema.md` exactly. If they disagree, schema wins—update prompt.
 
-**Branch strategy**: `main` = stable/demoable only. `dev` = daily working branch. Plans go in `docs/plans/`, delete when feature ships. ADRs in `docs/adrs/` are cumulative—edit existing ADR, don't append "but actually".
+**JSONL safe-read**: `ingest/torcs_parser.py` reads while telemetry logger appends. Last line may be partial write without newline. Parser skips incomplete lines silently.
 
-**Architecture sync**: Keep `docs/03-architecture.md` and `docs/03-architecture.mmd` in sync with code/folder changes. Render diagram: `npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png`
+**Branch strategy**: `main` = stable/demoable only. `dev` = daily work. Plans in `docs/plans/` deleted when feature ships. ADRs in `docs/adrs/` cumulative—edit existing, don't append.
 
-**Secrets**: Only in `.env` (gitignored). Never commit.
+**Architecture sync**: Keep `docs/03-architecture.md` and `.mmd` in sync with code changes.
 
 ## Reference Files
 
-- `.bob/AGENTS.md` — comprehensive project context for IBM Bob
-- `.bob/rules.md` — behavioral rules (plan file lifecycle, ADR editing)
-- `CLAUDE.md` — Claude Code specific guidance
-- `docs/03-architecture.md` — folder structure and component map
+- `CLAUDE.md` — Claude Code guidance with common commands
 - `docs/04-schema.md` — Pydantic schemas (single source of truth)
-- `docs/06-roadmap.md` — hour-budgeted implementation plan with verification gates
+- `docs/03-architecture.md` — folder structure and component map
+- `docs/adrs/ADR-001-watsonx-runtime.md` — watsonx.ai migration rationale
+- `docs/adrs/ADR-002-torcs-as-primary-sandbox.md` — synthetic energy model
