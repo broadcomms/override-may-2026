@@ -717,6 +717,24 @@ def create_app() -> FastAPI:
                 message=f"Session {session_id} not found.",
                 request_id=rid,
             )
+        if (
+            session.summary.status == SessionStatus.ACTIVE
+            and session.summary.telemetry_file
+        ):
+            jsonl_path = _telemetry_dir() / session.summary.telemetry_file
+            if jsonl_path.is_file():
+                try:
+                    live = _telemetry_file_summary(jsonl_path).lap_count_estimate
+                except Exception:
+                    live = session.summary.lap_count
+                if live != session.summary.lap_count:
+                    session = session.model_copy(
+                        update={
+                            "summary": session.summary.model_copy(
+                                update={"lap_count": live}
+                            )
+                        }
+                    )
         return session.model_dump(mode="json")
 
     @app.get("/api/sessions/{session_id}/report")

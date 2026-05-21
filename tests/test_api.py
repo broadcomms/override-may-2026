@@ -1793,6 +1793,47 @@ def test_list_sessions_enriches_active_session_with_live_lap_count(tmp_path, mon
     assert row["status"] == "active"
 
 
+def test_get_session_enriches_active_session_with_live_lap_count(tmp_path, monkeypatch):
+    """The single-session reload path should mirror /api/sessions and patch
+    live lap_count from the backing JSONL for ACTIVE torcs_live stubs."""
+    from datetime import datetime, timezone
+    from api.storage import save_session
+    from ingest.schema import Session, SessionSource, SessionStatus, SessionSummary
+
+    telem = tmp_path / "telemetry"
+    telem.mkdir()
+    sid = "s_torcs_live_7654321_wxyz"
+    (telem / f"{sid}.jsonl").write_bytes(_sse_jsonl_payload(n_laps=3))
+    monkeypatch.setenv("OVERRIDE_TELEMETRY_DIR", str(telem))
+
+    client = _build_client(tmp_path=tmp_path, chunks_path=_empty_chunks_path(tmp_path))
+
+    save_session(Session(
+        summary=SessionSummary(
+            session_id=sid,
+            uploaded_at=datetime.now(timezone.utc),
+            source="torcs",
+            lap_count=0,
+            forecast_available=False,
+            zone_count=0,
+            track_id=f"torcs-live/{sid}",
+            session_source=SessionSource.TORCS_LIVE,
+            status=SessionStatus.ACTIVE,
+            telemetry_file=f"{sid}.jsonl",
+            track_name="Aalborg",
+        ),
+        laps=[],
+        forecast=None,
+        recommendations=[],
+        regulation_source=None,
+    ))
+
+    r = client.get(f"/api/sessions/{sid}")
+    assert r.status_code == 200
+    assert r.json()["summary"]["lap_count"] == 2
+    assert r.json()["summary"]["status"] == "active"
+
+
 def test_get_current_lap_counts_completed_via_wraparound():
     """_get_current_lap detects start-line crossings (distFromStart drops
     sharply). 3 laps in the JSONL → 2 completed laps (still mid-lap on #3)."""

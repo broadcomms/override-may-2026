@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
 import type { FanOutput, PerturbationKind, Session, WhatIfRequest, WhatIfResult } from "@/api/types";
@@ -33,9 +33,11 @@ import { RecommendationCard } from "@/components/RecommendationCard";
 import { WhatIfDiff } from "@/components/WhatIfDiff";
 import { ZoneHeatmap } from "@/components/ZoneHeatmap";
 import { useRaceEngineerPageContext } from "@/context/RaceEngineerContext";
+import { useLiveTelemetry } from "@/hooks/useLiveTelemetry";
 
 export function SessionPage() {
   const { sessionId = "" } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // `?fixture=1` / `?fixture=0` force the mode for this tab; absent → let the
   // env default (VITE_USE_FIXTURE) decide. Passing `undefined` keeps the `??`
@@ -64,6 +66,8 @@ export function SessionPage() {
   const [whatIfByZone, setWhatIfByZone] = useState<Record<string, WhatIfResult>>({});
   const [whatIfInflight, setWhatIfInflight] = useState<Record<string, boolean>>({});
   const [whatIfErrors, setWhatIfErrors] = useState<Record<string, string>>({});
+  const [ingestError, setIngestError] = useState<string | null>(null);
+  const [ingestBusy, setIngestBusy] = useState(false);
 
   // Load the session
   useEffect(() => {
@@ -238,6 +242,57 @@ export function SessionPage() {
   }, [fixture, session, sessionId]);
   useRaceEngineerPageContext(raceEngineerContext);
 
+  const liveTelemetry = useLiveTelemetry(session?.summary.status === "active" && !fixture ? sessionId : null, {
+    onRaceEnded: () => setReloadKey((k) => k + 1),
+    retryNoTelemetry: true,
+  });
+
+  const isLiveTorcsSession =
+    session?.summary.session_source === "torcs_live"
+    && Boolean(session.summary.telemetry_file)
+    && fixture !== true;
+  const raceFinishedForIngest =
+    session?.summary.status !== "active" || liveTelemetry.streamState.kind === "ended";
+
+  const ingestActionLabel = session?.summary.status === "active"
+    ? raceFinishedForIngest
+      ? "Ingest finished race"
+      : "Ingest after race ends"
+    : "Re-ingest from capture";
+
+  const ingestActionHint = session?.summary.status === "active" && !raceFinishedForIngest
+    ? "Live telemetry stays available while the race is running. Ingest unlocks the full debrief after the stream ends."
+    : "Run the full OVERRIDE pipeline again from the captured TORCS telemetry.";
+
+  const onIngestFromSession = useCallback(async () => {
+    if (!isLiveTorcsSession || ingestBusy || !raceFinishedForIngest) return;
+    setIngestBusy(true);
+    setIngestError(null);
+    try {
+      const next = await api.runTorcsLive(sessionId, { fixture });
+      setSession(next);
+      setFanCache({});
+      setFanErrors({});
+      setFanInflight({});
+      setWhatIfByZone({});
+      setWhatIfErrors({});
+      setWhatIfInflight({});
+      if (next.summary.session_id !== sessionId) {
+        navigate(`/session/${encodeURIComponent(next.summary.session_id)}`);
+      }
+    } catch (e) {
+      const msg =
+        e instanceof OverrideApiError
+          ? `${e.payload.message}${e.payload.detail ? ` — ${e.payload.detail}` : ""}`
+          : e instanceof Error
+            ? e.message
+            : "Live ingest failed.";
+      setIngestError(msg);
+    } finally {
+      setIngestBusy(false);
+    }
+  }, [fixture, ingestBusy, isLiveTorcsSession, navigate, raceFinishedForIngest, sessionId]);
+
   if (error) {
     return (
       <div className="px-6 py-8 max-w-5xl mx-auto">
@@ -255,6 +310,8 @@ export function SessionPage() {
     );
   }
   const groundingPending = session.regulation_source === null;
+  const activeGroundingPending = groundingPending && session.summary.status === "active";
+  const sessionHeaderTrack = session.summary.track_name ?? session.summary.track_id ?? "—";
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-6">
@@ -264,13 +321,28 @@ export function SessionPage() {
           <span className="font-semibold text-lg">OVERRIDE</span>
           <span className="text-muted">·</span>
           <span className="text-sm text-muted">
-            {session.summary.track_id ?? "—"} · {session.summary.lap_count} laps · uploaded{" "}
+            {sessionHeaderTrack} · {session.summary.lap_count} laps · uploaded{" "}
             <time dateTime={session.summary.uploaded_at}>
               {new Date(session.summary.uploaded_at).toLocaleString()}
             </time>
           </span>
         </div>
-        <ModeToggle mode={mode} onChange={setMode} />
+        <div className="flex flex-wrap items-center gap-3">
+          {isLiveTorcsSession && (
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={onIngestFromSession}
+                disabled={ingestBusy || !raceFinishedForIngest}
+                className="inline-flex rounded-pill border border-border px-3 py-1.5 text-sm text-accent transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {ingestBusy ? "Running ingest…" : ingestActionLabel}
+              </button>
+              <span className="text-xs text-muted">{ingestActionHint}</span>
+            </div>
+          )}
+          <ModeToggle mode={mode} onChange={setMode} />
+        </div>
       </header>
 
       {session.summary.note && (
@@ -288,7 +360,12 @@ export function SessionPage() {
       )}
       {groundingPending && (
         <div className="mb-4">
-          <GroundingPendingBanner />
+          <GroundingPendingBanner phase={activeGroundingPending ? "pre_ingest" : "verification_pending"} />
+        </div>
+      )}
+      {ingestError && (
+        <div className="mb-4">
+          <ErrorBanner title="Live ingest failed" detail={ingestError} />
         </div>
       )}
 
@@ -298,8 +375,12 @@ export function SessionPage() {
       {session.summary.status === "active" && !fixture && (
         <>
           <LiveTelemetry
-            sessionId={sessionId}
-            onRaceEnded={() => setReloadKey((k) => k + 1)}
+            laps={liveTelemetry.laps}
+            latestLap={liveTelemetry.latestLap}
+            latestSnapshot={liveTelemetry.latestSnapshot}
+            streamState={liveTelemetry.streamState}
+            mode={mode}
+            expectedLapCount={session.summary.lap_count}
           />
           {/* Phase 2 v1.0 — when a race is still active, the stub Session
               has no laps/recommendations/forecast yet. The empty
@@ -314,10 +395,9 @@ export function SessionPage() {
           >
             <strong className="text-text">Race in progress.</strong> Per-lap stats are
             streaming live above. Full analysis (energy curve, zone heatmap, regulation-grounded
-            recommendations, what-if simulation) lands once you ingest this race via the
-            <span className="font-mono"> Ingest → </span> button on{" "}
-            <a href="/upload" className="text-accent hover:underline">/upload</a>.
-            The session row will swap from <em>active</em> to <em>completed</em> automatically.
+            recommendations, what-if simulation) lands once you ingest this race from this page or from{" "}
+            <a href="/upload" className="text-accent hover:underline">/upload</a> after the stream ends.
+            The session will stay <em>active</em> until that ingest step completes.
           </div>
         </>
       )}

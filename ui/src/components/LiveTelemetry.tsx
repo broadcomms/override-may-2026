@@ -13,17 +13,27 @@
  * then the panel keeps the latest lap stats visible.
  */
 
-import type { LiveLapStats } from "@/api/types";
-import { useLiveTelemetry, type LiveStreamState } from "@/hooks/useLiveTelemetry";
+import type { LiveLapSnapshot, LiveLapStats } from "@/api/types";
+import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
+import type { Mode } from "@/components/ModeToggle";
 
 interface Props {
-  sessionId: string;
-  onRaceEnded?: () => void;
+  laps: LiveLapStats[];
+  latestLap: LiveLapStats | null;
+  latestSnapshot: LiveLapSnapshot | null;
+  streamState: LiveStreamState;
+  mode: Mode;
+  expectedLapCount?: number;
 }
 
-export function LiveTelemetry({ sessionId, onRaceEnded }: Props) {
-  const { laps, streamState: state } = useLiveTelemetry(sessionId, { onRaceEnded });
-
+export function LiveTelemetry({
+  laps,
+  latestLap,
+  latestSnapshot,
+  streamState: state,
+  mode,
+  expectedLapCount = 0,
+}: Props) {
   return (
     <section
       className="rounded-card border border-accent/40 bg-surface/60 p-4 mb-6"
@@ -60,6 +70,15 @@ export function LiveTelemetry({ sessionId, onRaceEnded }: Props) {
         <StatusBadge state={state} />
       </header>
 
+      {mode === "fan" && (
+        <FanLiveStory
+          latestLap={latestLap}
+          latestSnapshot={latestSnapshot}
+          expectedLapCount={expectedLapCount}
+          state={state}
+        />
+      )}
+
       {state.kind === "no_telemetry" && (
         <p className="text-sm text-muted">{state.message}</p>
       )}
@@ -70,13 +89,71 @@ export function LiveTelemetry({ sessionId, onRaceEnded }: Props) {
         </p>
       )}
 
-      {laps.length === 0 && state.kind === "connecting" && (
-        <p className="text-sm text-muted">Waiting for the first lap to complete…</p>
+      {laps.length === 0 && (state.kind === "connecting" || state.kind === "connected") && (
+        <p className="text-sm text-muted">
+          {expectedLapCount > 0 && state.kind === "connected"
+            ? `Syncing ${expectedLapCount} captured lap${expectedLapCount === 1 ? "" : "s"} from the live run…`
+            : "Waiting for the first lap to complete…"}
+        </p>
       )}
 
       {laps.length > 0 && <LiveLapTable laps={laps} />}
     </section>
   );
+}
+
+function FanLiveStory({
+  latestLap,
+  latestSnapshot,
+  expectedLapCount,
+  state,
+}: {
+  latestLap: LiveLapStats | null;
+  latestSnapshot: LiveLapSnapshot | null;
+  expectedLapCount: number;
+  state: LiveStreamState;
+}) {
+  return (
+    <div className="mb-4 space-y-2 border-b border-border/50 pb-3">
+      <div className="text-[11px] uppercase tracking-wider text-accent">Live race story</div>
+      <p className="text-sm text-text">
+        {fanStoryText({ latestLap, latestSnapshot, expectedLapCount, state })}
+      </p>
+    </div>
+  );
+}
+
+function fanStoryText({
+  latestLap,
+  latestSnapshot,
+  expectedLapCount,
+  state,
+}: {
+  latestLap: LiveLapStats | null;
+  latestSnapshot: LiveLapSnapshot | null;
+  expectedLapCount: number;
+  state: LiveStreamState;
+}) {
+  if (latestLap) {
+    const pace = latestLap.lap_time_s.toFixed(2);
+    const soc = Math.round(latestLap.soc_end * 100);
+    const net = latestLap.harvest_mj - latestLap.deploy_mj;
+    if (net < -0.08) {
+      return `Lap ${latestLap.lap} closed in ${pace}s with the battery down to ${soc}%. The car is spending more energy than it wins back right now, so the next lap is the one to watch for a recovery move.`;
+    }
+    if (net > 0.08) {
+      return `Lap ${latestLap.lap} closed in ${pace}s and the battery recovered to ${soc}%. OVERRIDE is rebuilding energy here, which could set up a stronger push on the next straight.`;
+    }
+    return `Lap ${latestLap.lap} closed in ${pace}s with the battery holding around ${soc}%. The hybrid balance is steady, so the race is in a controlled holding pattern right now.`;
+  }
+  if (latestSnapshot) {
+    const soc = Math.round(latestSnapshot.soc_estimate * 100);
+    return `The car is live on lap ${latestSnapshot.lap}, sector ${latestSnapshot.sector ?? "?"}, with battery reserve around ${soc}%. The race story is still forming while OVERRIDE waits for the next clean lap to close.`;
+  }
+  if (expectedLapCount > 0 && state.kind === "connected") {
+    return `OVERRIDE has already captured about ${expectedLapCount} lap${expectedLapCount === 1 ? "" : "s"} from this run and is syncing the live race story now.`;
+  }
+  return "The live race story appears here once OVERRIDE has enough telemetry to explain what the car is building toward.";
 }
 
 function StatusBadge({ state }: { state: LiveStreamState }) {

@@ -75,11 +75,18 @@ export function ErrorBanner({
   );
 }
 
-export function GroundingPendingBanner() {
+export function GroundingPendingBanner({
+  phase = "verification_pending",
+}: {
+  phase?: "pre_ingest" | "verification_pending";
+}) {
+  const body = phase === "pre_ingest"
+    ? "Verified FIA citations are not available on a live race stub yet. They appear after the run is ingested into the full post-race pipeline."
+    : "This session has no verified regulation source attached yet, so any citation language remains generic until grounding is rerun and verification completes.";
   return (
     <div className="rounded-md bg-warning/15 border border-warning/40 p-3 text-sm text-text">
       <span className="font-medium">Regulation grounding unavailable —</span>{" "}
-      citations will be generic until verification completes.
+      {body}
     </div>
   );
 }
