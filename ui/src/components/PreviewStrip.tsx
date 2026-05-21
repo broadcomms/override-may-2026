@@ -55,10 +55,10 @@ export function PreviewStrip() {
         id="preview-heading"
         className="text-[11px] uppercase tracking-wider text-muted font-mono mb-2"
       >
-        What you'll see
+        Preview demo
       </h2>
       <p className="text-sm text-muted mb-5">
-        A real debrief from the cached TORCS engineer fixture, citation grounded, validated, and ready to explore.
+        A cached TORCS engineer fixture that previews the debrief layout before you upload telemetry or ingest a live run. It is a demo surface, not a live session.
       </p>
       <div className="grid items-start lg:grid-cols-2 gap-6">
         <EnergyCurve

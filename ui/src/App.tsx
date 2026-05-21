@@ -188,22 +188,27 @@ function VersionChip() {
           {err ? (
             <div className="text-muted">Version info unavailable: {err}</div>
           ) : info ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono">
-              {/* M3 allowlist: app_version + build_sha + model IDs. Explicit
-                  field-by-field. Do NOT switch to Object.entries(info). */}
-              <dt className="text-muted">app</dt>
-              <dd className="text-text">{info.build}</dd>
-              <dt className="text-muted">build</dt>
-              <dd className="text-text break-all">{info.git_sha ?? "(local dev)"}</dd>
-              <dt className="text-muted">instruct</dt>
-              <dd className="text-text break-all">{info.granite_instruct}</dd>
-              <dt className="text-muted">guardian</dt>
-              <dd className="text-text break-all">{info.granite_guardian}</dd>
-              <dt className="text-muted">embed</dt>
-              <dd className="text-text break-all">{info.granite_embedding}</dd>
-              <dt className="text-muted">ttm-r2</dt>
-              <dd className="text-text break-all">{info.granite_ttm_r2}</dd>
-            </dl>
+            <>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono">
+                {/* M3 allowlist: app_version + build_sha + model IDs. Explicit
+                    field-by-field. Do NOT switch to Object.entries(info). */}
+                <dt className="text-muted">app</dt>
+                <dd className="text-text">{info.build}</dd>
+                <dt className="text-muted">build</dt>
+                <dd className="text-text break-all">{info.git_sha ?? "(local dev)"}</dd>
+                <dt className="text-muted">instruct</dt>
+                <dd className="text-text break-all">{info.granite_instruct}</dd>
+                <dt className="text-muted">guardian</dt>
+                <dd className="text-text break-all">{info.granite_guardian}</dd>
+                <dt className="text-muted">embed</dt>
+                <dd className="text-text break-all">{info.granite_embedding}</dd>
+                <dt className="text-muted">ttm-r2</dt>
+                <dd className="text-text break-all">{info.granite_ttm_r2}</dd>
+              </dl>
+              <p className="mt-3 text-[11px] text-muted">
+                Configured runtimes only. Individual pages can still be using live Granite, deterministic telemetry logic, or demo fixtures depending on the surface.
+              </p>
+            </>
           ) : (
             <div className="text-muted">Loading…</div>
           )}

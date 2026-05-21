@@ -252,6 +252,13 @@ def parse_torcs_lap(
     lap_time = sum(sector_seconds)
     if lap_time < MIN_LAP_TIME_S:
         return None
+    if any(seconds <= 0.0 for seconds in sector_seconds):
+        logger.debug(
+            "parse_torcs_lap: dropping incomplete lap %s with partial sector coverage %s",
+            lap_number,
+            tuple(round(seconds, 3) for seconds in sector_seconds),
+        )
+        return None
 
     # Speed: TORCS' SCR protocol reports ``speedX`` in km/h directly (not
     # m/s — easy to mis-assume because most simulators use SI). Use the

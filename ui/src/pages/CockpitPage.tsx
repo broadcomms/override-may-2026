@@ -230,6 +230,7 @@ export function CockpitPage() {
         latestSnapshot={latestSnapshot}
         latestLap={latestLap}
         previousLap={previousLap}
+        recentLaps={liveLaps.slice(-5)}
         streamState={streamState}
       />
     </div>

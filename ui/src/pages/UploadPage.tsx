@@ -179,6 +179,9 @@ export function UploadPage() {
           >
             Begin
           </h2>
+          <p className="text-sm text-muted">
+            Demo fixtures on this side use cached session artifacts so you can explore the UI instantly. Uploading your own file or ingesting a live TORCS run uses the real backend pipeline.
+          </p>
           <SampleReplayList onSample={useSample} isUploading={isUploading} />
           <BringYourOwn onFile={onFile} isUploading={isUploading} error={error} />
         </section>
@@ -191,6 +194,9 @@ export function UploadPage() {
             >
               Live capture
             </h2>
+            <p className="text-sm text-muted">
+              Race Control talks to the live TORCS lab. “Captures on disk” are real JSONL telemetry runs from the shared volume that you can ingest into a full session debrief.
+            </p>
 
             {/* Phase B split: RaceControlCard is the form-only surface here;
                 the noVNC iframe lives on /cockpit. RaceControlCard auto-hides

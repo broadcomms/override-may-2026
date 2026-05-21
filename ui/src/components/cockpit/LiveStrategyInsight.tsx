@@ -1,7 +1,15 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
 
-import type { LiveInsight, LiveLapSnapshot, LiveLapStats, Recommendation } from "@/api/types";
+import { OverrideApiError, api } from "@/api/client";
+import type {
+  CopilotAnswer,
+  CopilotRequestContext,
+  LiveInsight,
+  LiveLapSnapshot,
+  LiveLapStats,
+  Recommendation,
+} from "@/api/types";
 import { ModeToggle, type Mode } from "@/components/ModeToggle";
 import type { LiveStreamState } from "@/hooks/useLiveTelemetry";
 import { deriveLiveSignal } from "@/lib/cockpitTelemetry";
@@ -12,6 +20,7 @@ interface Props {
   latestSnapshot: LiveLapSnapshot | null;
   latestLap: LiveLapStats | null;
   previousLap: LiveLapStats | null;
+  recentLaps: LiveLapStats[];
   streamState: LiveStreamState;
   recommendation?: Recommendation | null;
 }
@@ -22,6 +31,7 @@ export function LiveStrategyInsight({
   latestSnapshot,
   latestLap,
   previousLap,
+  recentLaps,
   streamState,
   recommendation,
 }: Props) {
@@ -37,7 +47,7 @@ export function LiveStrategyInsight({
             AI race engineer
           </div>
           <div className="mt-1 text-sm text-muted">
-            Live guidance stays deterministic until completed-lap analysis is available.
+            Instant telemetry guardrails stay deterministic, and each completed lap now requests a Granite-backed live explanation.
           </div>
         </div>
         <ModeToggle mode={mode} onChange={setMode} />
@@ -49,6 +59,7 @@ export function LiveStrategyInsight({
           latestInsight={latestInsight}
           sessionId={sessionId}
           latestSnapshot={latestSnapshot}
+          recentLaps={recentLaps}
           streamState={streamState}
           signal={signal}
           recommendation={recommendation ?? null}
@@ -71,6 +82,7 @@ function EngineerBody({
   latestInsight,
   sessionId,
   latestSnapshot,
+  recentLaps,
   streamState,
   signal,
   recommendation,
@@ -79,10 +91,19 @@ function EngineerBody({
   latestInsight: LiveInsight | null;
   sessionId: string | null;
   latestSnapshot: LiveLapSnapshot | null;
+  recentLaps: LiveLapStats[];
   streamState: LiveStreamState;
   signal: ReturnType<typeof deriveLiveSignal>;
   recommendation: Recommendation | null;
 }) {
+  const graniteLive = useLiveGraniteExplanation({
+    sessionId,
+    latestSnapshot,
+    recentLaps,
+    insights,
+    streamState,
+  });
+
   if (recommendation) {
     return (
       <div className="space-y-3">
@@ -100,8 +121,9 @@ function EngineerBody({
   if (latestInsight) {
     return (
       <div className="space-y-3">
+        <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
         <div className="text-[11px] uppercase tracking-wider text-accent">
-          Live insight: {kindLabel(latestInsight)} · {latestInsight.severity}
+          Instant telemetry guardrail: {kindLabel(latestInsight)} · {latestInsight.severity}
         </div>
         <h3 className="text-lg text-text">{latestInsight.headline}</h3>
         <p className="text-sm text-text">{latestInsight.message}</p>
@@ -116,7 +138,7 @@ function EngineerBody({
           </ul>
         )}
         <p className="text-sm text-muted">
-          Rule-backed live insight. If the structured live engine is unavailable, OVERRIDE falls back to the deterministic battery signal below.
+          Instant race-state guardrail from live telemetry. Completed laps now trigger a Granite-backed explanation above when the copilot runtime responds successfully.
         </p>
         <RecentInsightList insights={insights} />
         {sessionId && streamState.kind === "ended" && (
@@ -135,6 +157,7 @@ function EngineerBody({
   if (latestSnapshot) {
     return (
       <div className="space-y-3">
+        <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
         <div className="text-[11px] uppercase tracking-wider text-accent">
           Live signal: {latestSnapshot.balance_label}
         </div>
@@ -142,7 +165,7 @@ function EngineerBody({
           {snapshotEngineerDetail(latestSnapshot)}
         </p>
         <p className="text-sm text-muted">
-          Deterministic live signal — Guardian review pending. Full Granite safety review appears after analysis completes.
+          Instant telemetry signal only. Granite-backed live explanation starts after the first completed lap closes.
         </p>
         {sessionId && streamState.kind === "ended" && (
           <Link
@@ -164,13 +187,14 @@ function EngineerBody({
 
   return (
     <div className="space-y-3">
+      <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
       <div className="text-[11px] uppercase tracking-wider text-accent">
         Live signal: {signal.pressureLabel}
       </div>
       <p className="text-lg text-text">{signal.pressureDetail}</p>
       <p className="text-sm text-muted">{signal.suggestedAction}</p>
       <p className="text-sm text-muted">
-        Review: deterministic live signal; Guardian review pending. Full Granite safety review appears after analysis completes.
+        Review: deterministic live signal. Granite-backed lap-close explanation appears above once completed-lap context is available.
       </p>
       {sessionId && streamState.kind === "ended" && (
         <Link
@@ -179,6 +203,168 @@ function EngineerBody({
         >
           Open session debrief
         </Link>
+      )}
+    </div>
+  );
+}
+
+const AUTO_LIVE_EXPLAINER_QUESTION =
+  "Explain the latest live race state using the newest completed lap, the current telemetry snapshot, and the recent live insights. Keep it concise and recommend the next energy move.";
+
+type GraniteLiveState =
+  | { kind: "idle" | "loading" }
+  | { kind: "ready"; answer: CopilotAnswer }
+  | { kind: "fallback"; answer: CopilotAnswer }
+  | { kind: "error"; message: string };
+
+function useLiveGraniteExplanation({
+  sessionId,
+  latestSnapshot,
+  recentLaps,
+  insights,
+  streamState,
+}: {
+  sessionId: string | null;
+  latestSnapshot: LiveLapSnapshot | null;
+  recentLaps: LiveLapStats[];
+  insights: LiveInsight[];
+  streamState: LiveStreamState;
+}): GraniteLiveState {
+  const [state, setState] = useState<GraniteLiveState>({ kind: "idle" });
+  const latestClosedLap = recentLaps[recentLaps.length - 1] ?? null;
+  const requestContext = useMemo<CopilotRequestContext | null>(() => {
+    if (!sessionId || !latestClosedLap) return null;
+    return {
+      mode: "live_race",
+      lap_number: latestSnapshot?.lap ?? latestClosedLap.lap ?? null,
+      live: {
+        latest_snapshot: latestSnapshot,
+        completed_laps: recentLaps.slice(-5),
+        insights: insights.slice(0, 5),
+        race_state: streamState.kind === "ended" ? "idle" : null,
+      },
+    };
+  }, [insights, latestClosedLap, latestSnapshot, recentLaps, sessionId, streamState.kind]);
+
+  const requestKey = useMemo(() => {
+    if (!sessionId || !latestClosedLap) return null;
+    return `${sessionId}:${latestClosedLap.lap}`;
+  }, [latestClosedLap, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !requestContext || !requestKey) {
+      setState({ kind: "idle" });
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    setState({ kind: "loading" });
+
+    api.askCopilot(sessionId, AUTO_LIVE_EXPLAINER_QUESTION, [], requestContext, {
+      signal: controller.signal,
+    }).then(
+      (answer) => {
+        if (cancelled) return;
+        if (answer.engine === "granite") {
+          setState({ kind: "ready", answer });
+          return;
+        }
+        setState({ kind: "fallback", answer });
+      },
+      (error) => {
+        if (cancelled) return;
+        setState({
+          kind: "error",
+          message:
+            error instanceof OverrideApiError
+              ? error.payload.message
+              : error instanceof Error
+                ? error.message
+                : "Granite live explanation unavailable.",
+        });
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [requestKey, sessionId]);
+
+  return state;
+}
+
+function GraniteLiveExplainer({
+  state,
+  sessionId,
+  streamState,
+}: {
+  state: GraniteLiveState;
+  sessionId: string | null;
+  streamState: LiveStreamState;
+}) {
+  if (state.kind === "idle") return null;
+
+  if (state.kind === "loading") {
+    return (
+      <div className="space-y-1 rounded-md border border-accent/25 bg-accent/8 px-3 py-3">
+        <div className="text-[11px] uppercase tracking-wider text-accent">
+          Granite live explainer
+        </div>
+        <p className="text-sm text-muted">
+          Analyzing the newest completed lap with the live race context.
+        </p>
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="space-y-1 rounded-md border border-border bg-surface-2/60 px-3 py-3">
+        <div className="text-[11px] uppercase tracking-wider text-warning">
+          Granite live explainer unavailable
+        </div>
+        <p className="text-sm text-muted">{state.message}</p>
+      </div>
+    );
+  }
+
+  if (state.kind === "fallback") {
+    return (
+      <div className="space-y-1 rounded-md border border-border bg-surface-2/60 px-3 py-3">
+        <div className="text-[11px] uppercase tracking-wider text-warning">
+          Live explanation fallback
+        </div>
+        <p className="text-sm text-muted">
+          The live copilot returned a deterministic fallback instead of a Granite answer, so the instant telemetry guardrail below remains the primary signal.
+        </p>
+        {sessionId && streamState.kind === "ended" && (
+          <Link
+            to={`/session/${encodeURIComponent(sessionId)}`}
+            className="inline-flex rounded-pill border border-border px-3 py-1.5 text-sm text-accent transition-colors hover:text-text"
+          >
+            Open session debrief
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  if (state.kind !== "ready") return null;
+
+  const { answer } = state;
+  return (
+    <div className="space-y-2 rounded-md border border-accent/30 bg-accent/8 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider text-accent">
+        <span>Granite live explainer</span>
+        <span className="text-muted">· {answer.confidence}</span>
+      </div>
+      <p className="text-sm text-text">{answer.answer}</p>
+      {answer.supporting_laps.length > 0 && (
+        <p className="text-xs text-muted">
+          Supporting laps: {answer.supporting_laps.join(", ")}
+        </p>
       )}
     </div>
   );

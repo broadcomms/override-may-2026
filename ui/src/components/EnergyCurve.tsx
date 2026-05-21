@@ -100,17 +100,27 @@ export function EnergyCurve({ laps, forecast, recommendations = [], onZoneClick 
   }
 
   const showBrush = laps.length > 60;
+  const forecastStatus = !forecast
+    ? laps.length < 30
+      ? "Forecast unavailable — requires 30+ completed laps."
+      : "Forecast unavailable — TTM-R2 did not produce a live forecast artifact for this session."
+    : null;
+  const forecastStatusTitle = !forecast
+    ? laps.length < 30
+      ? "TTM-R2 only attempts a 5-lap forecast after 30 completed laps."
+      : "This session had enough laps, but the optional TTM-R2 runtime was unavailable, incompatible, or rejected the forecast for confidence reasons."
+    : undefined;
 
   return (
     <div className="rounded-card border border-border bg-surface p-3">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium">Energy Curve</h3>
-        {!forecast && (
+        {forecastStatus && (
           <span
             className="text-xs text-muted italic"
-            title="TTM-R2 5-lap SoC forecast requires 30+ completed laps. The pipeline runs end-to-end without forecasting."
+            title={forecastStatusTitle}
           >
-            Forecast unavailable — requires 30+ completed laps.
+            {forecastStatus}
           </span>
         )}
       </div>

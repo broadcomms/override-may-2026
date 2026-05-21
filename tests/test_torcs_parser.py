@@ -143,6 +143,21 @@ def test_parse_torcs_lap_returns_none_for_too_short_lap():
     assert parse_torcs_lap(ticks, lap_number=1, prior_soc_end=None) is None
 
 
+def test_parse_torcs_lap_returns_none_for_partial_lap_missing_sector_splits():
+    ticks = [
+        _synth_tick(
+            t=1_700_000_000.0 + i * 0.3,
+            cur_lap_time=18.0 + i * 0.3,
+            dist_from_start=2200.0 + i * 12.0,
+            speed_x=42.0,
+            accel=0.2,
+            brake=0.4,
+        )
+        for i in range(40)
+    ]
+    assert parse_torcs_lap(ticks, lap_number=1, prior_soc_end=None) is None
+
+
 def test_parse_torcs_lap_produces_valid_lapfeatures(tmp_path):
     """One synthetic lap with structured sector pattern → all schema fields populate."""
     p = tmp_path / "one_lap.jsonl"
