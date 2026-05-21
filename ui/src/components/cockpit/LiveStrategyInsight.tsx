@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { OverrideApiError, api } from "@/api/client";
@@ -47,7 +47,7 @@ export function LiveStrategyInsight({
             AI race engineer
           </div>
           <div className="mt-1 text-sm text-muted">
-            Instant telemetry guardrails stay deterministic, and each completed lap now requests a Granite-backed live explanation.
+            Instant telemetry guardrails stay deterministic. OVERRIDE now auto-requests a Granite readout on closed laps, and you can refresh either live explainer on demand mid-race.
           </div>
         </div>
         <ModeToggle mode={mode} onChange={setMode} />
@@ -68,7 +68,9 @@ export function LiveStrategyInsight({
         <FanBody
           insights={insights}
           latestInsight={latestInsight}
+          sessionId={sessionId}
           latestSnapshot={latestSnapshot}
+          recentLaps={recentLaps}
           signal={signal}
           streamState={streamState}
         />
@@ -102,6 +104,7 @@ function EngineerBody({
     recentLaps,
     insights,
     streamState,
+    question: AUTO_ENGINEER_EXPLAINER_QUESTION,
   });
 
   if (recommendation) {
@@ -121,7 +124,14 @@ function EngineerBody({
   if (latestInsight) {
     return (
       <div className="space-y-3">
-        <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
+        <GraniteLiveExplainer
+          state={graniteLive.state}
+          canRefresh={graniteLive.canRefresh}
+          onRefresh={graniteLive.refresh}
+          sessionId={sessionId}
+          streamState={streamState}
+          flavor="engineer"
+        />
         <div className="text-[11px] uppercase tracking-wider text-accent">
           Instant telemetry guardrail: {kindLabel(latestInsight)} · {latestInsight.severity}
         </div>
@@ -157,7 +167,14 @@ function EngineerBody({
   if (latestSnapshot) {
     return (
       <div className="space-y-3">
-        <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
+        <GraniteLiveExplainer
+          state={graniteLive.state}
+          canRefresh={graniteLive.canRefresh}
+          onRefresh={graniteLive.refresh}
+          sessionId={sessionId}
+          streamState={streamState}
+          flavor="engineer"
+        />
         <div className="text-[11px] uppercase tracking-wider text-accent">
           Live signal: {latestSnapshot.balance_label}
         </div>
@@ -165,7 +182,7 @@ function EngineerBody({
           {snapshotEngineerDetail(latestSnapshot)}
         </p>
         <p className="text-sm text-muted">
-          Instant telemetry signal only. Granite-backed live explanation starts after the first completed lap closes.
+          Instant telemetry signal only. You can refresh Granite immediately for a live readout, and completed laps still trigger automatic refreshes.
         </p>
         {sessionId && streamState.kind === "ended" && (
           <Link
@@ -187,14 +204,21 @@ function EngineerBody({
 
   return (
     <div className="space-y-3">
-      <GraniteLiveExplainer state={graniteLive} sessionId={sessionId} streamState={streamState} />
+      <GraniteLiveExplainer
+        state={graniteLive.state}
+        canRefresh={graniteLive.canRefresh}
+        onRefresh={graniteLive.refresh}
+        sessionId={sessionId}
+        streamState={streamState}
+        flavor="engineer"
+      />
       <div className="text-[11px] uppercase tracking-wider text-accent">
         Live signal: {signal.pressureLabel}
       </div>
       <p className="text-lg text-text">{signal.pressureDetail}</p>
       <p className="text-sm text-muted">{signal.suggestedAction}</p>
       <p className="text-sm text-muted">
-        Review: deterministic live signal. Granite-backed lap-close explanation appears above once completed-lap context is available.
+        Review: deterministic live signal. Granite can be refreshed on demand here, and completed laps still trigger automatic explanation refreshes.
       </p>
       {sessionId && streamState.kind === "ended" && (
         <Link
@@ -208,8 +232,11 @@ function EngineerBody({
   );
 }
 
-const AUTO_LIVE_EXPLAINER_QUESTION =
-  "Explain the latest live race state using the newest completed lap, the current telemetry snapshot, and the recent live insights. Keep it concise and recommend the next energy move.";
+const AUTO_ENGINEER_EXPLAINER_QUESTION =
+  "Explain the latest live race state using the newest completed lap, the current telemetry snapshot, and the recent live insights. Keep it concise, grounded, and recommend the next energy move.";
+
+const AUTO_FAN_EXPLAINER_QUESTION =
+  "Call the current race moment like a live motorsport commentator for a fan. Use plain language, stay grounded in the latest telemetry and completed lap context, highlight the energy story, and say what to watch next.";
 
 type GraniteLiveState =
   | { kind: "idle" | "loading" }
@@ -217,26 +244,42 @@ type GraniteLiveState =
   | { kind: "fallback"; answer: CopilotAnswer }
   | { kind: "error"; message: string };
 
+type LiveExplainerFlavor = "engineer" | "fan";
+
 function useLiveGraniteExplanation({
   sessionId,
   latestSnapshot,
   recentLaps,
   insights,
   streamState,
+  question,
 }: {
   sessionId: string | null;
   latestSnapshot: LiveLapSnapshot | null;
   recentLaps: LiveLapStats[];
   insights: LiveInsight[];
   streamState: LiveStreamState;
-}): GraniteLiveState {
+  question: string;
+}): {
+  state: GraniteLiveState;
+  canRefresh: boolean;
+  refresh: () => void;
+} {
   const [state, setState] = useState<GraniteLiveState>({ kind: "idle" });
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const latestClosedLap = recentLaps[recentLaps.length - 1] ?? null;
+  const canRefresh = Boolean(
+    sessionId
+      && (latestSnapshot != null
+        || latestClosedLap != null
+        || insights.length > 0
+        || streamState.kind === "ended"),
+  );
   const requestContext = useMemo<CopilotRequestContext | null>(() => {
-    if (!sessionId || !latestClosedLap) return null;
+    if (!canRefresh || !sessionId) return null;
     return {
       mode: "live_race",
-      lap_number: latestSnapshot?.lap ?? latestClosedLap.lap ?? null,
+        lap_number: latestSnapshot?.lap ?? latestClosedLap?.lap ?? null,
       live: {
         latest_snapshot: latestSnapshot,
         completed_laps: recentLaps.slice(-5),
@@ -244,15 +287,20 @@ function useLiveGraniteExplanation({
         race_state: streamState.kind === "ended" ? "idle" : null,
       },
     };
-  }, [insights, latestClosedLap, latestSnapshot, recentLaps, sessionId, streamState.kind]);
+  }, [canRefresh, insights, latestClosedLap, latestSnapshot, recentLaps, sessionId, streamState.kind]);
 
-  const requestKey = useMemo(() => {
+  const autoRequestKey = useMemo(() => {
     if (!sessionId || !latestClosedLap) return null;
     return `${sessionId}:${latestClosedLap.lap}`;
   }, [latestClosedLap, sessionId]);
 
+  const refresh = useCallback(() => {
+    if (!canRefresh) return;
+    setRefreshNonce((current) => current + 1);
+  }, [canRefresh]);
+
   useEffect(() => {
-    if (!sessionId || !requestContext || !requestKey) {
+    if (!sessionId || !requestContext || (autoRequestKey == null && refreshNonce === 0)) {
       setState({ kind: "idle" });
       return;
     }
@@ -261,7 +309,7 @@ function useLiveGraniteExplanation({
     const controller = new AbortController();
     setState({ kind: "loading" });
 
-    api.askCopilot(sessionId, AUTO_LIVE_EXPLAINER_QUESTION, [], requestContext, {
+    api.askCopilot(sessionId, question, [], requestContext, {
       signal: controller.signal,
     }).then(
       (answer) => {
@@ -290,55 +338,97 @@ function useLiveGraniteExplanation({
       cancelled = true;
       controller.abort();
     };
-  }, [requestKey, sessionId]);
+  }, [autoRequestKey, question, refreshNonce, sessionId]);
 
-  return state;
+  return { state, canRefresh, refresh };
 }
 
 function GraniteLiveExplainer({
   state,
+  canRefresh,
+  onRefresh,
   sessionId,
   streamState,
+  flavor,
 }: {
   state: GraniteLiveState;
+  canRefresh: boolean;
+  onRefresh: () => void;
   sessionId: string | null;
   streamState: LiveStreamState;
+  flavor: LiveExplainerFlavor;
 }) {
-  if (state.kind === "idle") return null;
+  const config = flavor === "fan"
+    ? {
+        title: "Granite live commentary",
+        loading: "Calling the current race moment in fan-friendly language.",
+        idle: "Refresh to hear a fresh live call of the race without reloading the cockpit.",
+        fallbackTitle: "Live commentary fallback",
+        fallbackBody:
+          "The live copilot returned a deterministic fallback instead of a Granite commentary pass, so the live signal below remains the primary view.",
+      }
+    : {
+        title: "Granite live explainer",
+        loading: "Analyzing the newest race context with Granite.",
+        idle: "Refresh to pull a fresh Granite explanation of the current race moment without reloading the page.",
+        fallbackTitle: "Live explanation fallback",
+        fallbackBody:
+          "The live copilot returned a deterministic fallback instead of a Granite answer, so the instant telemetry guardrail below remains the primary signal.",
+      };
+
+  if (state.kind === "idle") {
+    if (!canRefresh) return null;
+    return (
+      <LiveExplainerShell
+        tone="neutral"
+        title={config.title}
+        actionLabel="Refresh now"
+        actionDisabled={false}
+        onRefresh={onRefresh}
+      >
+        <p className="text-sm text-muted">{config.idle}</p>
+      </LiveExplainerShell>
+    );
+  }
 
   if (state.kind === "loading") {
     return (
-      <div className="space-y-1 rounded-md border border-accent/25 bg-accent/8 px-3 py-3">
-        <div className="text-[11px] uppercase tracking-wider text-accent">
-          Granite live explainer
-        </div>
-        <p className="text-sm text-muted">
-          Analyzing the newest completed lap with the live race context.
-        </p>
-      </div>
+      <LiveExplainerShell
+        tone="accent"
+        title={config.title}
+        actionLabel="Refreshing..."
+        actionDisabled
+        onRefresh={onRefresh}
+      >
+        <p className="text-sm text-muted">{config.loading}</p>
+      </LiveExplainerShell>
     );
   }
 
   if (state.kind === "error") {
     return (
-      <div className="space-y-1 rounded-md border border-border bg-surface-2/60 px-3 py-3">
-        <div className="text-[11px] uppercase tracking-wider text-warning">
-          Granite live explainer unavailable
-        </div>
+      <LiveExplainerShell
+        tone="warning"
+        title={`${config.title} unavailable`}
+        actionLabel="Retry"
+        actionDisabled={!canRefresh}
+        onRefresh={onRefresh}
+      >
         <p className="text-sm text-muted">{state.message}</p>
-      </div>
+      </LiveExplainerShell>
     );
   }
 
   if (state.kind === "fallback") {
     return (
-      <div className="space-y-1 rounded-md border border-border bg-surface-2/60 px-3 py-3">
-        <div className="text-[11px] uppercase tracking-wider text-warning">
-          Live explanation fallback
-        </div>
-        <p className="text-sm text-muted">
-          The live copilot returned a deterministic fallback instead of a Granite answer, so the instant telemetry guardrail below remains the primary signal.
-        </p>
+      <LiveExplainerShell
+        tone="neutral"
+        title={config.fallbackTitle}
+        actionLabel="Refresh now"
+        actionDisabled={!canRefresh}
+        onRefresh={onRefresh}
+      >
+        <p className="text-sm text-muted">{config.fallbackBody}</p>
         {sessionId && streamState.kind === "ended" && (
           <Link
             to={`/session/${encodeURIComponent(sessionId)}`}
@@ -347,7 +437,7 @@ function GraniteLiveExplainer({
             Open session debrief
           </Link>
         )}
-      </div>
+      </LiveExplainerShell>
     );
   }
 
@@ -355,10 +445,15 @@ function GraniteLiveExplainer({
 
   const { answer } = state;
   return (
-    <div className="space-y-2 rounded-md border border-accent/30 bg-accent/8 px-3 py-3">
+    <LiveExplainerShell
+      tone="accent"
+      title={config.title}
+      actionLabel="Refresh now"
+      actionDisabled={!canRefresh}
+      onRefresh={onRefresh}
+    >
       <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider text-accent">
-        <span>Granite live explainer</span>
-        <span className="text-muted">· {answer.confidence}</span>
+        <span className="text-muted">confidence {answer.confidence}</span>
       </div>
       <p className="text-sm text-text">{answer.answer}</p>
       {answer.supporting_laps.length > 0 && (
@@ -366,26 +461,47 @@ function GraniteLiveExplainer({
           Supporting laps: {answer.supporting_laps.join(", ")}
         </p>
       )}
-    </div>
+    </LiveExplainerShell>
   );
 }
 
 function FanBody({
   insights,
   latestInsight,
+  sessionId,
   latestSnapshot,
+  recentLaps,
   signal,
   streamState,
 }: {
   insights: LiveInsight[];
   latestInsight: LiveInsight | null;
+  sessionId: string | null;
   latestSnapshot: LiveLapSnapshot | null;
+  recentLaps: LiveLapStats[];
   signal: ReturnType<typeof deriveLiveSignal>;
   streamState: LiveStreamState;
 }) {
+  const graniteLive = useLiveGraniteExplanation({
+    sessionId,
+    latestSnapshot,
+    recentLaps,
+    insights,
+    streamState,
+    question: AUTO_FAN_EXPLAINER_QUESTION,
+  });
+
   if (latestInsight) {
     return (
       <div className="space-y-3">
+        <GraniteLiveExplainer
+          state={graniteLive.state}
+          canRefresh={graniteLive.canRefresh}
+          onRefresh={graniteLive.refresh}
+          sessionId={sessionId}
+          streamState={streamState}
+          flavor="fan"
+        />
         <div className="text-[11px] uppercase tracking-wider text-accent">
           Live insight
         </div>
@@ -402,6 +518,14 @@ function FanBody({
   if (latestSnapshot) {
     return (
       <div className="space-y-3">
+        <GraniteLiveExplainer
+          state={graniteLive.state}
+          canRefresh={graniteLive.canRefresh}
+          onRefresh={graniteLive.refresh}
+          sessionId={sessionId}
+          streamState={streamState}
+          flavor="fan"
+        />
         <div className="text-[11px] uppercase tracking-wider text-accent">
           Live signal
         </div>
@@ -415,16 +539,34 @@ function FanBody({
 
   if (!signal) {
     return (
-      <p className="text-sm text-muted">
-        {streamState.kind === "no_telemetry"
-          ? streamState.message
-          : "Waiting for the first completed lap before the cockpit explains the battery story in plain language."}
-      </p>
+      <div className="space-y-3">
+        <GraniteLiveExplainer
+          state={graniteLive.state}
+          canRefresh={graniteLive.canRefresh}
+          onRefresh={graniteLive.refresh}
+          sessionId={sessionId}
+          streamState={streamState}
+          flavor="fan"
+        />
+        <p className="text-sm text-muted">
+          {streamState.kind === "no_telemetry"
+            ? streamState.message
+            : "Waiting for the first completed lap before the cockpit explains the battery story in plain language."}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      <GraniteLiveExplainer
+        state={graniteLive.state}
+        canRefresh={graniteLive.canRefresh}
+        onRefresh={graniteLive.refresh}
+        sessionId={sessionId}
+        streamState={streamState}
+        flavor="fan"
+      />
       <div className="text-[11px] uppercase tracking-wider text-accent">
         Live signal
       </div>
@@ -432,6 +574,45 @@ function FanBody({
       <p className="text-sm text-muted">
         Post-lap analysis can upgrade this with a grounded engineer recommendation after the review completes.
       </p>
+    </div>
+  );
+}
+
+function LiveExplainerShell({
+  tone,
+  title,
+  actionLabel,
+  actionDisabled,
+  onRefresh,
+  children,
+}: {
+  tone: "neutral" | "accent" | "warning";
+  title: string;
+  actionLabel: string;
+  actionDisabled: boolean;
+  onRefresh: () => void;
+  children: ReactNode;
+}) {
+  const toneClasses = tone === "accent"
+    ? "border-accent/30 bg-accent/8"
+    : tone === "warning"
+      ? "border-warning/35 bg-warning/8"
+      : "border-border bg-surface-2/60";
+  const eyebrowColor = tone === "warning" ? "text-warning" : "text-accent";
+  return (
+    <div className={`space-y-2 rounded-md border px-3 py-3 ${toneClasses}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className={`text-[11px] uppercase tracking-wider ${eyebrowColor}`}>{title}</div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={actionDisabled}
+          className="inline-flex rounded-pill border border-border px-3 py-1 text-xs text-accent transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {actionLabel}
+        </button>
+      </div>
+      {children}
     </div>
   );
 }
