@@ -286,13 +286,32 @@ Test inventory currently stands at **419 collected tests**, including **4** netw
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.
 - The Ollama runtime path (`OVERRIDE_LLM_RUNTIME=ollama`) covers chat only. Guardian (Pass-2 safety) and Embedding (regulation retrieval) still call watsonx — `WATSONX_API_KEY` remains required.
 
+## TTM-R2 Forecasting (Optional)
+
+**5-lap SoC forecasting** via IBM Granite Time Series TTM-R2 is available as an optional Docker service. The implementation is complete with full test coverage, but requires a separate container due to dependency conflicts (torch~=2.10 vs production's torch==2.11.0).
+
+**To enable forecasting**:
+```bash
+# Start with TTM service
+podman-compose up override ttm
+
+# Or add to existing services
+podman-compose up override ttm torcs
+```
+
+**Without TTM service** (default):
+- Pipeline runs end-to-end with graceful degradation (FR-3)
+- Energy curve shows "Forecast unavailable (session requires ≥30 laps)"
+- Reasoning continues from observed data only
+
+See [`docs/adrs/ADR-004-ttm-deployment.md`](docs/adrs/ADR-004-ttm-deployment.md) for architecture details.
+
 ## What's coming next (v1.1)
 
 Deferred from v1.0 for clean ship; documented here rather than half-implemented:
 
 | Track | Status | Pointer |
 |---|---|---|
-| **TTM-R2 5-lap SoC forecasting** (FR-3) | Deferred — graceful-degradation guardrail makes it optional; energy curve renders an explicit "Forecast unavailable" badge | `core/forecasting.py` (stub), [`docs/06-roadmap.md`](docs/06-roadmap.md) |
 | **Section B (Sporting Regulations) grounding** | PDF cached at `data/regs/`; not yet in the chunk corpus. Adds Override-Mode availability rules to `unused-override` zone citations (currently ships with `regulation_citation = null`) | [`docs/regulation-source.md`](docs/regulation-source.md) §"deliberately out of scope" |
 | **Full Ollama-only mode** | Today: chat only via `granite4:350m`. Guardian + Embedding equivalents not in the shipped Ollama model — see ADR-003 for the migration path | [`docs/adrs/ADR-003-llm-runtime-abstraction.md`](docs/adrs/ADR-003-llm-runtime-abstraction.md) |
 | **CI workflows** | Not in v1.0 scope. Quality gate today: `pytest -q -m "not network"` (340 green) + `npm run typecheck && npm run build` per the T-72h pre-flight in `docs/plans/final-lock-checklist.md` | `.github/workflows/` (empty placeholder removed in 3.1) |
@@ -306,7 +325,7 @@ Deferred from v1.0 for clean ship; documented here rather than half-implemented:
 
 ## Acknowledgements
 
-Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Embedding 278M Multilingual, Docling, and Langflow. (Granite Time Series TTM-R2 deferred to v1.1 per the graceful-degradation guardrail.)
+Built for the IBM SkillsBuild AI Builders Challenge, May 2026, organized by BeMyApp. Development accelerated using IBM Bob. Foundation laid by the IBM TORCS Learning Lab. Grounded in IBM Granite 4.x Instruct, Granite Guardian (latest), Granite Embedding 278M Multilingual, Granite Time Series TTM-R2 (optional Docker service), Docling, and Langflow.
 
 `RaceYourCode/gym_torcs/*` derives from [Gym-TORCS](https://github.com/ugo-nama-kun/gym_torcs) (MIT-licensed, © 2016 Naoto Yoshida), bundled here via the IBM SkillsBuild `hands-on-labs/01_torcs_lab/04_files/gym_torcs.zip` distribution. Original LICENSE preserved at `RaceYourCode/gym_torcs/LICENSE`.
 

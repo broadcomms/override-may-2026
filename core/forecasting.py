@@ -358,3 +358,136 @@ def forecast_lap_window(laps: list[LapFeatures]) -> Optional[Forecast]:
 
 
 __all__ = ["forecast_lap_window", "_ttm_context_length", "_ttm_min_laps"]
+
+"""TTM-R2 time-series forecasting (FR-3, optional per graceful-degradation guardrail).
+
+Local-only enhancement using IBM Granite TimeSeries TTM-R2.  Falls back
+gracefully when ``tsfm_public`` is unavailable or the session doesn't qualify.
+
+**HTTP Service Mode (ADR-004)**: When ``TTM_SERVICE_URL`` is set, forecasting
+calls are routed to a separate Docker service running torch~=2.10 to avoid
+the dependency conflict with the production stack's torch==2.11.0. The HTTP
+wrapper (``forecast_lap_window_http``) is the recommended entry point for
+production use.
+
+Eligibility gate
+----------------
+- ``len(laps) < max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH)`` → return None.
+
+The conservative ``max(...)`` ensures neither gate can be bypassed individually:
+``TTM_MIN_LAPS`` is the product quality floor; ``TTM_CONTEXT_LENGTH`` is the
+model's required input size.  Lower both together to experiment.
+
+TTM_CONTEXT_LENGTH (env, default 30)
+--------------------------------------
+Controls how many laps the model sees.  Also gates eligibility:
+``len(laps) >= TTM_CONTEXT_LENGTH`` must hold so the model gets a full window.
+Evaluation range: 30, 20, 15, 10, 5.  Product default stays at 30 until the
+short-context evaluation recommends a change.
+
+Pinned checkpoint compatibility
+------------------------------
+The pinned ``ibm-granite/granite-timeseries-ttm-r2`` revision declares
+``patch_length=64`` in its Hugging Face config.  OVERRIDE's lap-level forecast
+window tops out at 30 laps, so this checkpoint is incompatible with the current
+pipeline shape and returns None with an explicit warning instead of failing deep
+inside ``tsfm_public``.
+
+tsfm_public availability
+------------------------
+``granite-tsfm`` requires ``torch<2.11`` and ``transformers<5``.  The
+production stack pins ``torch==2.11.0`` and ``transformers==5.8.0``.  Install
+the library in a compatible environment (torch==2.10.x, transformers==4.x) to
+enable live forecasting.  In the standard dev environment the import guard
+catches the ``ImportError`` / ``RuntimeError`` and returns None — the rest of
+the pipeline is unaffected.
+
+Install command (compatible environment only)::
+
+    pip install "git+https://github.com/ibm-granite/granite-tsfm"
+
+See ``models.json`` for model IDs and revision SHA.
+See ``docs/adrs/ADR-001-watsonx-runtime.md`` for the local-vs-watsonx decision.
+See ``docs/adrs/ADR-004-ttm-deployment.md`` for the HTTP service architecture.
+See ``docs/06-roadmap.md`` P2.2 for the TTM-R2 context and forecast horizon.
+"""
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HTTP client wrapper for Docker service deployment (ADR-004)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def forecast_lap_window_http(laps: list[LapFeatures]) -> Optional[Forecast]:
+    """HTTP client wrapper for containerized TTM service (ADR-004).
+    
+    Routes forecast requests to a separate Docker service running torch~=2.10
+    to avoid the dependency conflict with the production stack's torch==2.11.0.
+    
+    Falls back to local inference if ``TTM_SERVICE_URL`` is not set, enabling
+    both deployment modes from the same codebase.
+    
+    Args:
+        laps: Per-lap features from ingest. Same signature as ``forecast_lap_window``.
+    
+    Returns:
+        Forecast object if successful, None otherwise (graceful degradation).
+        
+    Environment:
+        TTM_SERVICE_URL: HTTP endpoint of the TTM service (e.g., http://ttm:8001).
+                        If not set, falls back to local ``forecast_lap_window``.
+    
+    Never raises — all failures are logged and return None per FR-3.
+    """
+    service_url = os.environ.get("TTM_SERVICE_URL")
+    
+    if not service_url:
+        # Fallback to local inference (current behavior when service not available)
+        logger.debug("forecasting: TTM_SERVICE_URL not set, using local inference")
+        return forecast_lap_window(laps)
+    
+    try:
+        import httpx
+        
+        logger.debug(
+            "forecasting: calling TTM service at %s with %d laps",
+            service_url, len(laps)
+        )
+        
+        response = httpx.post(
+            f"{service_url}/forecast",
+            json={"laps": [lap.model_dump() for lap in laps]},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("forecast"):
+            forecast = Forecast.model_validate(data["forecast"])
+            logger.info(
+                "forecasting: TTM service returned forecast with %d-lap horizon",
+                len(forecast.point)
+            )
+            return forecast
+        
+        # Service returned None (graceful degradation, not an error)
+        logger.info(
+            "forecasting: TTM service returned None (eligible=%s, laps=%d)",
+            data.get("eligible", False), data.get("laps_received", 0)
+        )
+        return None
+        
+    except Exception as e:
+        logger.warning(
+            "forecasting: TTM service call failed: %s: %s — returning None",
+            type(e).__name__, e
+        )
+        return None
+
+
+__all__ = [
+    "forecast_lap_window",
+    "forecast_lap_window_http",
+    "_ttm_context_length",
+    "_ttm_min_laps",
+]

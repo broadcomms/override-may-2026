@@ -1,0 +1,43 @@
+# Dockerfile.ttm - TTM-R2 inference service
+# Isolated environment with torch~=2.10, transformers~=4.57 for tsfm_public compatibility
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy TTM-specific requirements
+COPY requirements-ttm.txt .
+RUN pip install --no-cache-dir -r requirements-ttm.txt
+
+# Copy only the modules the TTM service needs at runtime.
+#
+# Do not copy package __init__.py files from the main app here: importing
+# `core.forecasting` or `ingest.schema` through those package initializers would
+# pull in the entire production stack (FastF1, Guardian, regs, etc.), which the
+# isolated TTM image does not need.
+RUN mkdir -p core ingest RaceYourCode/gym_torcs
+COPY core/forecasting.py core/forecasting.py
+COPY ingest/schema.py ingest/schema.py
+COPY torcs_driver_profiles.py torcs_driver_profiles.py
+COPY RaceYourCode/gym_torcs/driver_config_contract.py RaceYourCode/gym_torcs/driver_config_contract.py
+
+# Create TTM service wrapper
+COPY ttm_service.py .
+
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+CMD ["uvicorn", "ttm_service:app", "--host", "0.0.0.0", "--port", "8001"]
+
+# Made with Bob

@@ -1,6 +1,6 @@
-# OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002)
+# OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002 + ADR-004)
 #
-# Four services, three profiles in the compose spec, one shared volume.
+# Five services, four profiles in the compose spec, one shared volume.
 # Supported operator commands in this repo's tested WSL environment:
 #
 #   podman-compose up                                # Mode 1: OVERRIDE alone
@@ -11,7 +11,13 @@
 #       docs/07-deployment.md for the deployment posture. (The original
 #       v6 §3.7 Hetzner CX32 VM plan was replaced post-pre-flight.)
 #
-#   podman-compose up override torcs                 # Mode 2: + live TORCS
+#   podman-compose up override ttm                   # Mode 2: + TTM-R2 forecasting
+#     → override + ttm. The ttm service provides 5-lap SoC forecasting via
+#       IBM Granite Time Series TTM-R2 in an isolated torch~=2.10 environment.
+#       First build downloads model weights (~500 MB); subsequent starts are fast.
+#       See docs/adrs/ADR-004-ttm-deployment.md for architecture.
+#
+#   podman-compose up override torcs                 # Mode 3: + live TORCS
 #     → override + torcs. The torcs service is the IBM SkillsBuild lab
 #       container; first-time pull is ~10 GB and 10–15 min (acceptable per
 #       v6 locked decision). Once cached, subsequent runs are fast.
@@ -20,18 +26,18 @@
 #       torcs-telemetry volume to /app/data/telemetry/ inside override —
 #       reachable via POST /api/sessions/torcs-live for live ingest.
 #
-#   podman-compose up override jaeger                # Mode 3: + Jaeger
+#   podman-compose up override jaeger                # Mode 4: + Jaeger
 #     → override + jaeger. Set OVERRIDE_TRACING=otlp in .env to wire OTel
 #       export to http://jaeger:4317. Trace UI at :16686.
 #
-#   podman-compose up override langflow              # Mode 4: + Langflow canvas
+#   podman-compose up override langflow              # Mode 5: + Langflow canvas
 #     → override + langflow. Visual design layer at :7860, custom components
 #       in langflow/override_components/ pre-loaded. First-time build of the
 #       langflow image is ~3–5 min (langflow base + OVERRIDE deps); subsequent
 #       starts are fast. Pure documentation surface — does NOT replace the
 #       FastAPI runtime. See langflow/README.md and docs/04-langflow-canvas.md.
 #
-#   podman-compose up override torcs jaeger langflow
+#   podman-compose up override ttm torcs jaeger langflow
 #     → all services together. The compose spec still uses profiles
 #       internally, but the supported operator path is explicit service
 #       selection.
@@ -66,6 +72,9 @@ services:
       # so the default OVERRIDE-only run remains unaffected.
       TORCS_CONTROL_URL: http://torcs:7000
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
+      # TTM-R2 forecast service — resolves to the ttm service when up.
+      # When not running, forecast_lap_window_http returns None gracefully.
+      TTM_SERVICE_URL: http://ttm:8001
     volumes:
       # Session persistence — survives container restarts.
       - ./data/sessions:/app/data/sessions:Z
@@ -217,6 +226,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s    # noVNC wait + pip install can be slow first run
+    networks:
+      - override-net
+
+  # ───────────────────────────────────────────────────────────────────────
+  # ttm — TTM-R2 forecast service (profile: ttm)
+  # ───────────────────────────────────────────────────────────────────────
+  # Isolated environment with torch~=2.10, transformers~=4.57 for tsfm_public
+  # compatibility. Exposes HTTP forecast endpoint at :8001. See ADR-004.
+  ttm:
+    build:
+      context: .
+      dockerfile: Dockerfile.ttm
+    image: override-ttm:local
+    container_name: override-ttm
+    profiles: [ttm]
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      # TTM-R2 configuration (matches core/forecasting.py defaults)
+      TTM_CONTEXT_LENGTH: ${TTM_CONTEXT_LENGTH:-30}
+      TTM_MIN_LAPS: ${TTM_MIN_LAPS:-30}
+      TTM_MAX_INTERVAL_WIDTH: ${TTM_MAX_INTERVAL_WIDTH:-0.15}
+      TTM_R2_REPO: ${TTM_R2_REPO:-ibm-granite/granite-timeseries-ttm-r2}
+      TTM_REVISION: ${TTM_REVISION:-d6a79570cac0f33d526601cd3a0fc7c80a8f9a2f}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s    # Model download can be slow on first run
     networks:
       - override-net
 

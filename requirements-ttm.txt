@@ -1,0 +1,13 @@
+# TTM service runtime - isolated from the main app's torch/transformers pins.
+# Keep this list limited to what Dockerfile.ttm needs to boot the HTTP service
+# and run Granite TTM-R2 inference.
+
+accelerate==1.13.0
+fastapi==0.136.1
+granite-tsfm @ git+https://github.com/ibm-granite/granite-tsfm@f8f685b7d8523ed29b622e4d9ef5b66a18622157
+numpy==2.4.6
+pydantic==2.13.4
+safetensors==0.7.0
+torch==2.10.0
+transformers==4.57.6
+uvicorn==0.46.0

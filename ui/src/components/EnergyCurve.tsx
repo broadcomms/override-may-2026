@@ -102,12 +102,12 @@ export function EnergyCurve({ laps, forecast, recommendations = [], onZoneClick 
   const showBrush = laps.length > 60;
   const forecastStatus = !forecast
     ? laps.length < 30
-      ? "Forecast unavailable — requires 30+ completed laps."
-      : "Forecast unavailable — TTM-R2 did not produce a live forecast artifact for this session."
+      ? "Forecast unavailable — requires 30+ completed laps for TTM-R2 forecasting."
+      : "Forecast unavailable — TTM-R2 service not running or forecast quality gate not met."
     : null;
   const forecastStatusTitle = !forecast
     ? laps.length < 30
-      ? "TTM-R2 only attempts a 5-lap forecast after 30 completed laps."
+      ? "TTM-R2 forecasting requires 30+ completed laps. Start with 'podman-compose up override ttm' to enable."
       : "This session had enough laps, but the optional TTM-R2 runtime was unavailable, incompatible, or rejected the forecast for confidence reasons."
     : undefined;
 
