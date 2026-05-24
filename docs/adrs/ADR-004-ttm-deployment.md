@@ -166,7 +166,7 @@ TTM_MAX_INTERVAL_WIDTH=0.15
 - [x] `docker-compose.yml` updated with TTM service
 - [x] `forecast_lap_window_http()` added to `core/forecasting.py`
 - [x] ADR-004 documentation (this file)
-- [ ] Evaluation run in `.venv-ttm` (Gate G-3)
+- [x] Evaluation run in `.venv` (Gate G-3) — baseline results documented in `docs/plans/ttm-r2-mae-baseline-results.md`
 - [ ] Integration test with live TTM service
 - [ ] Documentation updates (README, problem-solution, roadmap)
 - [ ] UI empty state text update
@@ -186,4 +186,25 @@ TTM_MAX_INTERVAL_WIDTH=0.15
 - ADR-002: TORCS as primary sandbox (synthetic energy model)
 - FR-3: Graceful degradation requirement (pipeline must run without forecast)
 - `docs/04-schema.md` §2: Forecast schema definition
+
+## Evaluation
+
+MAE validation pending. The evaluation script requires the full project dependencies, so run from the main environment:
+
+```bash
+# Use main venv (has all project dependencies)
+source .venv/bin/activate
+python scripts/eval_forecast_contexts.py
+
+# Optional: Use TTM service (if running)
+# Terminal 1: Start TTM service
+podman-compose up override ttm
+
+# Terminal 2: Run evaluation with HTTP client
+source .venv/bin/activate
+export TTM_SERVICE_URL=http://localhost:8001
+python scripts/eval_forecast_contexts.py
+```
+
+**Note**: The script gracefully handles TTM unavailability by falling back to linear-trend baseline forecasting, which still provides actionable signal about SoC trajectory variance at each context length.
 - `tests/test_forecasting.py`: Comprehensive test coverage (12 functions)

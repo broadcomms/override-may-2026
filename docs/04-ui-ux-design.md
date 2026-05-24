@@ -1,4 +1,4 @@
-# OVERRIDE — UI / UX Design
+# OVERRIDE - UI / UX Design
 
 This document describes the shipped product surface in `ui/` as it exists today. It covers the user-facing app. Backend contracts live in [`04-api.md`](./04-api.md) and [`04-schema.md`](./04-schema.md).
 

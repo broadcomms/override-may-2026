@@ -49,7 +49,7 @@ Frame the system
 
 
 
-**0:00–0:20 — Hook (Cold Open: the 2026 problem)**
+**0:00–0:20 - Hook (Cold Open: the 2026 problem)**
 
 - **Visual:** 
 Black screen → fade in: split-screen of an old hybrid energy graph (left, simple) vs. a new 2026 multi-zone energy map (right, dense). 
@@ -70,9 +70,9 @@ Cut to: OVERRIDE logo + locked positioning sentence as text card. (3 seconds.)
 
 ⸻
 
-**0:20–0:50 — Problem Statement**
+**0:20–0:50 - Problem Statement**
 - **Visual:** 
-Raw telemetry overload — wall of numbers scrolling. 
+Raw telemetry overload - wall of numbers scrolling. 
 Then a confused engineer-style avatar with a question mark. (generic schematic engineer-style)
 
 - **Voiceover:**
@@ -85,7 +85,7 @@ Text overlay: "Today's tools show data, not reasoning."
 
 ⸻
 
-**0:50–1:40 — OVERRIDE Live Demo (Engineer-Mode)**
+**0:50–1:40 - OVERRIDE Live Demo (Engineer-Mode)**
 
 - **Visual:** 
 Browser. Drag a TORCS replay file onto the upload area. 
@@ -116,7 +116,7 @@ This is the core scoring section.
 
 ⸻
 
-**1:40–2:10 — Explainability (The Hero)**
+**1:40–2:10 - Explainability (The Hero)**
 
 - **Visual:** Slow zoom on the reasoning card. Show:
   - The thought trace
@@ -127,7 +127,7 @@ This is the core scoring section.
 
 - **Voiceover (38 words):** *"This is the core. Every recommendation cites a specific regulation clause. Two safety passes - deterministic validation, then Granite Guardian's AI scoring on custom criteria. If either fails, it's regenerated. The engineer always sees the reasoning before any decision."
 
-Every output is scored by Granite Guardian against custom criteria — energy-safety, regulation-consistency. If it fails, it's regenerated. The engineer always sees the reasoning before any decision."*
+Every output is scored by Granite Guardian against custom criteria - energy-safety, regulation-consistency. If it fails, it's regenerated. The engineer always sees the reasoning before any decision."*
 
 This section matters more than people think.
 
@@ -145,12 +145,12 @@ This directly satisfies:
 
 ⸻
 
-**2:10–2:30 — Fan Mode** (20s)
+**2:10–2:30 - Fan Mode** (20s)
 
 - **Visual:** Click "Fan Mode" toggle in header. Same data, simplified. Plain-language card replaces the technical one.
 - **Sample text on screen:** *"In Turn 16, your car spent battery power on a corner where it didn't help much. That cost about half a tenth on the next straight."*
 
-- **Voiceover (~16 words):** *"One click switches to Fan Mode. Same intelligence, plain language — engineers, broadcasters, and fans on the same page."*
+- **Voiceover (~16 words):** *"One click switches to Fan Mode. Same intelligence, plain language - engineers, broadcasters, and fans on the same page."*
 
 Translate the same strategy into plain English.
 
@@ -162,17 +162,17 @@ Now you hit teams, drivers, and fans simultaneously.
 
 ⸻
 
-**2:30–2:42 — Architecture quick-cut** (12s)
+**2:30–2:42 - Architecture quick-cut** (12s)
 - **Visual:**
 Langflow canvas screenshot (4s).
 Architecture diagram (4s).
 Jaeger/OpenTelemetry trace (4s).
 
-- **Voiceover (~22 words):** *"Built on IBM watsonx.ai with Granite Instruct, Guardian, Embedding, and Time Series — plus Docling and Langflow. Open source. Apache 2.0."*
+- **Voiceover (~22 words):** *"Built on IBM watsonx.ai with Granite Instruct, Guardian, Embedding, and Time Series - plus Docling and Langflow. Open source. Apache 2.0."*
 
 ⸻
 
-**2:42–2:55 — Closing** (13s)
+**2:42–2:55 - Closing** (13s)
 
 - **Visual:** OVERRIDE logo + locked positioning sentence + GitHub URL.
 - **Voiceover (~15 words):** *"OVERRIDE. Explainable race-strategy AI for the 2026 hybrid era. Code in the description. Built lean."*
@@ -191,8 +191,8 @@ Safer wording in the product:
 
 “grounded in the relevant 2026 FIA energy-management regulation section”
 
-> Modified fixture at 9.30 MJ over cap — that's the demo
-This is gold for the video. The plan's whole pitch — "explainable AI race-strategy copilot grounded in regulation" — is concrete here:
+> Modified fixture at 9.30 MJ over cap - that's the demo
+This is gold for the video. The plan's whole pitch - "explainable AI race-strategy copilot grounded in regulation" - is concrete here:
 
 Validator's harvest_cap rule (which we activated via extract_harvest_cap_mj() returning 8.5 MJ from Issue 18 chunks) will fire on this fixture
 Zone detector's over-harvest pattern will fire
@@ -201,18 +201,18 @@ Pass-1 catches it; the layered-defense story renders cleanly,
 
 When you record Segment 3 in Week 3, use the modified fixture as the "watch the system catch a real over-harvest violation" beat. Stronger rubric story than the synthetic layered_defense_demo.json because it's grounded in actual TORCS driving with a real regulation cap from the Docling extraction.
 
-The fact that the FastF1-tuned coefficients happen to land in the 3–7 MJ band on TORCS without re-tuning is real luck — both schemes integrate similar duty cycles. The calibration test now permanently locks this: if anyone later "improves" the constants for the wrong reason, the gate fires.
+The fact that the FastF1-tuned coefficients happen to land in the 3–7 MJ band on TORCS without re-tuning is real luck - both schemes integrate similar duty cycles. The calibration test now permanently locks this: if anyone later "improves" the constants for the wrong reason, the gate fires.
 The 9.30 MJ modified-fixture median is excellent. Over-harvest deliberately exceeds the 8.5 MJ cap → exercises the harvest_cap validator rule → produces a real "system catches a violation" beat for the demo video. The two fixtures now cover both the happy path AND the rejection path organically. That's a meaningful upgrade over the synthetic engineer_happy_demo we've been showing.
 
 **SSE pre-flight passed. Phase 2 greenlit.**
-The Cloudflare test came back clean — data: {"event": "connected", ...} and data: {"event": "no_telemetry", ...} arrived separately and in real-time through override-dev.patrickndille.com, which proves the SSE path through Cloudflare's edge isn't buffering. The hosted demo gets the live beat. That's a real upgrade to the demo story.
+The Cloudflare test came back clean - data: {"event": "connected", ...} and data: {"event": "no_telemetry", ...} arrived separately and in real-time through override-dev.patrickndille.com, which proves the SSE path through Cloudflare's edge isn't buffering. The hosted demo gets the live beat. That's a real upgrade to the demo story.
 
 How Phase 2 changes the demo
 Segment 3 of the video gains a meaningfully stronger beat. Before/after:
 Before (Phase 1+3 only):
 
 Drop a TORCS replay fixture → dashboard renders
-Cut to live telemetry view (Phase 3) — speed, SoC, lap progression
+Cut to live telemetry view (Phase 3) - speed, SoC, lap progression
 Race ends → recommendation cards appear
 
 After (Phase 1+2+3):
@@ -224,7 +224,7 @@ After (Phase 1+2+3):
 Recommendation cards appear
 
 That's the "judges don't have to type commands" story you wanted from the beginning. The demo now reads as a polished interactive app rather than a hackathon demo with manual terminal steps.
-The video script's Segment 3 needs an update for this — replace "drag-drop a fixture file" with "click Start Race" as the opening action. ~10-min script update.
+The video script's Segment 3 needs an update for this - replace "drag-drop a fixture file" with "click Start Race" as the opening action. ~10-min script update.
 
 
 ## The Most Important Insight
@@ -257,11 +257,11 @@ This is exactly how enterprise AI companies frame dependencies.
 
 ## Discord Pitch (#may-challenge-and-lab)
 
-> Post early in the build window — the longer the lead time, the longer we have to course-correct on organizer feedback (risk R10). Channel: `#may-challenge-and-lab` per the kickoff webinar.
+> Post early in the build window - the longer the lead time, the longer we have to course-correct on organizer feedback (risk R10). Channel: `#may-challenge-and-lab` per the kickoff webinar.
 
 Hi Sydney and Lucas! Quick fit-check on my idea:
 
-OVERRIDE — an explainable AI race-strategy copilot that helps engineers AND
+OVERRIDE - an explainable AI race-strategy copilot that helps engineers AND
 fans understand 2026 F1 hybrid energy decisions. Upload a session replay,
 get inefficient-zone analysis with reasoning grounded in the FIA's 2026
 energy-management regulations (parsed with Docling), optional forecasting
@@ -349,9 +349,9 @@ That positioning feels:
 
 3. The new FIA regs are an architectural update, not a polish item
 You downloaded eight new PDFs into data/regs/. The composition matters:
-FileImplicationSection A General Provisions Iss 02 (2026-02-27)New — definitions, scopingSection B Sporting Iss 06 (2026-04-28)Override Mode availability rules — previously OUT OF SCOPE for OVERRIDESection C Technical Iss 12 (2025-06-10)The current G-4 source (canonical citation)Section C Technical Iss 18 (2026-05-07)Supersedes Iss 12 — current G-4 is now staleSection D Financial (F1 Teams)Out of scopeSection E Financial (PU Manufacturers)Out of scopeSection F Operational Iss 08 (2026-05-07)Possibly relevant for telemetry/data definitions
+FileImplicationSection A General Provisions Iss 02 (2026-02-27)New - definitions, scopingSection B Sporting Iss 06 (2026-04-28)Override Mode availability rules - previously OUT OF SCOPE for OVERRIDESection C Technical Iss 12 (2025-06-10)The current G-4 source (canonical citation)Section C Technical Iss 18 (2026-05-07)Supersedes Iss 12 - current G-4 is now staleSection D Financial (F1 Teams)Out of scopeSection E Financial (PU Manufacturers)Out of scopeSection F Operational Iss 08 (2026-05-07)Possibly relevant for telemetry/data definitions
 Two real consequences:
-(a) G-4 closure is now out of date. docs/regulation-source.md and data/regs/extracted_chunks.sample.json both pin to "Issue 12 — 2025-06-10." The newer Issue 18 (May 7, 2026 — six weeks newer) is now in the corpus. The harvest_cap value of 8.5 MJ may have shifted in Issue 18; the article numbers may have renumbered; the language may differ. G-4 needs re-verification against Issue 18 before P3.5 screenshot capture and definitely before video record.
+(a) G-4 closure is now out of date. docs/regulation-source.md and data/regs/extracted_chunks.sample.json both pin to "Issue 12 - 2025-06-10." The newer Issue 18 (May 7, 2026 - six weeks newer) is now in the corpus. The harvest_cap value of 8.5 MJ may have shifted in Issue 18; the article numbers may have renumbered; the language may differ. G-4 needs re-verification against Issue 18 before P3.5 screenshot capture and definitely before video record.
 
 ---
 

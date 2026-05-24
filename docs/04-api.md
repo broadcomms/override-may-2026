@@ -1,4 +1,4 @@
-# OVERRIDE — HTTP API
+# OVERRIDE - HTTP API
 
 This document describes the shipped FastAPI surface in [`api/main.py`](../api/main.py). Schema shapes are documented in [`04-schema.md`](./04-schema.md).
 

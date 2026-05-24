@@ -1,4 +1,4 @@
-# OVERRIDE — AI / Technical Approach
+# OVERRIDE - AI / Technical Approach
 
 > Submission artifact for the IBM SkillsBuild AI Builders Challenge (May 2026). Strategic argument lives in [`00-thesis.md`](./00-thesis.md); architecture diagram in [`03-architecture.md`](./03-architecture.md); contracts in [`04-schema.md`](./04-schema.md), [`04-api.md`](./04-api.md), [`04-ui-ux-design.md`](./04-ui-ux-design.md), [`04-langflow-canvas.md`](./04-langflow-canvas.md). This document explains *how* OVERRIDE is built and *why* each component is shaped the way it is.
 
@@ -6,7 +6,7 @@
 
 ## 1. Approach in one paragraph
 
-OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay; OVERRIDE detects inefficient deploy / harvest / recharge / override zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture — a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning + citations + what-if) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **v1.0 ships five IBM technologies — Granite Instruct, Granite Guardian, Granite Embedding, Docling, Langflow.** Granite Time Series TTM-R2 (a 5-lap SoC forecast over the energy curve) is **deferred to v1.1** per the graceful-degradation guardrail: the pipeline runs end-to-end without it, and the UI renders an explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling runs locally. See `docs/adrs/ADR-001-watsonx-runtime.md`.)
+OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay or ingests a completed TORCS live capture; OVERRIDE detects inefficient deploy / harvest / recharge / override zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture - a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning + citations + what-if) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **v1.0 ships six IBM technologies - Granite Instruct, Granite Guardian, Granite Embedding, Granite Time Series TTM-R2, Docling, and Langflow.** Granite Time Series TTM-R2 runs as an optional isolated service because of torch dependency constraints; when the service is unavailable or a session lacks 30 completed laps, the pipeline returns `forecast=None` and continues from observed evidence only. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling and TTM-R2 run locally. See `docs/adrs/ADR-001-watsonx-runtime.md` and `docs/adrs/ADR-004-ttm-deployment.md`.)
 
 ---
 
@@ -25,7 +25,7 @@ Upload  ─▶  Ingest  ─▶  Lap features  ─▶  Zone Detector  ─▶  Rea
 
 Full Mermaid source in [`03-architecture.mmd`](./03-architecture.mmd).
 
-The orange line is the **decision-support boundary**: nothing past Reasoning makes a recommendation visible to the user without first passing through both safety passes. A retry budget of two means failing recommendations either regenerate cleanly or ship explicitly flagged with a low-confidence badge — they are never silently dropped.
+The orange line is the **decision-support boundary**: nothing past Reasoning makes a recommendation visible to the user without first passing through both safety passes. A retry budget of two means failing recommendations either regenerate cleanly or ship explicitly flagged with a low-confidence badge - they are never silently dropped.
 
 ---
 
@@ -41,7 +41,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Output.** `list[LapFeatures]` with the canonical schema in [`04-schema.md` §3](./04-schema.md#3-lap-level-features): SoC start/end, harvest, deploy, lap time, sector times, speeds, override and boost counts, recharge zones.
 
-**Energy-state derivation.** When the underlying source does not natively expose state-of-charge or energy flux (TORCS may not), values are derived from throttle and brake integrals. The `soc_source` field on every lap row is set to `"derived"` so downstream consumers — and the user — know the provenance. This is risk R1 in `05-risk-register.md`, decided at gate G-2.
+**Energy-state derivation.** When the underlying source does not natively expose state-of-charge or energy flux (TORCS may not), values are derived from throttle and brake integrals. The `soc_source` field on every lap row is set to `"derived"` so downstream consumers - and the user - know the provenance. This is risk R1 in `05-risk-register.md`, decided at gate G-2.
 
 ### 3.2 Heuristic zone detection (`analysis/zone_detector.py`)
 
@@ -58,7 +58,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Output.** `list[Zone]` with severity (`low` / `medium` / `high`) and per-type metrics. Granite reasons over these zones; it does *not* replace them.
 
-### 3.3 TTM-R2 forecasting (`core/forecasting.py`) — optional
+### 3.3 TTM-R2 forecasting (`core/forecasting.py`) - optional
 
 **Role.** 5-lap state-of-charge trajectory used to enrich the reasoning prompt and to render a dotted forecast continuation on the energy curve.
 
@@ -68,7 +68,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Output.** `Forecast` with point predictions and prediction intervals over the next five laps.
 
-**Graceful degradation.** Forecasting runs only when (a) `len(laps) >= 30` and (b) the prediction-interval width stays under the configured threshold. Otherwise `forecast = None` and the rest of the pipeline proceeds — the energy curve renders an empty-state hint, the reasoning prompt switches to *"based on the observed pattern"* framing, and no fabricated forecast is ever returned. This is non-functional requirement NFR/Reliability and risk R2.
+**Graceful degradation.** Forecasting runs only when (a) `len(laps) >= 30` and (b) the prediction-interval width stays under the configured threshold. Otherwise `forecast = None` and the rest of the pipeline proceeds - the energy curve renders an empty-state hint, the reasoning prompt switches to *"based on the observed pattern"* framing, and no fabricated forecast is ever returned. This is non-functional requirement NFR/Reliability and risk R2.
 
 **Lap-level resolution.** TTM-R2's open-source release is documented for minutely-to-hourly resolution. Aggregating to one row per lap (~90 seconds) keeps the system inside the model's published scope and avoids overclaiming sub-second capability.
 
@@ -80,8 +80,8 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 1. `scripts/download_regulations.py` fetches the public PDF from `fia.com`. The PDF is **not** committed to the repo.
 2. **Docling** parses the PDF into structured DocTags, isolating the verified energy-management section.
-3. Chunks are saved to `data/regs/extracted_chunks.sample.json` (small, derivative — committable).
-4. `core/regs.py` performs keyword + embedding-based retrieval over the chunks (embeddings via `ibm/granite-embedding-278m-multilingual` on watsonx, 768-dim — see ADR-001), returning the most relevant `RegulationChunk` for a given zone type. **Chunks are embedded once at boot** via `scripts/embed-watsonx.sh` and persisted into `RegulationChunk.embedding`; per-query, only the zone-type query is embedded against the same model (~200–500 ms).
+3. Chunks are saved to `data/regs/extracted_chunks.sample.json` (small, derivative - committable).
+4. `core/regs.py` performs keyword + embedding-based retrieval over the chunks (embeddings via `ibm/granite-embedding-278m-multilingual` on watsonx, 768-dim - see ADR-001), returning the most relevant `RegulationChunk` for a given zone type. **Chunks are embedded once at boot** via `scripts/embed-watsonx.sh` and persisted into `RegulationChunk.embedding`; per-query, only the zone-type query is embedded against the same model (~200–500 ms).
 5. The retrieved chunk's `RegulationSource` (document title, issue, section, public URL, fetch timestamp) flows through to the reasoning prompt and into `RegulationCitation` on the output.
 
 **Hard rule: dynamic, never hardcoded.** No prompt, schema default, fixture, or user-facing string carries a literal article number. Every `section` value is read from the Docling extraction at runtime. The FIA actively amends the regulation mid-season; any tool that hardcodes `"Article B7.2.3"` rots inside one season. Verification gate **G-4** must pass before any reasoning ships with a real citation; until then, prompts use generic phrasing and the UI shows a banner. (Risks R13, R14.)
@@ -96,15 +96,15 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Output.** `ReasoningOutput` per [`04-schema.md` §7](./04-schema.md#7-reasoning):
 
-- `cause` — one sentence describing what happened in the data.
-- `consequence` — one sentence describing the energy or lap-time impact.
-- `recommendation` — one sentence offering a strategy alternative the engineer could explore. Tone: *"consider"*, *"could explore"*. Never *"you must"*, *"optimal"*, *"always"*.
-- `regulation_citation` — verbatim ≤25-word passage + structured `RegulationSource`. `null` if no relevant chunk was retrieved.
-- `confidence` — one of `low`, `medium`, `high`.
-- `confidence_justification` — one sentence explaining the confidence level.
-- `reasoning_chain` — 3–5 short steps showing how evidence became conclusion. This is the engineer-visible trace.
+- `cause` - one sentence describing what happened in the data.
+- `consequence` - one sentence describing the energy or lap-time impact.
+- `recommendation` - one sentence offering a strategy alternative the engineer could explore. Tone: *"consider"*, *"could explore"*. Never *"you must"*, *"optimal"*, *"always"*.
+- `regulation_citation` - verbatim ≤25-word passage + structured `RegulationSource`. `null` if no relevant chunk was retrieved.
+- `confidence` - one of `low`, `medium`, `high`.
+- `confidence_justification` - one sentence explaining the confidence level.
+- `reasoning_chain` - 3–5 short steps showing how evidence became conclusion. This is the engineer-visible trace.
 
-**Hard rules.** Cite verbatim or set citation `null` and lower confidence. Never claim certainty about counterfactual outcomes. Never reference future laps with certainty when `forecast` is null. JSON only — no prose preamble.
+**Hard rules.** Cite verbatim or set citation `null` and lower confidence. Never claim certainty about counterfactual outcomes. Never reference future laps with certainty when `forecast` is null. JSON only - no prose preamble.
 
 ### 3.6 Pass 1: deterministic validator (`core/validator.py`, `core/validator.yaml`)
 
@@ -120,7 +120,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 | `language_safety` | No matches for `you must`, `optimal`, `always`, `definitely will`. |
 | `source_consistency` | `regulation_citation.source` matches a chunk's source field. |
 
-**Behavior on fail.** Regenerate with a stricter prompt, max 2 retries. After 2 retries: ship the recommendation explicitly flagged with the failed rules, never silently drop. Pass 1 must remain functional even if Pass 2 thresholds are loosened — gate G-5.
+**Behavior on fail.** Regenerate with a stricter prompt, max 2 retries. After 2 retries: ship the recommendation explicitly flagged with the failed rules, never silently drop. Pass 1 must remain functional even if Pass 2 thresholds are loosened - gate G-5.
 
 ### 3.7 Pass 2: Granite Guardian BYOC (`core/guardian.py`, `guardian/byoc_criteria.yaml`)
 
@@ -137,7 +137,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Behavior on fail.** Both criteria must score ≥ `pass_threshold` (default 0.70). On fail, regenerate with an explicit-citation-required prompt, max 2 retries. After 2 retries, ship with `final_confidence = "low"` and a visible AI Safety Review badge on the card.
 
-**Why two passes.** Pass 1 protects the demo: hardcoded checks always work. Pass 2 catches semantic problems Pass 1 cannot see — a citation that exists but is irrelevant to the zone type, or a recommendation that approaches a regulatory limit without warning. Both pass results are *visible to the user* as separate badges; OVERRIDE shows its working.
+**Why two passes.** Pass 1 protects the demo: hardcoded checks always work. Pass 2 catches semantic problems Pass 1 cannot see - a citation that exists but is irrelevant to the zone type, or a recommendation that approaches a regulatory limit without warning. Both pass results are *visible to the user* as separate badges; OVERRIDE shows its working.
 
 ### 3.8 Fan Mode translation (`core/fan_mode.py`, `prompts/fan_mode.system.md`)
 
@@ -153,7 +153,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Hard rule.** Fan Mode never recommends actions to drivers or teams. It explains what happened. What-if controls live in Engineer Mode only.
 
-### 3.9 Langflow canvas (`langflow/override.flow.json`) — design layer
+### 3.9 Langflow canvas (`langflow/override.flow.json`) - design layer
 
 **Role.** A visual mirror of the production pipeline that judges and contributors can read at a glance, plus a one-shot demo flow that runs end-to-end on a sample replay during the video recording.
 
@@ -175,15 +175,15 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 Every non-obvious decision in OVERRIDE traces back to the thesis in [`00-thesis.md`](./00-thesis.md).
 
-- **Explainability over speed.** Public AI tools in this space already optimize for prediction quality. The scarce resource in the 2026 era is *understandable* output. OVERRIDE shows reasoning chains, cites regulations verbatim, and surfaces both safety passes — judges and engineers can *audit* the model.
+- **Explainability over speed.** Public AI tools in this space already optimize for prediction quality. The scarce resource in the 2026 era is *understandable* output. OVERRIDE shows reasoning chains, cites regulations verbatim, and surfaces both safety passes - judges and engineers can *audit* the model.
 - **Replay-first, not live.** Live trackside inference would require licensed team telemetry we cannot honestly source. Replay-first makes the system deterministic, demoable, and accurate about what it is.
 - **Heuristics first, then AI.** Pure-Python zone detection runs every time. Granite reasons over the heuristics; it does not replace them. If every model fails, the heuristic baseline still produces useful zones.
 - **Lap-aggregated forecasting.** Stays inside TTM-R2's documented operating range and avoids overclaiming.
 - **Graceful degradation.** Pipeline runs end-to-end without TTM. Forecasting is enhancement, not gating.
-- **Two-pass safety.** Deterministic Pass 1 protects the demo if AI Pass 2 is rough. Both passes' results are shown — defense-in-depth, not a black box.
+- **Two-pass safety.** Deterministic Pass 1 protects the demo if AI Pass 2 is rough. Both passes' results are shown - defense-in-depth, not a black box.
 - **Dynamic regulation grounding.** Article numbers are read from the Docling extraction at runtime. The regulation moves; hardcoded prose rots.
 - **One engine, two surfaces.** Engineer Mode and Fan Mode share reasoning, grounding, and Guardian scoring. Only rendering differs. The explainability story scales from pit wall to broadcast booth without forking the model.
-- **Decision support, never replacement.** Language enforced everywhere — *supports / explains / highlights / recommends*, never *decides / autonomously / optimal*. This is also a regulatory framing for the IBM SkillsBuild brief, which excludes "autonomous systems that replace human decision-making."
+- **Decision support, never replacement.** Language enforced everywhere - *supports / explains / highlights / recommends*, never *decides / autonomously / optimal*. This is also a regulatory framing for the IBM SkillsBuild brief, which excludes "autonomous systems that replace human decision-making."
 - **Langflow as design layer, FastAPI as runtime.** Visual orchestration documents architecture; FastAPI carries the production path.
 
 ---
@@ -209,9 +209,9 @@ Optional polish: ContextForge for an MCP-gateway Jaeger trace screenshot. Direct
 
 OVERRIDE is built to run end-to-end on a clean machine without bespoke setup:
 
-- **One-command install.** `podman-compose up` starts the FastAPI runtime and serves the built UI bundle as static files from `:8000`. When TORCS, Jaeger, or Langflow are needed, the supported commands are `podman-compose up override torcs`, `podman-compose up override jaeger`, and `podman-compose up override langflow`. Granite reasoning calls go to watsonx.ai using credentials from `.env`. The README's Quickstart is the contract.
+- **One-command install.** `podman-compose up` starts the FastAPI runtime and serves the built UI bundle as static files from `:8000`. When TORCS, Jaeger, Langflow, or TTM-R2 are needed, the supported commands are `podman-compose up override torcs`, `podman-compose up override jaeger`, `podman-compose up override langflow`, and `podman-compose up override ttm`. Granite reasoning calls go to watsonx.ai using credentials from `.env`. The README's Quickstart is the contract.
 - **Pinned versions.** `requirements.txt` pins Python deps; `models.json` records the watsonx model IDs, region, project-ID env var, and TTM-R2 HuggingFace revision. Locked at gate G-1 before any reasoning code is written.
-- **Public data only.** Sample replays in `data/samples/` come from the IBM TORCS Learning Lab simulator and FastF1 historical sessions. The FIA regulation PDF is fetched via `scripts/download_regulations.py` — never committed.
+- **Public data only.** Sample replays in `data/samples/` come from the IBM TORCS Learning Lab simulator and FastF1 historical sessions. The FIA regulation PDF is fetched via `scripts/download_regulations.py` - never committed.
 - **Deterministic outputs.** LLM temperature pinned. End-to-end QA on roadmap P3.7 verifies the same input produces the same output across runs on 5 TORCS + 2 FastF1 replays.
 - **Versioned API surface.** `GET /api/version` returns build SHA + locked model versions so any reviewer can reproduce a result.
 - **Originals only.** No F1 broadcast footage, paddock photography, or team livery in any submission asset. TORCS output, UI recordings, generated charts, Langflow canvas, and original animations only.
@@ -220,7 +220,7 @@ OVERRIDE is built to run end-to-end on a clean machine without bespoke setup:
 
 ## 7. Limitations honestly stated
 
-- Demo data uses the IBM TORCS Learning Lab simulator and FastF1 historical replays — this is not authoritative team telemetry.
+- Demo data uses the IBM TORCS Learning Lab simulator and FastF1 historical replays - this is not authoritative team telemetry.
 - The 2026 regulations are still evolving; the system reads the current public PDF and grounds in it, but newer amendments require re-ingestion.
 - TTM-R2 forecasting requires 30-lap context windows; sessions shorter than that fall back to heuristic-only mode (forecast unavailable).
 - Fan Mode uses an LLM for plain-language translation; it is Guardian-screened but is not a substitute for professional commentary.

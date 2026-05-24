@@ -2,22 +2,22 @@
 
 OVERRIDE ships in two shapes:
 
-1. **Local** — `podman-compose up` for OVERRIDE alone, plus explicit service-selection commands such as `podman-compose up override torcs` when auxiliary services are needed. Default path; documented in [`README.md`](../README.md). What judges experience when they clone the repo.
-2. **Ephemeral hosted demo** — a **Cloudflare Tunnel** from a local WSL2 host, exposing the compose stack on a subdomain of `patrickndille.com` for the IBM SkillsBuild judging window (May 27 – May 31, 2026). Single-purpose, route-revoke post-May-31, **not a production deployment.**
+1. **Local**: `podman-compose up` for OVERRIDE alone, plus explicit service-selection commands such as `podman-compose up override torcs` when auxiliary services are needed. Default path; documented in [`README.md`](../README.md). What users experience when they clone the repo.
+2. **Ephemeral hosted demo**  through a **Cloudflare Tunnel** from a local Ubuntu WSL2 or Cloud VM, exposing the compose stack on a subdomain of `patrickndille.com` for the IBM SkillsBuild judging window. Single-purpose, route-revoke post challenge, **this is not a production deployment.**
 
-The hosted demo is convenience, not the architectural promise. Per the v6 plan cuts list, item #4 is "skip cloud-VM provisioning; README-only deploy with `podman-compose up` on a local machine." Strongly preferred but not in the hard floor.
+The hosted demo is convenience, not the architectural promise. Per the v6 plan cuts list, item #4 is "skip cloud-VM provisioning; README-only deploy with `podman-compose up` on a local Linux machine." Strongly preferred but not in the hard floor.
 
-This document is the runbook for the Cloudflare Tunnel deployment (v6 plan §3.7, amended).
+This document is the runbook for the Cloudflare Tunnel deployment.
 
-> **History.** v6 plan §3.7 originally specified a Hetzner CX32 VM (~$3 for the judging window). The post-pre-flight pivot is to **Cloudflare Tunnel from local WSL** — $0 cost, automatic TLS at the Cloudflare edge, no SSH key management, no UFW config, tear-down is revoking tunnel routes. The trade-off is **availability tracks the local laptop's uptime** (mitigated via `--restart=always`, no-sleep settings, and the local-clone fallback in README).
+> **History.** v6 plan §3.7 originally specified using a Hetzner CX32 VM (~$3 for the judging window). The post-pre-flight pivot is to **Cloudflare Tunnel from local WSL** - $0 cost, automatic TLS at the Cloudflare edge, no SSH key management, no UFW config, tear-down is revoking tunnel routes. The trade-off is **availability tracks the local Windows server's uptime** (mitigated via `--restart=always`, no-sleep settings, and the local-clone fallback in README).
 
 ---
 
-## §1 — Architecture
+## §1 - Architecture
 
 ```
 ┌──────────────────────┐        ┌─────────────────────┐        ┌────────────────────┐
-│ Judge's browser      │  HTTPS │ Cloudflare edge     │  WSS   │ cloudflared daemon │
+│ User's browser       │  HTTPS │ Cloudflare edge     │  WSS   │ cloudflared daemon │
 │ override.patrick…    │───────▶│ (TLS termination,   │───────▶│ on local WSL2      │
 │ torcs-run.patrick…   │        │ Access policies)    │        │ (rootless tunnel)  │
 │ jaeger.patrick…      │        └─────────────────────┘        └─────────┬──────────┘
@@ -44,27 +44,27 @@ Routes (in the Cloudflare dashboard → Zero Trust → Networks → Tunnels → 
 
 ---
 
-## §2 — Why two routes are gated and two are deleted
+## §2 - Why two routes are gated and two are deleted
 
-⚠️ **noVNC, Jaeger, Ollama, and Langflow all ship with NO authentication by default.** Cloudflare Tunnel by itself just brings the surface to the public internet — it does not add auth. Without further config, any of these four subdomains hands a stranger an unauthenticated admin interface.
+⚠️ **noVNC, Jaeger, Ollama, and Langflow all ship with NO authentication by default.** Cloudflare Tunnel by itself just brings the surface to the public internet - it does not add auth. Without further config, any of these four subdomains hands a stranger an unauthenticated admin interface.
 
 Risk shape:
 
 | Subdomain | What an unauth visitor gets | Mitigation chosen |
 |---|---|---|
-| `override` (`:8000`) | Read-only-ish FastAPI + UI; watsonx calls (cost lever, no privilege escalation). Single-user replay-first per [`docs/05-security.md`](./05-security.md). | **Public** — the demo. Only "cost" is watsonx burn, capped by the CA$10 Essentials budget alerts. |
-| `torcs-run` (`:6080`) | Full remote desktop into the TORCS container. Anyone can drive the sim, change container state, and depending on container escape vectors, potentially reach the host. | **Gated** — Cloudflare Access with email allowlist. |
-| `jaeger` (`:16686`) | All trace content: prompt text, model IDs, request timing, internal pipeline shape. Information disclosure. | **Gated** — same Access policy. |
+| `override` (`:8000`) | Read-only-ish FastAPI + UI; watsonx calls (cost lever, no privilege escalation). Single-user replay-first per [`docs/05-security.md`](./05-security.md). | **Public** - The demo. Only "cost" is watsonx burn, capped by the CA$10 Essentials budget alerts. |
+| `torcs-run` (`:6080`) | Full remote desktop into the TORCS container. Anyone can drive the sim, change container state, and depending on container escape vectors, potentially reach the host. | **Gated** - Cloudflare Access with email allowlist. |
+| `jaeger` (`:16686`) | All trace content: prompt text, model IDs, request timing, internal pipeline shape. Information disclosure. | **Gated** - same Access policy. |
 | `ollama` (`:11434`) | Free unmetered LLM inference for anyone who finds the subdomain. Even with Cloudflare Access, an authenticated visitor has full inference. No legitimate use case for external access. | **Route deleted entirely.** |
 | `langflow` (`:7860`) | Visual flow editor with arbitrary-tool execution. Out of v1 demo scope. | **Route deleted entirely.** |
 
-**Subdomain enumeration is trivial** — once `override.patrickndille.com` is in the BeMyApp portal, `crt.sh`, `subfinder`, and a 5-second guess at sibling names will surface the others. There is no security-through-obscurity here.
+**Subdomain enumeration is trivial**. Once `override.patrickndille.com` is in the BeMyApp portal, `crt.sh`, `subfinder`, and a 5-second guess at sibling names will surface the others. There is no security-through-obscurity here.
 
 ### Cloudflare Access policy setup (~5 min per gated subdomain)
 
 1. Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**.
 2. **Application domain**: e.g. `torcs-run.patrickndille.com`.
-3. **Session duration**: 24 hours (judging window is 5 days; 24h is the sweet spot — re-auth once per day, no perpetual sessions).
+3. **Session duration**: 24 hours (judging window is 5 days; 24h is the sweet spot, re-auth once per day, no perpetual sessions).
 4. **Identity providers**: enable **One-time PIN** (zero setup; judges enter their email, get a code, click through). Add specific email allowlist as judges are confirmed.
 5. **Policies → Add a policy → Include → Emails**: `your@email.com` (+ any allowlisted testers / judges as they're known). Allow that one rule; deny all else.
 6. Save. The subdomain now redirects unauthenticated visitors to Cloudflare's Access auth page before proxying to localhost.
@@ -75,7 +75,7 @@ For the public route, add a basic WAF rule at the zone level: rate-limit `POST /
 
 ---
 
-## §3 — Runbook (mechanical, ~30 min start-to-public)
+## §3 - Runbook (mechanical, ~30 min start-to-public)
 
 Pre-flight: Cloudflare account on the `patrickndille.com` zone, the local WSL2 box running with Podman 4.4+, and `WATSONX_API_KEY` + `WATSONX_PROJECT_ID` in `.env`.
 
@@ -120,12 +120,12 @@ ingress:
 EOF
 
 # ── 5. Add Cloudflare Access policies for torcs + jaeger ──────────────────
-# Dashboard path is the only sane way — see §2 above. Create one self-hosted
+# Dashboard path is the only sane way - see §2 above. Create one self-hosted
 # application per gated subdomain, one-time-PIN, email allowlist.
 
 # ── 6. Bring up the compose stack ─────────────────────────────────────────
-cd ~/overdrive-may-2026
-cp .env.example .env       # or edit existing — watsonx creds + OVERRIDE_TRACING=otlp
+cd ~/override-may-2026
+cp .env.example .env       # or edit existing - watsonx creds + OVERRIDE_TRACING=otlp
 podman-compose up -d override                   # public demo path
 podman-compose up -d override torcs             # if torcs subdomain is in routes
 podman-compose up -d override jaeger            # if jaeger subdomain is in routes
@@ -151,7 +151,7 @@ curl -s -o /dev/null -w "jaeger: %{http_code}\n"  https://jaeger.patrickndille.c
 # Expected: 302 each (redirect to Cloudflare Access).
 
 # ── 9. Operational hardening for the judging window ───────────────────────
-# Container restart policy — survive Podman / compose failures:
+# Container restart policy - survive Podman / compose failures:
 podman update --restart=always override torcs jaeger
 
 # Windows-side: disable sleep on the host machine for May 24-31.
@@ -160,7 +160,7 @@ podman update --restart=always override torcs jaeger
 # WSL config: ~/.wslconfig on the Windows side, keep memory + processors stable.
 
 # ── 10. Paste the URL into the BeMyApp portal copy ────────────────────────
-# Edit docs/plans/submission-portal-copy.md §9 — the row already accommodates
+# Edit docs/plans/submission-portal-copy.md §9 - the row already accommodates
 # the Cloudflare URL. Final paste happens at T-2h on May 31.
 ```
 
@@ -180,9 +180,9 @@ Host no-sleep set:       [ ] yes
 
 ---
 
-## §4 — Volume-permission re-verify
+## §4 - Volume-permission re-verify
 
-Same shape as before — the named-volume + bind-mount layout the compose stack uses works identically whether the tunnel is up or not. The named volume `torcs-telemetry` shadows the bind-mount path at `/home/student/workspace/gym_torcs/telemetry/` inside the `torcs` container.
+Same shape as before - the named-volume + bind-mount layout the compose stack uses works identically whether the tunnel is up or not. The named volume `torcs-telemetry` shadows the bind-mount path at `/home/student/workspace/gym_torcs/telemetry/` inside the `torcs` container.
 
 ```bash
 podman-compose up -d override torcs
@@ -193,16 +193,16 @@ podman exec torcs rm /home/student/workspace/gym_torcs/telemetry/__test.txt
 
 If permission-denied: confirm the `user: "0:0"` workaround is still on the `torcs` service in `docker-compose.yml`. The named volume + root-writes posture is the working state from local 3.1 smoke.
 
-**Data on host** lives at `~/.local/share/containers/storage/volumes/overdrive-may-2026_torcs-telemetry/_data/` — extract for offline inspection with:
+**Data on host** lives at `~/.local/share/containers/storage/volumes/override-may-2026_torcs-telemetry/_data/` - extract for offline inspection with:
 
 ```bash
-cp ~/.local/share/containers/storage/volumes/overdrive-may-2026_torcs-telemetry/_data/baseline.jsonl ./baseline.jsonl
+cp ~/.local/share/containers/storage/volumes/override-may-2026_torcs-telemetry/_data/baseline.jsonl ./baseline.jsonl
 head -2 baseline.jsonl | jq
 ```
 
 ---
 
-## §5 — Local-dev redeploy loop (Phase G capture)
+## §5 - Local-dev redeploy loop (Phase G capture)
 
 Quick reference for iterating on the code locally while the tunnel is up. The Cloudflare side stays connected; you just bounce the override container:
 
@@ -215,7 +215,7 @@ podman-compose up -d --force-recreate override  # recreate so env_file + new ima
 cd ui && npm run build && cd ..                 # rebuild static bundle
 podman-compose up -d --force-recreate override  # static bundle is COPYed into the image
 
-# Clean rebuild (no layer cache — use after dependency changes):
+# Clean rebuild (no layer cache - use after dependency changes):
 podman-compose build --no-cache override
 
 # Inspect image size growth between rebuilds:
@@ -225,11 +225,11 @@ podman images override --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedSinc
 podman image prune -f
 ```
 
-**`podman restart` vs `podman-compose up -d --force-recreate`** — `podman restart` reuses the container's existing env; new `.env` values are NOT picked up. Always use `--force-recreate` after editing `.env` or any env_file-referenced variable.
+**`podman restart` vs `podman-compose up -d --force-recreate`** - `podman restart` reuses the container's existing env; new `.env` values are NOT picked up. Always use `--force-recreate` after editing `.env` or any env_file-referenced variable.
 
 ---
 
-## §6 — Tear-down
+## §6 - Tear-down
 
 Run on **2026-06-01** or earlier (post-judging, post-portal-confirmation).
 
@@ -237,7 +237,7 @@ Run on **2026-06-01** or earlier (post-judging, post-portal-confirmation).
 # Stop the tunnel
 sudo systemctl stop cloudflared
 sudo systemctl disable cloudflared
-# Delete the tunnel (irreversible — credentials become invalid):
+# Delete the tunnel (irreversible - credentials become invalid):
 cloudflared tunnel delete torcs
 
 # In Cloudflare dashboard:
@@ -246,7 +246,7 @@ cloudflared tunnel delete torcs
 #   cloudflared but linger after tunnel delete)
 
 # Local containers + volumes
-cd ~/overdrive-may-2026
+cd ~/override-may-2026
 podman-compose down -v        # drops torcs-telemetry named volume + langflow-data
 # Repo can stay; it's the canonical local-clone path going forward.
 
@@ -266,7 +266,7 @@ vs the original Hetzner CX32 plan at ~$3–13 USD. Net savings ~$3 + ~1.5h of pr
 
 ---
 
-## §7 — Operational resilience
+## §7 - Operational resilience
 
 The trade-off vs a hosted VM is **availability tracks the laptop**, not a datacenter.
 
@@ -276,10 +276,10 @@ The trade-off vs a hosted VM is **availability tracks the laptop**, not a datace
 |---|---|
 | Laptop sleeps | Windows → Power → Screen and sleep → Never (plugged in). For May 24–31. |
 | Containers crash | `podman update --restart=always override torcs jaeger` in Step 9. |
-| cloudflared crashes | `systemctl enable --now cloudflared` in Step 7 — auto-restart on failure. |
+| cloudflared crashes | `systemctl enable --now cloudflared` in Step 7 - auto-restart on failure. |
 | WSL kernel hang | Rare. Recovery: `wsl --shutdown` then `wsl` from PowerShell, then re-run `podman-compose up -d`. Tunnel re-connects automatically. |
-| Power outage / network outage | No mitigation — falls back to README local-clone path. Judges still see a fully-reproducible local demo. |
+| Power outage / network outage | No mitigation - falls back to README local-clone path. Judges still see a fully-reproducible local demo. |
 
-**Fallback that doesn't cost more**: the README's local-clone Quickstart works regardless of the hosted URL. The portal copy explicitly states this: "OVERRIDE runs locally via `podman-compose up` — see README. The hosted URL is convenience, not the architectural promise." If `override.patrickndille.com` goes dark mid-judging, the rubric story is unchanged.
+**Fallback that doesn't cost more**: the README's local-clone Quickstart works regardless of the hosted URL. The portal copy explicitly states this: "OVERRIDE runs locally via `podman-compose up` - see README. The hosted URL is convenience, not the architectural promise." If `override.patrickndille.com` goes dark mid-judging, the rubric story is unchanged.
 
 **Paranoid fallback** (skip unless nervous): spin up a Hetzner CX22 for $0.50/window with the same compose stack and a second Cloudflare Tunnel pointing to it as `backup.override.patrickndille.com`. Swap the BeMyApp URL in 30 seconds if primary dies. Realistically: unnecessary for a 4-day window.

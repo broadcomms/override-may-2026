@@ -1,4 +1,4 @@
-# OVERRIDE — Langflow Canvas Specification
+# OVERRIDE - Langflow Canvas Specification
 
 > **Scope clarification.** Langflow is the **design + demo layer**, not the production runtime. Production calls run through Python/FastAPI for performance and reliability. The Langflow canvas mirrors the pipeline architecture, executes a simplified end-to-end sample flow for the demo video, and serves as orchestration documentation. README and demo video both make this distinction explicit. Production runtime semantics are defined in [`04-api.md`](./04-api.md); component contracts are in [`04-schema.md`](./04-schema.md).
 

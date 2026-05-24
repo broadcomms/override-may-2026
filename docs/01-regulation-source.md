@@ -1,4 +1,4 @@
-# Regulation Source — Verification Gate G-4 (closed)
+# Regulation Source - Verification Gate G-4 (closed)
 
 > Closes verification gate **G-4** in `docs/06-roadmap.md` §4 P2.5 and risks **R13 / R14** in `docs/05-risk-register.md`. Identifies the canonical FIA document that grounds OVERRIDE's regulation citations, the article scope, and the chunking pipeline that produced the committed `data/regs/extracted_chunks.sample.json`.
 
@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | **G-4 — closed** |
+| Gate | **G-4 - closed** |
 | Closed at | 2026-05-08 |
 | Re-verified at | 2026-05-09 (refresh to Issue 18) |
 | Operator | Patrick Ejelle-Ndille |
@@ -16,13 +16,13 @@
 
 ## Verified citation source
 
-**Document.** *FIA 2026 Formula 1 Technical Regulations — Section C, Issue 18, 7 May 2026.*
+**Document.** *FIA 2026 Formula 1 Technical Regulations - Section C, Issue 18, 7 May 2026.*
 
 - Local cache: `data/regs/fia_2026_f1_regulations_-_section_c_technical_-_iss_18_-_2026-05-07.pdf` (gitignored)
 - Public source: <https://www.fia.com/regulation/category/110>
-- Supersedes Issue 12 (2025-06-10) — re-verified 2026-05-09 after FIA published Issue 18 on 2026-05-07.
+- Supersedes Issue 12 (2025-06-10) - re-verified 2026-05-09 after FIA published Issue 18 on 2026-05-07.
 
-**Article in scope.** Energy-management citations resolve to **Article C5 (Power Unit)** — the regulatory chapter that defines the 2026 hybrid power unit, its energy flow accounting, the ERS architecture, the MGU-K deployment envelope, and the energy store bounds. Subsections that ground recommendations:
+**Article in scope.** Energy-management citations resolve to **Article C5 (Power Unit)** - the regulatory chapter that defines the 2026 hybrid power unit, its energy flow accounting, the ERS architecture, the MGU-K deployment envelope, and the energy store bounds. Subsections that ground recommendations:
 
 | Section | Title | What OVERRIDE cites it for |
 |---|---|---|
@@ -36,11 +36,11 @@
 | **C5.19** | Energy Store | SoC bounds, capacity |
 | **C5.20** | ES design and installation | Physical battery constraints |
 
-384 chunks captured under Article C5 + the second-copy SECTION-C body — 112 unique sub-section labels. Retrieval (Granite Embedding 278M, threshold 0.3) consistently grounds energy-management zones in C5.2.x subsections (verified 2026-05-09).
+384 chunks captured under Article C5 + the second-copy SECTION-C body - 112 unique sub-section labels. Retrieval (Granite Embedding 278M, threshold 0.3) consistently grounds energy-management zones in C5.2.x subsections (verified 2026-05-09).
 
-**Issue 18 phrasing change.** C5.2.10 wording moved from *"energy harvested by the ERS-K, ... must not exceed 8.5MJ in each lap"* (Issue 12) to *"Recharge, as measured at the CU-K HV DC Bus, must not exceed a limit of 8.5MJ in each lap"* (Issue 18). The cap **value is unchanged** — `extract_harvest_cap_mj()` regex was updated to match both phrasings (see `core/regs.py:_HARVEST_CAP_PRIMARY_RE`).
+**Issue 18 phrasing change.** C5.2.10 wording moved from *"energy harvested by the ERS-K, ... must not exceed 8.5MJ in each lap"* (Issue 12) to *"Recharge, as measured at the CU-K HV DC Bus, must not exceed a limit of 8.5MJ in each lap"* (Issue 18). The cap **value is unchanged** - `extract_harvest_cap_mj()` regex was updated to match both phrasings (see `core/regs.py:_HARVEST_CAP_PRIMARY_RE`).
 
-**What's deliberately out of scope (post-submission upgrade path).** Override Mode availability rules — *"the chasing car is within one second"*, race-start procedures, qualifying mode behaviors — are governed by the **Sporting Regulations**, not the Technical Regulations.
+**What's deliberately out of scope (post-submission upgrade path).** Override Mode availability rules - *"the chasing car is within one second"*, race-start procedures, qualifying mode behaviors - are governed by the **Sporting Regulations**, not the Technical Regulations.
 
 **Section B (Sporting), Issue 06, 2026-04-28** is now cached locally at `data/regs/FIA 2026 F1 Regulations - Section B [Sporting] - Iss 06 - 2026-04-28.pdf`. Integrating it into the chunk corpus would let `unused-override` zones cite real Sporting-Reg clauses ("Override Mode may be deployed when within X seconds of the car ahead") instead of shipping with `regulation_citation = null`. This is **deferred to a post-submission upgrade**: scope expansion at Day 14 of 23, ~3-4 hours of work for a second corpus + per-zone-type retrieval routing, and not strictly required for the rubric story (the architecture already demonstrates dynamic regulation grounding via Section C). Tracked as a follow-up; current behavior remains: `unused-override` ships with `regulation_citation = null` and `confidence = "low"` per `prompts/reasoning.system.md` and the `ReasoningOutput` contract.
 
@@ -48,14 +48,14 @@
 
 ## Hard rule reaffirmed
 
-Even with G-4 closed, **no FIA article number lives as a hardcoded literal anywhere in this codebase**. Every `RegulationSource.section` value is read at runtime from the Docling extraction. This document specifies *which* document and *which* article scope — but the strings `"C5.17"`, `"C5.18"`, etc. only appear in:
+Even with G-4 closed, **no FIA article number lives as a hardcoded literal anywhere in this codebase**. Every `RegulationSource.section` value is read at runtime from the Docling extraction. This document specifies *which* document and *which* article scope - but the strings `"C5.17"`, `"C5.18"`, etc. only appear in:
 
 1. The cached PDF (gitignored)
 2. The Docling-extracted markdown (gitignored)
 3. The committed `data/regs/extracted_chunks.sample.json` (regenerable from #1 + #2)
 4. **Nowhere in code, prompts, or templates.**
 
-If you find any of those strings hardcoded in a Python file, prompt, or schema default, that's a bug — file it against the §6 hard rule in `docs/04-schema.md`.
+If you find any of those strings hardcoded in a Python file, prompt, or schema default, that's a bug - file it against the §6 hard rule in `docs/04-schema.md`.
 
 ---
 
@@ -66,8 +66,8 @@ The committed `data/regs/extracted_chunks.sample.json` was produced by:
 ```bash
 .venv/bin/python scripts/build_chunks.py \
   --pdf data/regs/fia_2026_f1_regulations_-_section_c_technical_-_iss_18_-_2026-05-07.pdf \
-  --document-title "FIA 2026 Formula 1 Technical Regulations — Section C" \
-  --issue "Issue 18 — 2026-05-07" \
+  --document-title "FIA 2026 Formula 1 Technical Regulations - Section C" \
+  --issue "Issue 18 - 2026-05-07" \
   --section-filter '(\bC5\b|SECTION\s+C:\s*TECHNICAL)' \
   --g4-status closed
 ```

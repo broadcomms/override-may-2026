@@ -145,8 +145,8 @@ TTM_REVISION=d6a79570cac0f33d526601cd3a0fc7c80a8f9a2f
 **Objective**: Validate TTM-R2 forecast quality
 
 ```bash
-# 1. Activate TTM-compatible environment
-source .venv-ttm/bin/activate
+# 1. Activate main environment (has all project dependencies)
+source .venv/bin/activate
 
 # 2. Run evaluation harness
 python scripts/eval_forecast_contexts.py

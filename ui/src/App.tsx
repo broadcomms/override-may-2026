@@ -228,7 +228,7 @@ function SiteFooter() {
       <span>IBM SkillsBuild May 2026</span>
       <span aria-hidden="true">·</span>
       <a
-        href="https://github.com/anthropics/overdrive-may-2026"
+        href="https://github.com/broadcomms/override-may-2026"
         target="_blank"
         rel="noreferrer"
         className="hover:text-text transition-colors"
@@ -236,7 +236,7 @@ function SiteFooter() {
         Repo ↗
       </a>
       <span aria-hidden="true">·</span>
-      <span>Decision support, never replacement.</span>
+      <span></span>
     </footer>
   );
 }

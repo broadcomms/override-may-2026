@@ -1,6 +1,6 @@
-# OVERRIDE — Product Requirements Document
+# OVERRIDE - Product Requirements Document
 
-> Lean PRD for a 25-day single-operator build. Strategic argument lives in [`00-thesis.md`](./00-thesis.md); architecture in [`03-architecture.md`](./03-architecture.md); shapes and endpoints in [`04-schema.md`](./04-schema.md) and [`04-api.md`](./04-api.md); UI in [`04-ui-ux-design.md`](./04-ui-ux-design.md); execution plan in [`06-roadmap.md`](./06-roadmap.md). This document captures **who, what, how-good, and what's-out-of-scope** — the contract the rest of the planning is built on.
+> Lean PRD for a 25-day single-operator build. Strategic argument lives in [`00-thesis.md`](./00-thesis.md); architecture in [`03-architecture.md`](./03-architecture.md); shapes and endpoints in [`04-schema.md`](./04-schema.md) and [`04-api.md`](./04-api.md); UI in [`04-ui-ux-design.md`](./04-ui-ux-design.md); execution plan in [`06-roadmap.md`](./06-roadmap.md). This document captures **who, what, how-good, and what's-out-of-scope** this is the contract the the rest of the planning is built on.
 
 ---
 
@@ -8,9 +8,13 @@
 
 **OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.**
 
-A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: **Engineer Mode** for race engineers and analysts who need full reasoning + citations + what-if; **Fan Mode** for broadcasters and viewers who need plain language.
+A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: 
 
-OVERRIDE competes on *can it explain why*, not on *more data, faster models*. It is a copilot, not a strategist — every output is reviewed by a human.
+a. **Engineer Mode** for race engineers and analysts who need full reasoning + citations + what-if; 
+
+b. **Fan Mode** for broadcasters and viewers who need plain language.
+
+OVERRIDE competes on *can it explain why*, not on *more data, faster models*. It is a strategy copilot, not a strategist. Every output is reviewed by a human.
 
 ---
 
@@ -25,13 +29,13 @@ This produces two pains:
 - **Engineers and analysts** face an exploded strategic search space without an open, explainable tool that reasons over telemetry against the new regulations. They need a debrief layer that shows reasoning and cites the rule it was grounded in.
 - **Broadcasters and fans** can no longer follow what's happening on track. What used to read as *"they're just driving fast"* now hides an entire chess match in the energy budget. They need a plain-language layer that translates the same intelligence without dumbing it down.
 
-The publicly visible AI in this space (AWS F1 Insights, Oracle's Red Bull strategy stack, IBM's Ferrari fan app) was built for the 2014–2025 rules. None reason over the 2026 regulation text, none show their working in a way an engineer can audit, and none ship as open source against a public, reproducible data path.
+The publicly visible AI in this space ([AWS F1](https://aws.amazon.com/sports/f1/) Insights, [Oracle's Red Bull Racing](https://www.oracle.com/ca-en/redbullracing/) strategy stack, even [IBM's Scuderia Ferrari HP](https://www.ibm.com/sports/ferrari) fan app) was built for the 2014–2025 rules. None reason today over the 2026 regulation text, none show their working in a way an engineer can audit the AI output, and none ship as open source against a public, reproducible data path.
 
 ### 2.2 Why now
 
-- **Regulation surface is moving.** The FIA actively amends the regulation mid-season. Any tool that hardcodes article numbers will rot inside one season. A copilot that grounds dynamically via Docling is the right shape of answer right now.
-- **Open-source models are catching up.** IBM Granite 4.x Instruct, Granite Guardian, and Granite Time Series TTM-R2 collectively make a regulation-grounded reasoning copilot buildable by a single operator on a laptop in 25 days — that wasn't true 18 months ago.
-- **Submission window is real.** This is the IBM SkillsBuild AI Builders Challenge May 2026 entry. Final deadline May 31, 2026 11:59 PM ET; first-10-teams early-submission bonus targeted for May 23.
+- **Regulation surface is moving.** The FIA actively amends the regulation mid-season. Any tool that hardcodes article numbers will rot inside one season. A copilot that grounds the new rules dynamically via IBM Docling is the right shape of answer right now.
+- **Open-source models are catching up.** IBM Granite 4.x Instruct, Granite Guardian, and Granite Time Series TTM-R2 collectively make a regulation-grounded reasoning copilot buildable by a single operator on a laptop in 25 days. That wasn't true 18 months ago.
+- **Submission window is real.** This is for the IBM SkillsBuild AI Builders Challenge May 2026 entry. Final deadline May 31, 2026 11:59 PM ET; first-10-teams early-submission bonus targeted for May 23.
 
 ---
 
@@ -42,27 +46,27 @@ OVERRIDE has three audiences. The scope is **all three sharing one backend**, wi
 ### 3.1 Primary: race engineer / strategy analyst
 
 - Builds a mental model of energy decisions across a session.
-- Needs to see the reasoning *and* the regulation it was grounded in — not a number.
+- Needs to see the reasoning *and* the regulation it was grounded in not a number.
 - Wants to test alternative strategies (what-if) without rebuilding a simulation.
-- Reviews on a laptop, not a phone.
+- Reviews on a laptop or 13 inch table, not a phone (Mobile defered V1.1, Mobile App V2.0).
 
 ### 3.2 Secondary: broadcaster / motorsport analyst / advanced fan
 
 - Translates an engineering moment into something quotable on air or in writing.
 - Needs the explanation in plain language but tied to the same evidence the engineer saw.
-- Cares about credibility — would not use a tool that fabricates citations.
+- Cares about credibility, would not use a tool that fabricates citations.
 
 ### 3.3 Tertiary: curious motorsport fan
 
 - Watches replays for the strategy story, not just the result.
 - Wants to learn what an energy decision was without learning the acronyms first.
-- Reaches the product through a shared link (broadcaster, social, hackathon submission page).
+- Reaches the product through a shared link (broadcaster, social, challange submission page).
 
 ### 3.4 Crossover: driver / coach / driver-development engineer
 
 - Iterating instinct against new physics: the 2026 split breaks driving habits built over a decade (e.g., the Verstappen Monza-simulator example of needing to downshift at full throttle on a straight to keep the engine in its power band).
 - Uses the same Engineer Mode debrief surface as a strategist; cause→consequence framing helps build the new mental model faster than raw telemetry.
-- Not a separate UI — same engine, same Engineer Mode rendering. Listed here because the *why-it-matters* argument depends on this audience.
+- Not a separate UI - same engine, same Engineer Mode rendering. Listed here because the *why-it-matters* argument depends on this audience.
 
 Four audiences, **one backend pipeline**, two UI surfaces (Engineer + Fan). Asymmetric capability table is in [`04-ui-ux-design.md` §10](./04-ui-ux-design.md#10-engineer--fan-parity-guarantees).
 
@@ -70,7 +74,13 @@ Four audiences, **one backend pipeline**, two UI surfaces (Engineer + Fan). Asym
 
 ## 4. User stories
 
-Stories are tagged `[E]` Engineer, `[A]` Analyst/Broadcaster, `[F]` Fan. Acceptance criteria are abbreviated — full contracts live in the API and UI docs.
+Stories are tagged by user types: 
+
+- `[E]` Engineer, 
+- `[A]` Analyst/Broadcaster, 
+- `[F]` Fan. 
+
+Acceptance criteria are abbreviated, full contracts live in the API and UI docs.
 
 ### Upload + debrief
 
@@ -80,7 +90,7 @@ Stories are tagged `[E]` Engineer, `[A]` Analyst/Broadcaster, `[F]` Fan. Accepta
 
 ### Inspect a recommendation
 
-- `[E]` As an engineer, I click a flagged zone and see cause → consequence → recommendation, a 3–5 step reasoning chain, the verbatim regulation passage, the document/issue/section it came from, the validator badge, and the Guardian score badge — all in one card.
+- `[E]` As an engineer, I click a flagged zone and see cause → consequence → recommendation, a 3–5 step reasoning chain, the verbatim regulation passage, the document/issue/section it came from, the validator badge, and the Guardian score badge all in one card.
 - `[E]` I can hover the AI Safety Review badge to see the energy-safety and regulation-consistency criterion scores and rationales separately.
 - `[E]` I can collapse the reasoning chain to keep the card compact; expanding is one click.
 - `[A]` As an analyst, I can copy the verbatim regulation passage and the reasoning chain to paste into my own copy.
@@ -88,13 +98,13 @@ Stories are tagged `[E]` Engineer, `[A]` Analyst/Broadcaster, `[F]` Fan. Accepta
 ### Run a what-if
 
 - `[E]` I select a perturbation (`delay_first_deploy`, `skip_harvest_zone`, or `extend_override`) on one zone, click Run, and see the original card and the perturbed card side by side.
-- `[E]` A what-if that fails Pass 1 or Pass 2 is shown with the failure surfaced — the system never silently drops a result.
+- `[E]` A what-if that fails Pass 1 or Pass 2 is shown with the failure surfaced. The system never silently drops any result.
 - `[E]` I can reset the card to the original recommendation in one click.
 
 ### Switch to Fan Mode
 
 - `[F]` I press `F` (or the toggle) and the same zones are rendered in plain language: headline, what happened, why it mattered, and a one-sentence paraphrase of the rule.
-- `[F]` Fan Mode never coaches drivers or teams — it only explains what happened.
+- `[F]` Fan Mode never coaches drivers or teams, it only explains what happened.
 - `[F][A]` If the engineer-mode confidence was *low*, Fan Mode prefixes *"It looks like…"* so I'm not misled.
 
 ### Trust the system
@@ -120,20 +130,20 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 
 - **FR-2.1 (MUST)** Detect at least the four zone types in `ZoneType`: `low-roi-deploy`, `late-recharge`, `over-harvest`, `unused-override`. Pure Python, deterministic, AI-free.
 - **FR-2.2 (MUST)** Each `Zone` carries severity (`low` / `medium` / `high`) and the supporting metrics defined in [`04-schema.md` §4](./04-schema.md#4-zone-detection).
-- **FR-2.3 (SHOULD)** A session that produces zero zones renders the empty state ("*No inefficient zones detected — the session was clean.*") rather than an error.
+- **FR-2.3 (SHOULD)** A session that produces zero zones renders the empty state ("*No inefficient zones detected, the session was clean.*") rather than an error.
 
 ### 5.3 Forecasting (optional)
 
-- **FR-3.1 (MUST)** Run TTM-R2 forecasting only when `len(laps) >= 30` AND prediction-interval width is below the configured threshold. Otherwise return `forecast = None`.
+- **FR-3.1 (MUST)** Run TTM-R2 forecasting only when `len(laps) >= max(TTM_MIN_LAPS, TTM_CONTEXT_LENGTH)` (default 30) AND prediction-interval width is below the configured threshold. Otherwise return `forecast = None`.
 - **FR-3.2 (MUST)** When `forecast` is null, the energy curve renders the empty-state hint and the reasoning prompt does not reference future laps with certainty.
 - **FR-3.3 (MUST)** Never return a partial / fabricated forecast.
 
-> **v1.0 deferral note.** v1.0 ships with `forecast_fn=None` (TTM-R2 not wired); the energy curve renders the explicit "Forecast unavailable — TTM-R2 deferred to v1.1" badge. v1.1 wires TTM-R2 inference per the graceful-degradation guardrail in `.bob/AGENTS.md`. The Pydantic `Forecast` schema, the `forecast_fn` parameter on `run_pipeline`, and the UI's forecast-band rendering all already exist — v1.1 only needs `core/forecasting.py` to ship as the live wrapper.
+> **v1.0 implementation note (2026-05-21).** TTM-R2 forecasting is **fully implemented** in v1.0 with complete test coverage (12 functions, 425 lines). Due to dependency conflicts (torch~=2.10 vs production torch==2.11.0), TTM-R2 is deployed as a separate Docker service per ADR-004. The pipeline gracefully degrades when the service is unavailable (FR-3 compliance). Start with `podman-compose up override ttm` to enable forecasting. Without the TTM service, the energy curve renders "Forecast unavailable (session requires ≥30 laps)" and reasoning continues from observed data only. See [`docs/adrs/ADR-004-ttm-deployment.md`](adrs/ADR-004-ttm-deployment.md) for architecture details and [`docs/plans/ttm-r2-mae-baseline-results.md`](plans/ttm-r2-mae-baseline-results.md) for baseline evaluation results.
 
 ### 5.4 Regulation grounding
 
 - **FR-4.1 (MUST)** Use Docling to extract the verified energy-management section into structured chunks. The verified document, issue, and section are recorded in `docs/regulation-source.md` at gate G-4 and read at runtime via `RegulationSource`.
-- **FR-4.2 (MUST)** No prompt, schema default, test fixture, or user-facing string carries a hardcoded FIA article number — ever. Before G-4, prompts use generic phrasing. After G-4, citations render dynamically from the Docling extraction at runtime; the section value lives in the `RegulationSource` struct, never as a literal string in code, prompts, or templates.
+- **FR-4.2 (MUST)** No prompt, schema default, test fixture, or user-facing string carries a hardcoded FIA article number ever. Before G-4, prompts use generic phrasing. After G-4, citations render dynamically from the Docling extraction at runtime; the section value lives in the `RegulationSource` struct, never as a literal string in code, prompts, or templates.
 - **FR-4.3 (MUST)** When grounding finds no relevant chunk, `regulation_citation` in the reasoning output is `null` and `confidence` is `low`. Citation is never fabricated.
 - **FR-4.4 (MUST)** The cited passage in `RegulationCitation.passage` must appear character-for-character in the retrieved chunk text. The validator's `citation_existence` rule enforces this.
 
@@ -142,13 +152,13 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 - **FR-5.1 (MUST)** Granite 4.x Instruct produces a `ReasoningOutput` matching [`04-schema.md` §7](./04-schema.md#7-reasoning) for every detected zone.
 - **FR-5.2 (MUST)** Recommendation language is decision-support only. The validator's `language_safety` rule rejects `"you must"`, `"optimal"`, `"always"`, `"definitely will"`.
 - **FR-5.3 (MUST)** Reasoning chain has 3–5 short steps. This is what the engineer sees, not optional.
-- **FR-5.4 (MUST)** Output is JSON only — no prose preamble.
+- **FR-5.4 (MUST)** Output is JSON only, no prose preamble.
 
 ### 5.6 Two-pass safety
 
 - **FR-6.1 (MUST)** Pass 1 (deterministic validator) runs against every reasoning output and is **never disabled** by Guardian behavior. Rule IDs in `core/validator.yaml`. On fail, regenerate with stricter prompt up to 2 retries.
 - **FR-6.2 (MUST)** Pass 2 (Granite Guardian BYOC) scores `energy_safety` and `regulation_consistency`; both must score ≥ `pass_threshold` (default 0.70) per `guardian/byoc_criteria.yaml`. On fail, regenerate up to 2 retries.
-- **FR-6.3 (MUST)** After 2 retries, ship the recommendation with `final_confidence = "low"` and a visible badge — never silently drop.
+- **FR-6.3 (MUST)** After 2 retries, ship the recommendation with `final_confidence = "low"` and a visible badge never silently drop.
 - **FR-6.4 (MUST)** Both pass results are visible in the UI as badges. Failed Pass-1 rules are listed as chips so the failure mode is legible.
 
 ### 5.7 Fan Mode
@@ -156,7 +166,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 - **FR-7.1 (MUST)** Fan output matches `FanOutput` per [`04-schema.md` §10](./04-schema.md#10-fan-mode), with the acronym substitutions defined in `prompts/fan_mode.system.md`.
 - **FR-7.2 (MUST)** Fan Mode never recommends actions. It explains what happened.
 - **FR-7.3 (MUST)** When the upstream confidence is `low`, Fan output prepends *"It looks like"* to `what_happened`.
-- **FR-7.4 (SHOULD)** Fan Mode is generated lazily on first request, not on upload — keeps the median upload→debrief latency below 30 s.
+- **FR-7.4 (SHOULD)** Fan Mode is generated lazily on first request, not on upload. Keeps the median upload → debrief latency below 30 s.
 
 ### 5.8 What-if
 
@@ -213,9 +223,9 @@ OVERRIDE is **not**:
 
 ## 8. Distribution
 
-- **Channel.** Public GitHub repository under `<username>-override-may-2026`, Apache 2.0.
+- **Channel.** Public GitHub repository under `https://github.com/broadcomms/override-may-2026.git`, Apache 2.0 Licence.
 - **Submission surface.** BeMyApp project page on the IBM SkillsBuild Challenge platform with banner, logo, summary, video, and repo link.
-- **Demo path.** `podman-compose up` → drop a sample replay (shipped under `data/samples/`) → land on the debrief view.
+- **Demo path.** `podman-compose up -d` → `podman-compose logs -f` → drop a sample replay (shipped under `data/samples/`) → land on the debrief view.
 - **Models.** watsonx.ai-served Granite Instruct (`ibm/granite-4-h-small`) + Granite Guardian (`ibm/granite-guardian-3-8b`), pinned with project ID and region in `models.json`. TTM-R2 stays local from HuggingFace. Docling runs locally.
 - **Data.** No live data, no broadcast video, no licensed feeds. Sample replays from TORCS and FastF1; FIA PDFs fetched via `scripts/download_regulations.py` (PDFs are *not* committed).
 
@@ -231,10 +241,10 @@ OVERRIDE has two scoring lenses: the IBM SkillsBuild judging rubric (external) a
 
 The challenge rubric scores on Technical Execution, Innovation, Challenge Fit, and Implementation & Feasibility. OVERRIDE targets:
 
-- **Technical Execution** — Granite Instruct, Granite Guardian, Granite TTM-R2, Docling, and Langflow all integrated. Two-pass safety visibly surfaces. README, video, repo, license, models.json all present.
-- **Innovation** — explainability-as-product, dual-mode (Engineer + Fan) sharing one engine, BYOC criteria for energy-domain safety, dynamic regulation grounding, what-if loop closing back through the same safety gates.
-- **Challenge Fit** — explicitly addresses both *AI Strategy & Decision Support* and *Fan Experience* solution areas from the challenge brief.
-- **Implementation & Feasibility** — runs on a laptop, replay-first, deterministic, originals-only visuals, no licensed data dependencies.
+- **Technical Execution**: Granite Instruct, Granite Guardian, Granite TTM-R2, Docling, and Langflow all integrated. Two-pass safety visibly surfaces. README, video, repo, license, models.json all present.
+- **Innovation**: Explainability-as-product, dual-mode (Engineer + Fan) sharing one engine, BYOC criteria for energy-domain safety, dynamic regulation grounding, what-if loop closing back through the same safety gates.
+- **Challenge Fit**: Explicitly addresses both *AI Strategy & Decision Support* and *Fan Experience* solution areas from the challenge brief.
+- **Implementation & Feasibility**: Runs on a linux (debian) laptop (8GB RAM, 4 vCPUs, 32GB storage), replay-first, deterministic, originals-only visuals, no licensed data dependencies.
 
 ### 9.2 Functional metrics (internal)
 

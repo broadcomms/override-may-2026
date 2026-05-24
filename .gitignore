@@ -17,6 +17,8 @@ env/
 *.egg-info/
 dist/
 build/
+outputs/
+docs/demo/
 
 # Node
 node_modules/
@@ -49,6 +51,7 @@ analysis/exploratory-plots/
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 # Temporary Office files
 ~$*.docx

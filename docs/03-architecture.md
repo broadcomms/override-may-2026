@@ -1,6 +1,6 @@
 # Architecture
 
-OVERRIDE now ships in three connected shapes:
+OVERRIDE ships in three connected shapes:
 
 1. A replay-first web app served by FastAPI + the built React/Vite bundle.
 2. A managed live TORCS workflow with a control daemon, shared telemetry volume, cockpit UI, and post-race ingest.
@@ -134,7 +134,7 @@ Design implications:
 ## Repo Map
 
 ```text
-overdrive-may-2026/
+override-may-2026/
 ├── api/                              # FastAPI runtime, storage, errors, tracing
 ├── analysis/                         # Deterministic telemetry enrichment, live insights, reports, + perturbations
 ├── copilot/                          # Granite-backed session/live copilot orchestration
@@ -157,8 +157,8 @@ overdrive-may-2026/
 
 ## Verification Snapshot
 
-- `npm --prefix ui run build` succeeds against the current UI bundle.
-- `pytest --collect-only -q -s tests` currently collects **419 tests**, including **4** network-marked tests.
+- `npm --prefix ui run build` succeeds with **781 modules** against the current UI bundle.
+- `pytest --collect-only -q -s tests` currently collects **439 tests**, including **4** network-marked tests.
 - The documentation below should be kept aligned with:
   - [`docs/04-schema.md`](./04-schema.md)
   - [`docs/04-api.md`](./04-api.md)

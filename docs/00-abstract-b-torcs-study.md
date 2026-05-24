@@ -20,7 +20,7 @@ Build it once for the F1 2026, port it for life.
 
 The five mandated IBM tools are not arbitrary. 
 They are the five tools that make enterprise AI work.
-— Granite
+- Granite
 - Docling
 - Langflow
 - Context Forge
@@ -79,7 +79,7 @@ According to Motosport, drivers themselves are calling it "annoying" and "sad." 
 
 ## Docling
 - IBM Research Zurich's open-source (MIT) document processor.
-- Output is a structured DoclingDocument (DocTags → JSON/Markdown)
+- Output is a structured Docling Document (DocTags → JSON/Markdown)
 - preserves headings, tables, equations, code, and layout.
 - Supports PDF, DOCX, HTML, and more.
 - ~30× speedup over standard OCR-only flows.

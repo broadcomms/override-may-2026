@@ -1,195 +1,129 @@
-# OVERRIDE — Submission video script (locked)
+# OVERRIDE - Submission Video Script
 
-> **Total runtime: 2:55** (175s) at natural narration pace ~130 wpm.
-> Total word count: 184 words across 7 segments.
->
-> This is the **recording sheet** — read each `VO:` line at natural pace, time
-> against the segment budget, watch for stumbles or run-on breaths. Per
-> `docs/06-roadmap.md` P4.2: full read under **2:50** is the gate; 5s of
-> safety margin is built into segment budgets.
->
-> Two corrections from the `docs/00-abstract.md` scaffolding:
-> 1. Removed the **TTM-R2 forecast claim** — `core/forecasting.py` is empty
->    stub today. The pipeline runs end-to-end without TTM (graceful
->    degradation per FR-3), so the script reflects what actually ships.
-> 2. Removed the **what-if toggle** from the Explainability segment visual
->    list — the endpoint is API Tier 2 (deferred). The disabled-state UI rail
->    can show briefly but not as a working interaction.
->
-> All other segment budgets, shot beats, and the cold-open + closing
-> structure are inherited verbatim from the abstract.
+> **Runtime target:** 2:55 maximum.  
+> **Narration target:** about 145 spoken words per minute.  
+> **Current source of truth:** live cockpit first, completed-session trust proof second. This supersedes the older fixture-only script and the older "do not show what-if" note.
 
 ---
 
-## Segment 1 — Hook (Cold Open) · 0:00–0:20 (20s, 17 words)
+## Segment 1 - Hook: the 2026 energy problem - 0:00-0:18
 
-**Visual:**
-- Black screen (1s)
-- Fade in: split-screen — left side a clean simple SoC line (pre-2026 hybrid era), right side a dense 2026-era multi-zone energy map
-- Both visuals are **original generated graphics**, not screenshots, not F1 broadcast frames
-- Text overlay (A) at 0:04: *"In 2026, F1 hybrid rules change radically."*
-- Text overlay (B) at 0:11: *"Every lap is now an energy decision."*
-- 0:15–0:20: Cut to OVERRIDE wordmark on dark + tagline card
+**Visual**
+- Black screen for one beat.
+- Cut to `assets/video/segment_01_split.png`: old simple energy line versus dense 2026 energy map.
+- Overlay: "Every lap is now an energy decision."
+- End on `assets/brand/logo-on-dark.png`.
 
-**VO (starts at 0:05, ends at 0:14):**
+**VO**
 
-> *"In 2026, Formula 1's hybrid rules have changed radically. Every lap is now an energy management decision."*
+> In 2026, Formula 1's hybrid rules change the shape of racing. The battery is no longer a background system. Every lap is now an energy decision.
 
 ---
 
-## Segment 2 — Problem Statement · 0:20–0:50 (30s, 30 words)
+## Segment 2 - Problem: data is visible, reasoning is not - 0:18-0:40
 
-**Visual:**
-- 0:20–0:28: Raw telemetry overload — wall of scrolling numbers, generic dashboard frame (no team livery, no real driver names)
-- 0:28–0:38: Confused-engineer schematic figure with a question mark
-- 0:38–0:50: Three faded vendor wordmarks fade in then dim — generic "AWS / Oracle / Legacy app" boxes (do **not** use real logos to avoid trademark issues)
-- Text overlay at 0:35: *"Today's tools show data, not reasoning."*
+**Visual**
+- Use `assets/graphics/TELEMETRY.mp4` or `assets/graphics/TELEMETRY-NUMS.mp4`.
+- Cut to telemetry-overload frame, then a clean product screenshot.
+- Overlay: "Telemetry shows what happened. Strategy needs why."
 
-**VO (starts at 0:21, ends at 0:34):**
+**VO**
 
-> *"Telemetry tools today show data — not reasoning. AWS, Oracle, and IBM's own Ferrari app shipped for the old rules. There's no open, explainable tool for the 2026 era."*
-
----
-
-## Segment 3 — Live Demo (Cockpit) · 0:50–1:40 (50s, 42 words)
-
-This is the **scoring section** — longest single shot, most cursor work. Practice the click flow once before recording.
-
-**Cursor choreography** (all within `http://localhost:3000`):
-
-| Time | Action | What renders |
-|---|---|---|
-| 0:50–0:56 | Open `/cockpit` | Command strip + noVNC frame + waiting rails |
-| 0:56–1:03 | Leave `3D Cockpit` selected, click **Start race** | State changes to Launching / Connecting; session id appears |
-| 1:03–1:14 | Hold on the TORCS frame while the first lap completes | Timing rail, Hybrid rail, and lap timeline populate together |
-| 1:14–1:28 | Cursor moves to the `AI race engineer` card below the frame | Deterministic live signal + suggested action are visible |
-| 1:28–1:40 | Cursor toggles Engineer → Fan in the cockpit insight card | Same lap is explained in plain language without leaving the cockpit |
-
-**VO (starts at 0:51, ends at 1:35):**
-
-> *"In the cockpit, OVERRIDE watches the live race as it unfolds. It streams lap telemetry, explains hybrid energy flow lap by lap, highlights candidate inefficient deployment or energy pressure, and supports the strategist with engineer and fan guidance without replacing the human call."*
+> Teams can see telemetry, but the new strategic question is harder: where did we waste energy, what rule bounds the choice, and how should a human review the tradeoff?
 
 ---
 
-## Segment 4 — Explainability (The Hero) · 1:40–2:10 (30s, 41 words)
+## Segment 3 - Live cockpit: AI during the run - 0:40-1:18
 
-**Visual:**
-- 1:40–1:46: Click from the cockpit insight card into the completed session debrief
-- 1:46–1:50: Slow zoom on the reasoning card — frame so cause / consequence / recommendation + the citation block are all visible
-- 1:50–2:00: Highlight the **citation passage** (subtle glow or border pulse, 1s) — the verbatim FIA quote is the hero moment
-- 2:00–2:10: Cut to the badge row: *✓ Validation* (success-tone), *AI Safety Review: 1.00 / 1.00* (granite-tone), *Confidence: medium* (warning-tone) — three badges in a row, hold
+**Visual**
+- Start at `/upload`, race control visible.
+- Click **Start race**.
+- Cut to `/cockpit`: timing rail, TORCS frame, hybrid rail.
+- Scroll to the AI Race Engineer card.
+- Toggle Engineer to Fan inside the live cockpit card.
 
-**Do NOT show:** the What-if rail. It's currently a "Coming soon" disabled state — fine in the live UI but pulls focus on a feature we haven't shipped. Crop or scroll past.
+**VO**
 
-**VO (starts at 1:41, ends at 2:09):**
-
-> *"This is the core. Every recommendation cites a verbatim regulation clause. Two safety passes — deterministic validation first, then Granite Guardian scoring on custom safety criteria. If either fails, the system regenerates. The engineer sees the reasoning before any decision."*
-
----
-
-## Segment 5 — Fan Mode · 2:10–2:30 (20s, 18 words)
-
-**Visual:**
-- 2:10–2:13: Cursor moves to the Mode pill in the top-right of the completed-session page header
-- 2:13–2:14: **Click "Fan"** — the cross-fade transition fires (240ms cubic-bezier snap-out) — ENGINEER → FAN card swap
-- 2:14–2:25: Fan card on screen — *headline* + *what happened* + *why it mattered*. Hold for the read.
-- Sample fan headline visible: *"The car used battery power too aggressively in low-return corners."*
-- 2:25–2:30: Cursor toggles back to Engineer to demonstrate the seamlessness, then returns to Fan
-
-**VO (starts at 2:11, ends at 2:21):**
-
-> *"One click switches to Fan Mode. Same intelligence, plain language — engineers, broadcasters, and fans on the same page."*
+> OVERRIDE connects the IBM TORCS learning lab to a live race cockpit. It streams lap telemetry, tracks state of charge, harvest, deploy, and race timing, then highlights deterministic energy pressure while Granite prepares a readable race-engineer explanation.
 
 ---
 
-## Segment 6 — Architecture quick-cut · 2:30–2:42 (12s, 19 words)
+## Segment 4 - Debrief: the system catches strategy risk - 1:18-1:55
 
-**Visual** (4s each, hard cuts):
-- 2:30–2:34: `assets/screenshots/langflow-canvas.png` — full Langflow canvas with 9 OVERRIDE custom components wired
-- 2:34–2:38: `assets/architecture.png` — the rendered Mermaid diagram from `docs/03-architecture.mmd`
-- 2:38–2:42: `assets/screenshots/jaeger-trace.png` — the Jaeger UI showing the per-stage span tree (`pipeline.process_zone` → `regs.retrieve_chunk` → `reasoning.chat` → `guardian.*`)
+**Visual**
+- Stop or use a completed capture; return to `/upload`.
+- Click **Ingest** on a live capture.
+- Show parsing state briefly.
+- Land on completed session detail.
+- Hold on KPI strip and post-race intelligence.
+- Scroll to the first recommendation card.
 
-**VO (starts at 2:31, ends at 2:41):**
+**VO**
 
-> *"Built on IBM watsonx.ai — Granite Instruct, Guardian, and Embedding — plus Docling and Langflow. Open source, Apache 2.0."*
-
----
-
-## Segment 7 — Closing · 2:42–2:55 (13s, 15 words)
-
-**Visual:**
-- 2:42–2:50: OVERRIDE wordmark large, centered, on dark; tagline below: *"Decision support, never replacement. Built for the 2026 hybrid era."*
-- 2:50–2:55: GitHub URL appears below the tagline; logo and URL hold to fade-out
-
-**VO (starts at 2:43, ends at 2:51):**
-
-> *"OVERRIDE. Explainable race-strategy AI for the 2026 hybrid era. Code in the description. Built lean."*
+> After the run, one click turns the capture into a full debrief. OVERRIDE finds inefficient zones, grades battery risk, and surfaces the moments that matter: not just a chart, but cause, consequence, recommendation, and evidence.
 
 ---
 
-## Read-aloud pace check
+## Segment 5 - Explainability: regulation grounding plus two safety passes - 1:55-2:22
 
-Open this doc + a stopwatch. Read **only the `VO:` lines** in sequence at natural pace. Watch for:
+**Visual**
+- Tight frame on a recommendation card.
+- Expand the reasoning chain.
+- Highlight citation block and footer source.
+- Hold on badges: Validation, AI Safety Review, Confidence.
+- Show one validator rejection card if time permits.
 
-- **Stumbles** — sign of awkward phrasing; mark the line and we'll re-word
-- **Mid-segment breaths** — sign of run-on sentences; mark and we'll add a comma break or sentence split
-- **Segment overruns** — see decision tree below
+**VO**
 
-### Per-segment timing budget
-
-| # | Segment | Words | VO budget | Visual budget | Total |
-|---|---|---:|---:|---:|---:|
-| 1 | Hook | 17 | 9s | 11s | 20s |
-| 2 | Problem | 30 | 14s | 16s | 30s |
-| 3 | Demo | 44 | 22s | 28s | 50s |
-| 4 | Explainability | 41 | 19s | 11s | 30s |
-| 5 | Fan Mode | 18 | 10s | 10s | 20s |
-| 6 | Architecture | 19 | 10s | 2s | 12s |
-| 7 | Closing | 15 | 8s | 5s | 13s |
-| | **Total** | **184** | **92s** | **83s** | **2:55** |
-
-Pure VO is ~1:32 (92 seconds). The remaining 83s is intentional visual breathing room + transitions + cold-open silence. **Do not rush narration to fill silence** — silence at hard cuts reads as "the system is working" not "we ran out of words."
-
-### Decision tree after the read-through
-
-| Read-through outcome | Action |
-|---|---|
-| All segments at-budget or under, total ≤ 2:50 | ✅ Lock. Proceed to voiceover recording. |
-| One segment 1–3 seconds over budget | Trim 5–10 words from the longest sentence in THAT segment only. Don't compress narration speed. |
-| Multiple segments over, total > 3:00 | Cut from Segment 4 (Explainability) — the 38-word draft can drop to 30 by removing the second sentence. |
-| Total < 2:35 | Add one beat to Segment 1 (cold open) — let the music breathe. Don't expand VO. |
+> This is the trust layer. Every recommendation is grounded in a Docling-parsed regulation passage. Pass one is deterministic validation. Pass two is Granite Guardian with custom safety criteria. If the system catches a malformed answer, it shows the failure instead of hiding it.
 
 ---
 
-## Recording notes
+## Segment 6 - What-if and Fan Mode: same engine, different audiences - 2:22-2:42
 
-- **Mic**: condenser if available; otherwise a phone with hand-held technique 6 inches from the mouth, room with soft furnishings (closet works).
-- **Pace**: practice each segment twice before recording. Aim for a **conversational** read, not "newsreader." The brand voice per `CLAUDE.md` is *"supports / explains / highlights"* — keep it lower-energy than typical product demos.
-- **Stems**: record **per-segment**, not one continuous take. If segment 3 is solid and segment 5 needs a re-take, you don't lose 3 minutes of work.
-- **Buffer silence**: leave ~2 seconds of room tone before and after every take so the editor has matching ambient for crossfades.
-- **Don'ts**: no exclamation marks, no rising-intonation questions, no "we" if "OVERRIDE" works in its place. The product is the protagonist, not the team.
+**Visual**
+- Open the What-if rail on a recommendation.
+- Run **delay first deploy** or show the completed before/after diff.
+- Toggle the completed session to Fan Mode.
+- Hold on the plain-language recommendation.
 
----
+**VO**
 
-## Visual asset checklist (all already on disk)
-
-| Asset | Path | Used in segment |
-|---|---|---|
-| Wordmark (full colour, dark bg) | `assets/brand/logo-on-dark.png` | 1, 7 |
-| Demo loop GIF (3.0 MB / 960×540) | `assets/demo.gif` | reference for cursor flow rehearsal |
-| Engineer mode card | `assets/screenshots/engineer_mode.png` | 3, 4 |
-| Fan mode card | `assets/screenshots/fan-mode.png` | 5 |
-| Langflow canvas | `assets/screenshots/langflow-canvas.png` | 6 |
-| Architecture diagram | `assets/architecture.png` | 6 |
-| Jaeger trace | `assets/screenshots/jaeger-trace.png` | 6 |
-
-For segments 1, 2, 7 the cold-open and closing visuals are still original-generated; coordinate with the designer if any motion graphics are needed beyond the static wordmark + tagline cards.
+> Engineers can test a counterfactual and see the same pipeline rerun on the alternate strategy. Fan Mode translates the same evidence into plain language, so teams, drivers, broadcasters, and fans share one explanation.
 
 ---
 
-## Per `.bob/rules.md`
+## Segment 7 - Stack and close - 2:42-2:55
 
-This is a planning doc that ships a feature (the recorded video). Per the
-"plans are deleted in the same PR that ships the feature" rule, **delete
-this file in the same commit that uploads the final voiceover stems** — the
-script has done its job by then; the video itself is the durable artifact.
+**Visual**
+- Three quick cuts: `assets/screenshots/langflow-canvas.png`, `assets/architecture.png`, `assets/screenshots/jaeger-trace.png`.
+- Final card: OVERRIDE wordmark, "Decision support, never replacement."
+
+**VO**
+
+> Built on IBM watsonx.ai, Granite Instruct, Guardian, Embedding, TTM-R2, Docling, and Langflow. OVERRIDE: explainable race-strategy AI for the 2026 hybrid era.
+
+---
+
+## Voiceover Word Count
+
+| Segment | Words |
+|---|---:|
+| 1 | 25 |
+| 2 | 27 |
+| 3 | 30 |
+| 4 | 31 |
+| 5 | 34 |
+| 6 | 30 |
+| 7 | 21 |
+| **Total** | **198** |
+
+At 145 wpm, narration is about 82 seconds, leaving about 93 seconds for cursor movement, transitions, and visual hold time.
+
+## Recording Rules
+
+- Use the live cockpit as the proof-of-life moment, then completed debrief as the trust moment.
+- Do not position OVERRIDE as "a TORCS project"; TORCS is the reproducible racing sandbox.
+- Use "supports", "explains", "highlights", and "recommends"; avoid "decides", "autonomous", and "optimal".
+- Avoid hardcoded FIA article narration. Say "the cited regulation passage" or "Docling-parsed regulation passage" unless the UI itself renders the section dynamically.
+- Keep all visuals original: OVERRIDE UI, TORCS simulator, Langflow canvas, architecture diagram, Jaeger trace, and generated graphics only.

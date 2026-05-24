@@ -1,4 +1,4 @@
-# OVERRIDE — Logo Design Brief
+# OVERRIDE - Logo Design Brief
 
 > **For the designer.** This brief covers the primary wordmark, secondary icon, and the visual constraints driving them. Skip to **§Deliverables** for the file list and **§Constraints** for the hard rules.
 
@@ -20,9 +20,9 @@ The product analyses lap telemetry, surfaces inefficient zones (e.g. low-ROI ene
 
 **OVERRIDE** plays on a real F1 concept: drivers have a steering-wheel button that temporarily lifts power-deployment limits in defined zones. The name evokes:
 
-- **Driver agency** — the human chooses to deploy
-- **Conscious intervention** — overriding a default, with intent
-- **Decision support, never replacement** — the *human* overrides; the AI explains, doesn't decide
+- **Driver agency** - the human chooses to deploy OVERRIDE when the see a strategic opportunity.
+- **Conscious intervention** - overriding a default, with intention.
+- **Decision support, never replacement** - the *human* overrides; the AI explains, doesn't decide.
 
 There is a deliberate duality: the product helps you make better override decisions, but never overrides for you.
 
@@ -30,9 +30,9 @@ There is a deliberate duality: the product helps you make better override decisi
 
 | Attribute | What it means visually |
 |---|---|
-| **Explainable** | Clear, legible, structured — not opaque or "AI-mystical" |
+| **Explainable** | Clear, legible, structured not opaque or "AI-mystical" |
 | **Trustworthy** | Disciplined geometry, restrained palette, no flashy gradients |
-| **Race-adjacent** | Speed cues OK (motion, vector, focused) — but **no licensed F1 imagery** |
+| **Race-adjacent** | Speed cues OK (motion, vector, focused) but **no licensed F1 imagery** |
 | **Technical + human** | Engineering precision balanced with approachable warmth |
 | **Decisive but humble** | Confident wordmark, no exclamation points, no triumphant arrows |
 
@@ -44,20 +44,20 @@ Verbs to avoid: *decides, automates, optimises, dominates, wins.*
 Think **mission-control telemetry meets editorial sports magazine**:
 
 - Restrained, monospace-adjacent typography
-- A single accent colour that feels like a "live signal" — not chrome, not neon
-- Geometric forms that hint at *intervention* — a button press, a divergence, a fork in the path, a paused timeline
-- The letter **O** in OVERRIDE is the natural anchor — it can carry an icon-style mark (a pressed button, a lap segment, an intercept point)
+- A single accent colour that feels like a "live signal" not chrome, not neon
+- Geometric forms that hint at *intervention* - a button press, a divergence, a fork in the path, a paused timeline
+- The letter **O** in OVERRIDE is the natural anchor, it can carry an icon-style mark (a pressed button, a lap segment, an intercept point)
 
 **Vibe references** (mood only, not imitation): NASA mission patches, F1 broadcast HUD overlays (post-2020 minimal era), Bloomberg Terminal, Linear app marks, Tracktor.
 
-## 5. Constraints — hard rules
+## 5. Constraints - hard rules
 
 These come from the FIA submission guidelines and the project's IP policy. **All visuals must be original.**
 
-- ❌ **No F1 broadcast footage, paddock photography, or stills** — even cropped or stylised
-- ❌ **No team livery or sponsor colours** — no Ferrari red, McLaren papaya, Mercedes silver-cyan as primary palette
-- ❌ **No FIA logos, badges, or trademarked icons** — no checkered flag in trade-dress configurations
-- ❌ **No IBM, watsonx, or Granite logos** in the OVERRIDE mark itself — those appear separately as "Built with" credits in the README
+- ❌ **No F1 broadcast footage, paddock photography, or stills** - even cropped or stylised
+- ❌ **No team livery or sponsor colours** - no Ferrari red, McLaren papaya, Mercedes silver-cyan as primary palette
+- ❌ **No FIA logos, badges, or trademarked icons** - no checkered flag in trade-dress configurations
+- ❌ **No IBM, watsonx, or Granite logos** in the OVERRIDE mark itself - those appear separately as "Built with" credits in the README
 - ❌ **No real driver names, numbers, or helmet silhouettes**
 - ✅ **Generic motorsport cues are OK**: abstract speed lines, telemetry traces, sector boundaries, generic open-wheel silhouettes drawn from scratch
 
@@ -67,8 +67,8 @@ Documentation note: the project's `CLAUDE.md` codifies this: *"All visuals origi
 
 | File | What | Specs |
 |---|---|---|
-| `assets/logo.png` | **Primary wordmark** — full "OVERRIDE" lockup, with or without integrated icon | PNG, 2× retina, ≥ 2400 × 800 px (3:1 ratio target), transparent background |
-| `assets/logo-icon.png` | **Secondary icon** — square, favicon-and-app-icon-friendly, recognisable at 32 px | PNG, 2× retina, 1024 × 1024 px, transparent background |
+| `assets/logo.png` | **Primary wordmark** - full "OVERRIDE" lockup, with or without integrated icon | PNG, 2× retina, ≥ 2400 × 800 px (3:1 ratio target), transparent background |
+| `assets/logo-icon.png` | **Secondary icon** - square, favicon-and-app-icon-friendly, recognisable at 32 px | PNG, 2× retina, 1024 × 1024 px, transparent background |
 | `assets/logo.svg` | **Master vector** of the primary wordmark | SVG, optimised, max 50 KB |
 | `assets/logo-icon.svg` | **Master vector** of the icon | SVG, optimised, max 20 KB |
 
@@ -85,13 +85,13 @@ Total: 4 source files (2 PNGs + 2 SVGs) × 5 variants = **20 exports**, organise
 
 Open to designer judgement. Suggested directions:
 
-- **Geometric sans** with technical character (e.g. Inter, IBM Plex Sans, Söhne, Suisse Int'l) — fits the engineering tone
-- **Mono-influenced sans** for the wordmark only (e.g. JetBrains Mono, IBM Plex Mono) — emphasises telemetry-as-readout feel
+- **Geometric sans** with technical character (e.g. Inter, IBM Plex Sans, Söhne, Suisse Int'l) - fits the engineering tone
+- **Mono-influenced sans** for the wordmark only (e.g. JetBrains Mono, IBM Plex Mono) - emphasises telemetry-as-readout feel
 - **Editorial serif accent** OK for taglines but not the wordmark itself
 
 If using IBM Plex (royalty-free, open-source): aligns with the IBM SkillsBuild context without using IBM's trademark. Recommended.
 
-## 8. Colour palette — proposed direction
+## 8. Colour palette - proposed direction
 
 A two-colour system + one accent. Designer free to refine; below is the working hypothesis:
 
@@ -103,16 +103,16 @@ A two-colour system + one accent. Designer free to refine; below is the working 
 | Success | `#10B981` (emerald-500) | Used in Pass-1/Pass-2 green states in the UI |
 | Failure | `#EF4444` (red-500) | Layered-defense rejection card |
 
-The accent colour drives the icon mark. **Avoid red as primary** — it's reserved for rejection/failure semantics in the UI and would conflict.
+The accent colour drives the icon mark. **Avoid red as primary** - it's reserved for rejection/failure semantics in the UI and would conflict.
 
 ## 9. Don'ts (specific traps)
 
-- ❌ **No "AI brain" or neural-network-as-icon** — overused; doesn't fit the explainability angle
-- ❌ **No racing helmet silhouettes** — reads too narrow + IP-adjacent
-- ❌ **No checkered flag** — reads cliché + FIA-adjacent
-- ❌ **No purple gradient SaaS-startup aesthetic** — too generic
-- ❌ **No bold italics for the wordmark** — fast/aggressive cue, conflicts with "decision support, not replacement"
-- ❌ **No literal stopwatch / timer iconography** — we're not a lap timer
+- ❌ **No "AI brain" or neural-network-as-icon** - overused; doesn't fit the explainability angle
+- ❌ **No racing helmet silhouettes** - reads too narrow + IP-adjacent
+- ❌ **No checkered flag** - reads cliché + FIA-adjacent
+- ❌ **No purple gradient SaaS-startup aesthetic** - too generic
+- ❌ **No bold italics for the wordmark** - fast/aggressive cue, conflicts with "decision support, not replacement"
+- ❌ **No literal stopwatch / timer iconography** - we're not a lap timer
 - ❌ **No emoji or pictographs in the lockup**
 
 ## 10. Where the logo will appear
@@ -132,7 +132,7 @@ Sizing/usage context for the designer to test against:
 
 ## 11. One-line creative brief (TL;DR for the designer)
 
-> *Design a confident, restrained wordmark for OVERRIDE — an explainable AI copilot for race-strategy decisions. The mark should feel like instrument-panel telemetry: precise, geometric, single-accent, no F1 trade-dress. The icon should hint at intentional human intervention — a pressed button, a marked sector, a chosen path — not automation. Wordmark-led, icon-supported. All visuals original.*
+> *Design a confident, restrained wordmark for OVERRIDE - an explainable AI copilot for race-strategy decisions. The mark should feel like instrument-panel telemetry: precise, geometric, single-accent, no F1 trade-dress. The icon should hint at intentional human intervention - a pressed button, a marked sector, a chosen path - not automation. Wordmark-led, icon-supported. All visuals original.*
 
 ## 12. Timeline
 
@@ -142,7 +142,7 @@ Sizing/usage context for the designer to test against:
 - **+10 days**: final files delivered
 - **2026-05-31**: demo submission deadline (logo must be in repo + on submission portal)
 
-That gives ~3 weeks total — comfortable but not luxurious. Two rounds of revisions max.
+That gives ~3 weeks total - comfortable but not luxurious. Two rounds of revisions max.
 
 ## 13. Final file delivery
 
@@ -172,6 +172,6 @@ assets/
 - Project lead: Patrick Ejelle-Ndille (patrick@broadcomms.net)
 - Repo: this directory (private until submission)
 - Working artifacts to look at: `README.md` (project pitch), `docs/00-abstract.md`, `docs/04-ui-ux-design.md` (already-built UI screenshots in `assets/screenshots/`)
-- Existing UI screenshots showing the product's visual language: `assets/screenshots/engineer_mode.png`, `fan-mode.png`, `guardian-rejection.png`, `sessions.png`, `upload.png` — these reflect the current Tailwind palette (slate + accents)
+- Existing UI screenshots showing the product's visual language: `assets/screenshots/engineer_mode.png`, `fan-mode.png`, `guardian-rejection.png`, `sessions.png`, `upload.png` - these reflect the current Tailwind palette (slate + accents)
 
 Match the logo to that palette so README + demo video + UI feel of-a-piece.

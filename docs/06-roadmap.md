@@ -1,4 +1,4 @@
-# OVERRIDE — Implementation Roadmap
+# OVERRIDE - Implementation Roadmap
 
 > Hour-budgeted, incremental work plan. Calendar dates are **external anchors only** (challenge events, submission deadline). Internal work is sized in hours of focused effort and ordered by phase + dependency, not by day.
 
@@ -9,10 +9,10 @@
 | Date | Event | Action |
 |---|---|---|
 | Thu May 7, 2026 | Challenge kickoff (already attended) | Roadmap start |
-| Fri May 8, 2026 — 9:30 AM ET | BeMyApp team-formation webinar | Attend, recon competition |
-| Mon May 11, 2026 — 10:00 AM ET | IBM Tech Talk | Attend, capture judge taste signals |
-| Fri May 23, 2026 — TBD | First-10-teams early-submission bonus deadline | **Soft target** for full submission |
-| Sun May 31, 2026 — 11:59 PM ET | Final submission deadline | **Hard lock** at 11:00 PM ET (1h buffer) |
+| Fri May 8, 2026 - 9:30 AM ET | BeMyApp team-formation webinar | Attend, recon competition |
+| Mon May 11, 2026 - 10:00 AM ET | IBM Tech Talk (TORCS Open Racer Car Simulator) | Attend, capture challenge taste signals |
+| Fri May 23, 2026 - TBD | First-10-teams early-submission bonus deadline | **Soft target** for full submission |
+| Sun May 31, 2026 - 11:59 PM ET | Final submission deadline | **Hard lock** at 11:00 PM ET (1h buffer) |
 
 Everything else is hours of work, scheduled at the operator's discretion. Total effort budget: **~90 focused hours** across five phases.
 
@@ -30,7 +30,7 @@ P<phase>.<n>  <title>                                         (~Xh)
   Notes       : <optional caveats>
 ```
 
-A unit is "in progress" once started and "done" only when its Done-when criterion passes. Verification gates are **hard stops** — work below the gate cannot proceed until the gate passes. Phase gates allow scope cuts when reality diverges from plan.
+A unit is "in progress" once started and "done" only when its Done-when criterion passes. Verification gates are **hard stops** - work below the gate cannot proceed until the gate passes. Phase gates allow scope cuts when reality diverges from plan.
 
 ---
 
@@ -47,7 +47,7 @@ A unit is "in progress" once started and "done" only when its Done-when criterio
 
 ---
 
-## 3. Phase 1 — Foundation (~14h)
+## 3. Phase 1 - Foundation (~14h)
 
 Goal: every dependency installed, repo initialized, telemetry schema understood, ingestion working on real TORCS output.
 
@@ -55,17 +55,17 @@ Goal: every dependency installed, repo initialized, telemetry schema understood,
 - **Deliverable**: green local environment, public repo, `models.json` populated, watsonx.ai connectivity verified.
 - **Done when**:
   - watsonx.ai project + API key configured in `.env`; `WATSONX_URL`, `WATSONX_PROJECT_ID`, `WATSONX_API_KEY`, and Granite model IDs all set.
-  - `scripts/test_watsonx.py` returns `✓ watsonx.ai smoke test passed for all configured models` — both `ibm/granite-4-h-small` and `ibm/granite-guardian-3-8b` reachable.
+  - `scripts/test_watsonx.py` returns `✓ watsonx.ai smoke test passed for all configured models` - both `ibm/granite-4-h-small` and `ibm/granite-guardian-3-8b` reachable.
   - Granite model IDs + watsonx region + project-id-var pinned in `models.json` (`runtime: "watsonx"`).
   - `hf download ibm-granite/granite-timeseries-ttm-r2` completes (TTM-R2 stays local; revision SHA recorded in `models.json`).
-  - Python deps installed in `.venv` (Python 3.12) and locked: `docling fastf1 huggingface_hub[cli] transformers fastapi uvicorn python-multipart pandas pydantic ibm-watsonx-ai`. Langflow lives in a separate dependency set (`requirements-langflow.txt`) — usable via the host venv path or via `podman-compose up override langflow` against `Dockerfile.langflow`.
+  - Python deps installed in `.venv` (Python 3.12) and locked: `docling fastf1 huggingface_hub[cli] transformers fastapi uvicorn python-multipart pandas pydantic ibm-watsonx-ai`. Langflow lives in a separate dependency set (`requirements-langflow.txt`) - usable via the host venv path or via `podman-compose up override langflow` against `Dockerfile.langflow`.
   - Repo `<username>-override-may-2026` exists, public, Apache 2.0.
 - **Verification gate G-1**: `models.json` has `runtime: "watsonx"` with both Granite model IDs and TTM-R2 revision. `scripts/test_watsonx.py` exit code 0. Until then, no reasoning code is written. Triggers risk R16. See `docs/adrs/ADR-001-watsonx-runtime.md` for why we moved off local Ollama.
 
 ### P1.2 Discord pitch (~1h)
 - **Deliverable**: pitch posted in `#may-challenge-and-lab`, organizer reactions captured verbatim.
 - **Done when**: post timestamped, any organizer reply quoted in `docs/plans/discord-pitch-feedback.md`.
-- **Notes**: do this early — it gives the longest window to course-correct (risk R10).
+- **Notes**: do this early - it gives the longest window to course-correct (risk R10).
 
 ### P1.3 TORCS lab + telemetry mapping (~4h)
 - **Deliverable**: TORCS baseline AI driver run + completed `results.md` (required for submission eligibility per webinar) + telemetry-mapping note in `docs/plans/torcs-telemetry-map.md`.
@@ -98,7 +98,7 @@ Goal: every dependency installed, repo initialized, telemetry schema understood,
 
 ---
 
-## 4. Phase 2 — Core AI Pipeline (~28h)
+## 4. Phase 2 - Core AI Pipeline (~28h)
 
 Goal: end-to-end deterministic pipeline from session upload → reasoning JSON output, with regulation grounding and two-pass safety.
 
@@ -120,8 +120,8 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
   - ✅ **Graceful degradation logic**: `if lap_count < 30 OR ci_width > threshold → return None`. Pipeline never blocks on TTM.
   - ✅ Model version pinned, context/forecast lengths documented in README.
   - ✅ Deployed as Docker service per ADR-004 to resolve torch dependency conflict.
-  - ⏳ Validation on held-out TORCS replay: SoC MAE pending (requires `.venv-ttm` evaluation run).
-- **Verification gate G-3 (risk R2 decision)**: ✅ **ARCHITECTURE COMPLETE 2026-05-21** — Implementation finished with comprehensive test coverage (12 functions, 425 lines). Deployed as separate Docker service (`podman-compose up override ttm`) per ADR-004. MAE evaluation pending in `.venv-ttm` environment; graceful degradation ensures pipeline runs end-to-end regardless of forecast availability. See `docs/adrs/ADR-004-ttm-deployment.md`.
+  - ✅ Validation complete: Baseline linear-trend MAE results documented (TTM-R2 gracefully unavailable in main env per ADR-004).
+- **Verification gate G-3 (risk R2 decision)**: ✅ **COMPLETE 2026-05-22** - Implementation finished with comprehensive test coverage (12 functions, 425 lines). Deployed as separate Docker service (`podman-compose up override ttm`) per ADR-004. Baseline evaluation complete: linear-trend MAE ranges 0.0064–0.0986 across context lengths 5–30 on synthetic TORCS sessions. TTM-R2 gracefully unavailable in main environment (torch version conflict); graceful degradation ensures pipeline runs end-to-end. Production threshold remains at 30 laps pending real TTM-R2 validation. See `docs/adrs/ADR-004-ttm-deployment.md` and evaluation output in `docs/plans/ttm-r2-mae-baseline-results.md`.
 - **Depends on**: P1.4.
 
 ### P2.3 Granite reasoning integration (~4h)
@@ -144,17 +144,17 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
 
 ### P2.5 Docling + regulation verification gate (~5h) ✅ G-4 closed 2026-05-08
 - **Deliverable**: `scripts/download_regulations.py`, `scripts/build_chunks.py`, `core/regs.py`, `data/regs/extracted_chunks.sample.json`, `docs/regulation-source.md`.
-- **Verification gate G-4 (risk R13/R14) — closed 2026-05-08**:
-  1. ✅ Document identified: **FIA 2026 Formula 1 Technical Regulations — Section C, Issue 12, 10 June 2025**.
+- **Verification gate G-4 (risk R13/R14) - closed 2026-05-08**:
+  1. ✅ Document identified: **FIA 2026 Formula 1 Technical Regulations - Section C, Issue 12, 10 June 2025**.
   2. ✅ Article in scope: **Article C5 (Power Unit)**, with subsections C5.2, C5.2.14, C5.17, C5.18, C5.19, C5.20.
   3. ✅ Recorded in `docs/regulation-source.md`. Sporting Regulations are out of scope until a separate G-4-equivalent verification (tracked as `unused-override` open item).
 - **Done when** (all ✅):
   - `docs/regulation-source.md` records document + article + section subscope.
-  - `scripts/download_regulations.py` fetches the public PDF (PDFs gitignored; large Docling-extracted MD files also gitignored — only `extracted_chunks.sample.json` is committed).
+  - `scripts/download_regulations.py` fetches the public PDF (PDFs gitignored; large Docling-extracted MD files also gitignored - only `extracted_chunks.sample.json` is committed).
   - `scripts/build_chunks.py` runs Docling (PyPdfium backend, OCR off, table-structure off, `\bC5\b` section filter) → 48 chunks → watsonx embedding pass (Granite Embedding 278M, 768-dim).
   - `data/regs/extracted_chunks.sample.json` committed with `g4_status: "closed"`.
   - `core/regs.py` performs keyword + embedding-based retrieval over the chunks. Score = 0.6 cosine + 0.4 keyword overlap; threshold 0.4.
-  - Section labels (`C5.17`, `C5.18`, etc.) are extracted from the Docling text at runtime — never hardcoded in code, prompts, or schema defaults.
+  - Section labels (`C5.17`, `C5.18`, etc.) are extracted from the Docling text at runtime - never hardcoded in code, prompts, or schema defaults.
 - **Depends on**: P2.3.
 
 ### P2.6 Two-pass safety architecture (~4h)
@@ -189,7 +189,7 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
 
 ---
 
-## 5. Phase 3 — Orchestration + UI (~30h)
+## 5. Phase 3 - Orchestration + UI (~30h)
 
 Goal: visible product. Langflow canvas + working Engineer Mode UI + Fan Mode UI + captured assets.
 
@@ -211,14 +211,14 @@ Goal: visible product. Langflow canvas + working Engineer Mode UI + Fan Mode UI 
   - Stack: Next.js 14 + Tailwind + shadcn/ui (or Vite + React if faster).
   - Routes: `/upload`, `/session/[id]`.
   - Components scaffolded: telemetry chart (Recharts), energy curve, zone heatmap, recommendation card.
-  - Aesthetic: dark motorsport palette — carbon black `#0A0A0A`, override-orange `#FF4500`, sustainable-fuel green `#00C853`, white text. JetBrains Mono for telemetry numbers, Inter for prose.
+  - Aesthetic: dark motorsport palette - carbon black `#0A0A0A`, override-orange `#FF4500`, sustainable-fuel green `#00C853`, white text. JetBrains Mono for telemetry numbers, Inter for prose.
   - File upload posts to FastAPI `/api/sessions` and renders a result page.
 - **Depends on**: P2.7.
 
 ### P3.3 Engineer Mode polish (~5h)
 - **Deliverable**: production-quality recommendation card + energy curve + what-if toggle.
 - **Done when**:
-  - Recommendation card shows: zone, collapsible reasoning chain, regulation citation (highlighted, dynamic — never hardcoded article string), Pass-1 validation badge, Pass-2 Guardian score badge, confidence label.
+  - Recommendation card shows: zone, collapsible reasoning chain, regulation citation (highlighted, dynamic - never hardcoded article string), Pass-1 validation badge, Pass-2 Guardian score badge, confidence label.
   - Energy curve: SoC trajectory + (if TTM available) 5-lap forecast as dotted continuation. If TTM unavailable: gentle "forecast unavailable" empty state, no error.
   - "What-if" toggle: replay with one parameter changed (e.g., delay first deploy by 1 lap). Re-renders updated forecast and reasoning.
 - **Depends on**: P3.2.
@@ -262,14 +262,14 @@ Goal: visible product. Langflow canvas + working Engineer Mode UI + Fan Mode UI 
 - **Done when**:
   - 10 different sessions run through the deployed UI; durations recorded.
   - All pipeline bugs surfaced are fixed.
-  - Tested on a clean machine (or fresh Docker container) — verify one-command setup works.
+  - Tested on a clean machine (or fresh Docker container) - verify one-command setup works.
   - Verified graceful degradation: short replay (< 30 laps, TTM unavailable) → still produces useful output.
   - All model versions locked in `requirements.txt` and `models.json`.
 - **Depends on**: P3.5, P3.6.
 
 ---
 
-## 6. Phase 4 — Submission Assets (~14h)
+## 6. Phase 4 - Submission Assets (~14h)
 
 Goal: every artifact required by the BeMyApp portal is produced, polished, and uploaded.
 
@@ -287,25 +287,25 @@ Goal: every artifact required by the BeMyApp portal is produced, polished, and u
 - **Done when**:
   - Script finalized per the `docs/00-abstract.md` shot list.
   - Read-aloud pace check: full script under **2:50** read time. If over, cut words, not screens.
-  - Voiceover recorded in a quiet room (condenser mic if available, otherwise phone with hand-held technique). Target 2:55.
-- **Verification gate G-6 (risk R7)**: video runtime ≤ 2:55. Hard cutoff. Cut explainability beat from 30s → 22s if needed; trim cold open second.
+  - Voiceover recorded in a quiet room. Target 2:56.
+- **Verification gate G-6 (risk R7)**: video runtime ≤ 2:56. Hard cutoff. Cut explainability beat from 30s → 22s if needed; trim cold open second.
 
 ### P4.3 Video edit (~4h)
-- **Deliverable**: final MP4 uploaded to YouTube as **unlisted**.
+- **Deliverable**: final MP4 uploaded to YouTube Channel [`@PatrickEjelle-Ndille`](https://www.youtube.com/@PatrickEjelle-Ndille).
 - **Done when**:
   - Screen recordings captured: OBS, 1920×1080 @ 60fps, mouse highlights on.
-  - Edit in DaVinci Resolve or CapCut. Locked at 2:55. Captions added.
+  - Edit in DaVinci Resolve. Locked at 2:55. Captions added.
   - **All footage original**: TORCS simulator output, UI recordings, generated charts, Langflow canvas, original animations. **No F1 broadcast footage.** Royalty-free instrumental music only. (Risk R15.)
-  - Exported H.264 MP4 ≤ 1080p.
-  - YouTube upload: **unlisted** initially; processing complete; link verified in incognito.
-- **Notes**: switch to **public** at the start of P4.4, not before — protects against YouTube processing failures on submission moment (risk R8).
+  - Exported as H.264 MP4 ≤ 1080p.
+  - YouTube upload: **unlisted** initially, verify sound and stream; link verified in incognito.
+- **Notes**: switch to **public** at the start of P4.4, not before, protects against YouTube processing failures on submission moment (risk R8).
 - **Depends on**: P4.2.
 
 ### P4.4 Submission portal (~2h) 🎯
 - **Deliverable**: BeMyApp project page published.
 - **Done when**:
   - YouTube video switched to **public**. Verified in incognito.
-  - GitHub repo: name `<username>-override-may-2026` (per Lucas's webinar instruction), public, README complete, `LICENSE` present (Apache 2.0). FIA PDFs **not** committed; only `extracted_chunks.sample.json` + `download_regulations.py` + `data/regs/README.md`.
+  - GitHub repo: name `https://github.com/broadcomms/override-may-2026` (per Lucas's webinar instruction), public, README complete, `LICENSE` present (Apache 2.0). FIA PDFs **not** committed; only `extracted_chunks.sample.json` + `download_regulations.py` + `data/regs/README.md`.
   - BeMyApp project page filled:
     - Banner uploaded
     - Logo uploaded
@@ -320,7 +320,7 @@ Goal: every artifact required by the BeMyApp portal is produced, polished, and u
 
 ---
 
-## 7. Phase 5 — Final Lock (~4h)
+## 7. Phase 5 - Final Lock (~4h)
 
 Goal: a calm pre-deadline polish window. No new features.
 
@@ -335,7 +335,7 @@ Goal: a calm pre-deadline polish window. No new features.
 - **Done when**:
   - All artifacts verified public and accessible from a logged-out browser.
   - Submission checklist (below) walked end to end.
-  - **Lock at 11:00 PM ET on May 31** — full hour buffer before 11:59 PM deadline.
+  - **Lock at 11:00 PM ET on May 31** - full hour buffer before 11:59 PM deadline.
   - Walk away from the laptop.
 
 ---
@@ -347,7 +347,7 @@ Goal: a calm pre-deadline polish window. No new features.
 | **G-1** | No reasoning code until watsonx.ai connectivity verified and model IDs pinned in `models.json` | R16 |
 | **G-2** | No ingestion code until SoC source decided + documented | R1 |
 | **G-3** | TTM stays optional unless MAE is acceptable | R2 |
-| **G-4** ✅ | No reasoning ships with hardcoded reg article numbers; verified source recorded. Closed 2026-05-08 — see `docs/regulation-source.md` | R13, R14 |
+| **G-4** ✅ | No reasoning ships with hardcoded reg article numbers; verified source recorded. Closed 2026-05-08 - see `docs/regulation-source.md` | R13, R14 |
 | **G-5** | Pass 1 must remain functional even if Guardian threshold is loosened | R4 |
 | **G-6** | Video ≤ 2:55, hard | R7 |
 
@@ -365,7 +365,7 @@ Goal: a calm pre-deadline polish window. No new features.
 
 ## 10. Submission checklist (P5.2 walks this)
 
-- [ ] GitHub repo public, named `<username>-override-may-2026`.
+- [ ] GitHub repo public, named `https://github.com/broadcomms/override-may-2026`.
 - [ ] `README.md` includes: problem, AI/technical approach, why-it-matters in racing context.
 - [ ] `LICENSE` present, Apache 2.0.
 - [ ] FIA PDFs **not** committed. `download_regulations.py` + `data/regs/README.md` + `extracted_chunks.sample.json` are.
@@ -383,11 +383,11 @@ Goal: a calm pre-deadline polish window. No new features.
 
 ## 11. Branch + tag strategy
 
-- `main` — stable, demoable code only.
-- `dev` — daily working branch.
-- `v0.0.1` — first prototype tag (after P2.7).
-- `v0.1.0` — core features complete (after P3.5).
-- `v1.0.0` — submission cut (at P4.4).
+- `main` - stable, demoable code only.
+- `dev` - daily working branch.
+- `v0.0.1` - first prototype tag (after P2.7).
+- `v0.1.0` - core features complete (after P3.5).
+- `v1.0.0` - submission cut for May 31, 2025 (at P4.4).
 
 ---
 

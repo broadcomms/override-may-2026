@@ -63,7 +63,8 @@ podman-compose up override
 
 ### Phase 1: Evaluation (Gate G-3)
 ```bash
-source .venv-ttm/bin/activate
+# Use main venv (has all project dependencies)
+source .venv/bin/activate
 python scripts/eval_forecast_contexts.py
 # Target: MAE < 0.05, interval width < 0.15
 ```
@@ -316,8 +317,8 @@ def forecast_lap_window_http(laps: list[LapFeatures]) -> Optional[Forecast]:
 ### Step 2.1: Run evaluation in `.venv-ttm`
 
 ```bash
-# Activate TTM environment
-source .venv-ttm/bin/activate
+# Activate main environment (has all project dependencies)
+source .venv/bin/activate
 
 # Run evaluation harness
 python scripts/eval_forecast_contexts.py
@@ -626,8 +627,8 @@ time curl -X POST http://localhost:8001/forecast \
 ## Quick Start Commands
 
 ```bash
-# 1. Run evaluation (in .venv-ttm)
-source .venv-ttm/bin/activate
+# 1. Run evaluation (in main .venv)
+source .venv/bin/activate
 python scripts/eval_forecast_contexts.py
 
 # 2. Build TTM service

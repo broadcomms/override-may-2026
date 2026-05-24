@@ -11,9 +11,9 @@ There is no CI workflow in v1. The repo’s test and build truth lives in the lo
 
 As of the current repo state:
 
-- `pytest --collect-only -q -s tests` collects **419 tests**
+- `pytest --collect-only -q -s tests` collects **439 tests**
 - **4** of those tests are marked `network`
-- the remaining **415** are local/offline tests
+- the remaining **435** are local/offline tests
 - `npm --prefix ui run build` succeeds against the current frontend
 
 ## Test layout
