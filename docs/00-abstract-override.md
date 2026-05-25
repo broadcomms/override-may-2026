@@ -2,7 +2,7 @@
 
 
 # Locked Positioning Sentence
-> OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.
+> OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review.
 
 OVERRIDE is a copilot.
 The engineer reviews; the AI explains.
@@ -15,7 +15,7 @@ Upload-first / replay-first architecture.
 Explainable energy-strategy reasoning grounded in 2026 regulations and telemetry.
 
 **README openning paragraph:**
-> OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.
+> OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review.
 
 ## Positioning
 
@@ -77,7 +77,7 @@ Then a confused engineer-style avatar with a question mark. (generic schematic e
 
 - **Voiceover:**
 “Current telemetry tools show data, but they do not explain strategy tradeoffs clearly.”
-"Today's tools show data, not reasoning. AWS, Oracle, and IBM's own Ferrari app shipped for the old rules. There's no open, explainable tool for the 2026 era."
+"Today's tools often surface metrics or run as closed team tooling. OVERRIDE adds the missing layer: open, regulation-grounded reasoning for the 2026 hybrid era."
 
 Text overlay: "Today's tools show data, not reasoning."
 * raw telemetry overload,
@@ -123,7 +123,7 @@ This is the core scoring section.
   - The regulation citation with relevant phrase highlighted
   - Pass 1: "Validation ✓" green badge
   - Pass 2: Granite Guardian risk score badge
-  - A "What-if: delay deploy by 1 lap" toggle that re-runs and shows updated forecast
+  - A "Counterfactual: delay deploy by 1 lap" control that re-runs and shows updated forecast
 
 - **Voiceover (38 words):** *"This is the core. Every recommendation cites a specific regulation clause. Two safety passes - deterministic validation, then Granite Guardian's AI scoring on custom criteria. If either fails, it's regenerated. The engineer always sees the reasoning before any decision."
 
@@ -196,7 +196,7 @@ This is gold for the video. The plan's whole pitch - "explainable AI race-strate
 
 Validator's harvest_cap rule (which we activated via extract_harvest_cap_mj() returning 8.5 MJ from Issue 18 chunks) will fire on this fixture
 Zone detector's over-harvest pattern will fire
-The Recommendation card will cite C5.2.x and explain the violation
+The Recommendation card will cite the dynamically retrieved regulation passage and explain the violation
 Pass-1 catches it; the layered-defense story renders cleanly,
 
 When you record Segment 3 in Week 3, use the modified fixture as the "watch the system catch a real over-harvest violation" beat. Stronger rubric story than the synthetic layered_defense_demo.json because it's grounded in actual TORCS driving with a real regulation cap from the Docling extraction.
@@ -205,7 +205,7 @@ The fact that the FastF1-tuned coefficients happen to land in the 3–7 MJ band 
 The 9.30 MJ modified-fixture median is excellent. Over-harvest deliberately exceeds the 8.5 MJ cap → exercises the harvest_cap validator rule → produces a real "system catches a violation" beat for the demo video. The two fixtures now cover both the happy path AND the rejection path organically. That's a meaningful upgrade over the synthetic engineer_happy_demo we've been showing.
 
 **SSE pre-flight passed. Phase 2 greenlit.**
-The Cloudflare test came back clean - data: {"event": "connected", ...} and data: {"event": "no_telemetry", ...} arrived separately and in real-time through override-dev.patrickndille.com, which proves the SSE path through Cloudflare's edge isn't buffering. The hosted demo gets the live beat. That's a real upgrade to the demo story.
+The live update test came back clean - data: {"event": "connected", ...} and data: {"event": "no_telemetry", ...} arrived separately and in real time. The hosted review environment gets the live beat. That's a real upgrade to the demo story.
 
 How Phase 2 changes the demo
 Segment 3 of the video gains a meaningfully stronger beat. Before/after:
@@ -303,7 +303,7 @@ That pattern applies to:
 * cybersecurity,
 * defense,
 * healthcare monitoring,
-* autonomous systems,
+* machine-control systems,
 * financial risk systems.
 
 Formula 1 is simply:
@@ -347,11 +347,8 @@ That positioning feels:
 
 ---
 
-3. The new FIA regs are an architectural update, not a polish item
-You downloaded eight new PDFs into data/regs/. The composition matters:
-FileImplicationSection A General Provisions Iss 02 (2026-02-27)New - definitions, scopingSection B Sporting Iss 06 (2026-04-28)Override Mode availability rules - previously OUT OF SCOPE for OVERRIDESection C Technical Iss 12 (2025-06-10)The current G-4 source (canonical citation)Section C Technical Iss 18 (2026-05-07)Supersedes Iss 12 - current G-4 is now staleSection D Financial (F1 Teams)Out of scopeSection E Financial (PU Manufacturers)Out of scopeSection F Operational Iss 08 (2026-05-07)Possibly relevant for telemetry/data definitions
-Two real consequences:
-(a) G-4 closure is now out of date. docs/regulation-source.md and data/regs/extracted_chunks.sample.json both pin to "Issue 12 - 2025-06-10." The newer Issue 18 (May 7, 2026 - six weeks newer) is now in the corpus. The harvest_cap value of 8.5 MJ may have shifted in Issue 18; the article numbers may have renumbered; the language may differ. G-4 needs re-verification against Issue 18 before P3.5 screenshot capture and definitely before video record.
+3. The FIA regulation source is an architectural input, not a polish item
+OVERRIDE treats regulation text as a dynamic source. Docling extracts the current public PDF into structured chunks, Granite Embedding retrieves the relevant passage, and citations render from `RegulationSource` at runtime. That keeps the system honest when the FIA updates language or numbering: no article numbers are hardcoded in prompts, schemas, fixtures, or user-facing copy.
 
 ---
 
@@ -383,6 +380,4 @@ Current supported upload sources:
 a. TORCS / gym_torcs simulation - .json /JSONL-style TORCS telemetry (Baseline simulation and demo data)
 b. FastF1 export - .parquet /.csv in docs (Real-world F1-derived historical race telemetry captured data)
 c. Canonical OVERRIDE race strategy scenario schemas - .json (Preprocessed Normalized LapFeatures payload)
-
-
 

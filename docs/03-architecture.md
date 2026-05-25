@@ -152,7 +152,7 @@ override-may-2026/
 ├── prompts/                          # System prompts for reasoning/fan/grounding
 ├── guardian/                         # BYOC scoring criteria
 ├── scripts/                          # Utility, evaluation, and runtime support scripts
-└── tests/                            # 419 collected tests as of 2026-05-19
+└── tests/                            # 439 collected tests as of final close
 ```
 
 ## Verification Snapshot

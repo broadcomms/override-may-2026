@@ -134,7 +134,7 @@ the unit tests in `tests/test_llm_clients_ollama.py` are mock-only.**
 
 ## Demo invariant
 
-The YouTube video uses `OVERRIDE_LLM_RUNTIME=watsonx` (default). The ollama
+The submission video at `https://override-video.patrickndille.com` uses `OVERRIDE_LLM_RUNTIME=watsonx` (default). The ollama
 path is for:
 1. Judges cloning the repo who want to demonstrate the system runs without
    any cloud credentials (sets `OVERRIDE_LLM_RUNTIME=ollama` after bringing

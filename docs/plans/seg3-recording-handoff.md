@@ -106,12 +106,9 @@ it (final.mp4 only) or gitignore everything.
 
 ## What's left for Week 3 step 3.6 (the real video re-record)
 
-This pre-record is just **Segment 3**. The full 2:55 video needs all seven
-segments re-recorded with the updated script — that's Week 3's 12h block
-including voiceover, edit timeline, MP4 export, YouTube upload. The
-docs/plans/video-script.md Segment 3 block needs updating to include the
-what-if beat (currently doesn't mention it); that text update lands in 3.6,
-not here.
+This pre-record was just **Segment 3**. The full 2:55 video is now complete
+and available through `https://override-video.patrickndille.com`; this handoff
+remains as capture provenance for the live-cockpit segment.
 
 ## Status
 

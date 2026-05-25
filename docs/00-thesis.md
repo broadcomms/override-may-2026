@@ -1,6 +1,6 @@
 # Thesis
 
-> **OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.**
+> **OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review.**
 
 This document states the central argument behind OVERRIDE: what changed in 2026, what new problem that change created, why existing tooling does not address it, and why an explainability-first copilot grounded in the actual FIA regulations is the right shape of answer.
 
@@ -29,18 +29,18 @@ In 2026, **every lap is an energy decision**. Where to harvest, where to deploy,
 This creates two distinct user pains:
 
 - **For engineers and analysts**, the search space for a coherent energy plan has exploded, while the public open-source tooling to *reason* over telemetry against the new regulations does not yet exist.
-- **For broadcasters, analysts, and fans**, the spectacle is harder to follow. What used to read as "they're just driving fast" now hides an entire chess match in the energy budget that nobody is currently translating into plain language at scale.
+- **For broadcasters, analysts, and fans**, the spectacle is harder to follow because energy-budget decisions are invisible on broadcast but measurable in telemetry.
 
 The common thread is **explainability**. The data pipelines exist. The reasoning layer that connects telemetry to regulation to plain-language consequence does not.
 
 ## 3. The gap in existing tooling
 
-The publicly visible AI in this space - AWS F1 Insights, Oracle's strategy work for Red Bull, IBM's own Ferrari fan app - was designed for the 2014–2025 hybrid rules. These products surface metrics, recap moments, or run closed proprietary models. None of them:
+Most public racing AI surfaces metrics or runs as closed team tooling. Those systems can be useful, but they are not designed as open, auditable reasoning layers for the 2026 hybrid-energy reset. The gap is a system that can:
 
 - Reason explicitly over the 2026 energy-management regulation text.
 - Show their working in a way an engineer can audit or a fan can follow.
 - Ship as open source against a public, reproducible data path.
-- Let a user run a *what-if* against a session they brought themselves.
+- Let a user run a counterfactual strategy review against a session they brought themselves.
 
 There is no open, explainable tool for the 2026 era. That is the gap OVERRIDE is built into.
 
@@ -50,7 +50,7 @@ There is no open, explainable tool for the 2026 era. That is the gap OVERRIDE is
 
 OVERRIDE competes on *can it explain why*, not on *more data, faster models*. Concretely, it ingests a session replay, identifies inefficient deploy / harvest / recharge zones, optionally forecasts a five-lap state-of-charge trajectory, generates a causal reasoning chain, grounds the recommendation in the relevant 2026 energy-management regulation section parsed dynamically with Docling, and surfaces both a deterministic safety pass and an AI-based safety pass to the user before any output is shown.
 
-The same engine drives two surfaces: an **Engineer Mode** with full reasoning chains, regulation citations, confidence scores, and what-if simulation; and a **Fan Mode** that translates the same intelligence into plain language for broadcasters, analysts, and viewers.
+The same engine drives two surfaces: an **Engineer Mode** with full reasoning chains, regulation citations, confidence scores, and counterfactual strategy review; and a **Fan Mode** that translates the same intelligence into plain language for broadcasters, analysts, and viewers.
 
 ## 5. Design choices and why
 
@@ -59,7 +59,7 @@ Every non-obvious decision in OVERRIDE traces back to the thesis above:
 - **Upload-first / replay-first, not live trackside.** Live inference would require licensed team telemetry we cannot honestly source. Replay-first makes the system deterministic, demoable, and accurate about what it is - a *strategy exploration* tool, not a production race-control system.
 - **Lap-aggregated forecasting.** Granite Time Series TTM-R2's open-source release is documented for minutely-to-hourly resolution. Aggregating to one row per lap (~90 seconds) keeps the system inside the model's published scope and avoids overclaiming sub-second capability.
 - **Graceful degradation.** The pipeline runs end-to-end without TTM. Forecasting enhances; it does not gate. Sessions shorter than the model's context window simply skip the forecast and continue from observed evidence.
-- **Two-pass safety.** A deterministic Pass 1 validator (energy bounds, harvest caps, citation existence, language safety) protects the demo even if the AI Pass 2 is rough. A Granite Guardian BYOC scorer (energy-safety, regulation-consistency) is layered on top. Both pass results are shown - judges and users see a layered defence-in-depth architecture, not a black box.
+- **Two-pass safety.** Pass 1 gives deterministic evidence checks before Pass 2 adds Granite Guardian semantic scoring. Both pass results are visible, so users can audit the recommendation rather than trust a black box.
 - **Regulation grounding via Docling, never hardcoded.** Article numbers and clauses are rendered dynamically from the Docling extraction. Because the FIA actively amends the regulation mid-season, any tool that hardcodes "Article B7.2.3" into prose will rot.
 - **Decision support, never decision replacement.** Every output uses the language of explanation - *supports, explains, highlights, recommends* - never *decides, autonomously, optimal*. The engineer (or curious fan) is always the decision-maker.
 - **Langflow as the design + demo layer; FastAPI as the production runtime.** Langflow visually documents and demonstrates the architecture. The runtime path is Python/FastAPI for performance and reliability.

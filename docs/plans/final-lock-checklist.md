@@ -1,24 +1,24 @@
-# P5 — Final lock checklist
+# P5 - Final Lock Checklist
 
 > Pre-submission walkthrough for the OVERRIDE submission to the IBM SkillsBuild AI Builders Challenge.
 > **Deadline: 2026-05-31, 11:00 PM ET** (verify on the BeMyApp portal — ET vs PT has tripped past submissions).
 >
-> This is a **durable runbook** — execute top-to-bottom on **May 30** (T-24h) and **May 31** (submission day). High-stress moment; pre-written wins over improvising.
+> This is a durable final-close runbook. As of final close, the video and portal copy are complete; the only intentionally held action is the public BeMyApp publish click.
 >
 > Sister doc for portal copy: [`submission-portal-copy.md`](./submission-portal-copy.md).
 > Source-of-truth doc for QA evidence: [`qa-results.md`](./qa-results.md).
 >
-> Per `.bob/rules.md`: this plan file is deleted in the commit that ships the final submission.
+> Final decision: do not create a version tag for this submission; `main` and `dev` carry the submission commit directly.
 
 ---
 
 ## T-72h (Friday May 28) — pre-flight prep
 
 ### Code freeze prep
-- [ ] All Phase 4 video assets uploaded to YouTube (unlisted) — URL captured
-- [ ] All Phase 4 portal copy reviewed against `submission-portal-copy.md`
+- [x] Final submission video completed - URL captured as `https://override-video.patrickndille.com`
+- [x] All Phase 4 portal copy reviewed against `submission-portal-copy.md`
 - [ ] No PRs in flight on `main` — branch is stable/demoable
-- [ ] `dev` branch (if used) merged into `main` if anything pending
+- [x] `dev` branch pushed to `main`; both remote branches point at the submission commit
 - [ ] No `.env`, no credentials, no API keys committed (run `git ls-files | xargs grep -lE "WATSONX_API_KEY|sk-|api_key.*=" 2>/dev/null` and verify it returns nothing real)
 
 ### Repo hygiene
@@ -39,10 +39,9 @@
 cd ~/overdrive-may-2026                          # WSL Ubuntu — adjust to your clone path
 .venv/bin/pytest tests/ -q -m "not network"
 # Expected count is a moving target as Week 1–2 work lands. Baseline floors:
-#   - As of 2026-05-14 post-TORCS-parser ship: 301 unit + 4 network
-#   - End of Week 2 (FR-8 + concurrency fix + calibration regression + WhatIf tests): ~330–340
-# Whatever the count is at T-72h: record it in `qa-results.md` §1 in the same commit
-# that updates this line, so the two numbers can't drift apart again.
+#   - Final close collection: 439 tests, including 4 network-marked tests
+# Whatever the count is at publish time: record it in `qa-results.md` §1 in the same commit
+# that updates this line, so the numbers cannot drift again.
 ```
 - [ ] Unit suite green (count recorded in `qa-results.md` §1)
 - [ ] UI typecheck green: `cd ui && npm run typecheck`
@@ -90,12 +89,24 @@ If they can't answer all 3 from the README alone, **the README needs a fix, not 
 ### Asset audit — every screenshot is the LATEST polish-pass version
 ```bash
 ls -la assets/screenshots/
-# verify: dashboard, engineer-mode, fan-mode, reasoning-card, guardian-rejection, langflow-canvas, jaeger-trace
+# verify: race-control, cockpit, live-race-explainer, ai-race-assistant,
+# energy-forcast, race-report, reasoning-card, counter-factual, fan-mode,
+# layered-defense, validation, driver-lab, langflow-canvas, jaeger-trace
 # all non-zero, all post-P3.5-polish (snap-out hover, 3px citation accent, etc.)
 ```
-- [ ] All 7 required screenshots present + non-zero
-- [ ] Engineer mode screenshot shows the polished citation block (3px granite-blue left border)
+- [ ] All 14 Execution Evidence screenshots present + non-zero
+- [ ] Race control screenshot shows track/lap/profile controls and capture ingest list
+- [ ] Cockpit screenshot shows TORCS frame, telemetry, timing, hybrid rail, and AI Race Engineer context
+- [ ] Live race explainer screenshot shows Granite readout plus deterministic telemetry guardrail
+- [ ] AI Race Assistant screenshot shows a grounded live-race Q&A response
+- [ ] Energy forecast screenshot shows SoC curve, forecast continuation, and zone heatmap
+- [ ] Race report screenshot shows scores, key moments, AI commentary, lap drill-down, and PDF export
+- [ ] Reasoning card screenshot shows the polished citation block (3px granite-blue left border)
+- [ ] Counterfactual screenshot shows before/after comparison and validation badges
 - [ ] Fan mode screenshot is from the same session as engineer mode (consistency)
+- [ ] Layered defense screenshot shows deterministic validation and Granite Guardian scoring as separate checks
+- [ ] Validation screenshot shows suppressed reasoning and the failed deterministic rule after retries
+- [ ] Driver Lab screenshot shows validated TORCS profile controls
 - [ ] Langflow canvas screenshot shows all 9 OVERRIDE custom components wired (no orphan If-Else)
 - [ ] Jaeger trace screenshot shows the per-stage span tree with attribute drill-down
 
@@ -144,7 +155,7 @@ git diff main..HEAD --stat       # if branched, verify diff is the submission di
 ```
 - [ ] All commits have meaningful messages (no `wip` / `fix typo` clutter at the top)
 - [ ] No force-push protection issues — `main` is in expected state
-- [ ] Tag the submission commit: `git tag -a v1.0.0-submission -m "IBM SkillsBuild AI Builders Challenge submission"`
+- [x] No release/version tag created, per final submission decision.
 
 ### Final test sweep
 ```bash
@@ -168,7 +179,7 @@ cd ui && npm run typecheck && npm run build
 - [ ] Tech stack: tagged (IBM Granite, Docling, Langflow, FastAPI, React, watsonx.ai)
 - [ ] Banner image uploaded: `assets/banner.png` (1920×600 if portal asks)
 - [ ] Logo uploaded: `assets/logo.png` (square or wordmark per portal field name)
-- [ ] Demo video URL: YouTube unlisted link (verified working from incognito tab)
+- [x] Demo video URL: `https://override-video.patrickndille.com` (verify again from incognito immediately before publish)
 - [ ] GitHub repo URL: public if portal allows (or unlisted if private during judging)
 - [ ] License: Apache 2.0
 - [ ] Team members listed
@@ -177,7 +188,7 @@ cd ui && npm run typecheck && npm run build
 ### Cross-platform verification
 - [ ] Open the portal page in incognito Chrome — embeds work, video plays
 - [ ] Open the portal page on mobile (iOS Safari + Android Chrome if possible) — banner + logo render, video plays
-- [ ] All external links work (GitHub, YouTube, FIA source citations)
+- [ ] All external links work (GitHub, video forwarding URL, FIA source citations)
 
 ### Pre-publish dry run
 - [ ] Click "Save as draft" — verify draft state shows everything correctly
@@ -194,7 +205,7 @@ cd ui && npm run typecheck && npm run build
 - [ ] If anything fails: there's still 3h of margin; redo from T-2h
 
 ### Backup — if portal is down
-- [ ] Email the BeMyApp organizer with: project name + GitHub URL + YouTube URL + a copy of the portal-copy document
+- [ ] Email the BeMyApp organizer with: project name + GitHub URL + video URL + a copy of the portal-copy document
 - [ ] Screenshot the portal failure (timestamp + URL visible)
 
 ---
@@ -207,15 +218,14 @@ cd ui && npm run typecheck && npm run build
 - [ ] Discord #may-challenge-and-lab post (optional but useful — first-10-teams bonus already locked from May 23 push)
 
 ### Repo final touches
-- [ ] Push the `v1.0.0-submission` tag to GitHub
-- [ ] Create a GitHub Release from the tag with the same body as `submission-portal-copy.md`'s "How to try it" section
+- [x] No version tag or GitHub Release for this submission, per final decision.
 - [ ] (Optional) Public-flag the repo if it was private during judging
 - [ ] (Optional) Pin the README at the top of the repo
 
 ### Self-checklist for the next 48h
 - [ ] Don't make any code changes until after judging announcement (avoids accidental "submitted code != judged code" scenarios)
 - [ ] Discord channel for organizer messages — check daily
-- [ ] Keep the YouTube video as **unlisted, not private** — judges access via the portal link
+- [ ] Keep `https://override-video.patrickndille.com` stable and reachable - judges access via the portal link
 
 ---
 
@@ -225,7 +235,7 @@ cd ui && npm run typecheck && npm run build
 |---|---|
 | Pipeline test fails on T-24h | Don't panic. Re-read the QA results doc — was it always passing? Did `models.json` change? Roll back the offending commit. |
 | README quickstart breaks on clean machine | Update the README, **not** the workflow. Common cause: missing env var, missing data file, incorrect `pip` version. Document the fix in the README. |
-| YouTube upload pending after 1h | Re-export at lower bitrate (10 Mbps is plenty for 1080p talking-head). |
+| Video forwarding URL fails | Point the forwarding URL at the backup host, then re-test from incognito before publish. |
 | Portal banner image rejected | Resize to portal's exact spec (BeMyApp typically wants 1280×640 or 1920×1080); re-upload. |
 | watsonx credentials expired | Regenerate API key in IBM Cloud → update `.env` → re-run `test_watsonx.py`. |
 | Demo.gif over 6 MB | Re-export with `gifsicle -O3 --lossy=80 input.gif > output.gif` or use `ffmpeg -i input.mov -vf "scale=960:-1,fps=15" -loop 0 output.gif`. |
@@ -238,7 +248,7 @@ cd ui && npm run typecheck && npm run build
 Your submission is **locked** when:
 1. ✅ The submission appears in the BeMyApp public listing
 2. ✅ The confirmation email is in your inbox
-3. ✅ The GitHub repo is at the `v1.0.0-submission` tag
+3. ✅ The GitHub repo `main` branch points at the final submission commit
 4. ✅ All four `docs/plans/*.md` files (qa-results, video-script, final-lock-checklist, submission-portal-copy) are committed in their final state
 5. ✅ You can show your spouse/friend the published submission and they understand what OVERRIDE does in 30 seconds
 

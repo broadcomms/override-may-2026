@@ -16,19 +16,19 @@ The hardware is fixed. The strategic problem is new. A copilot that can reason a
 
 ---
 
-## 2. Why this hurts engineers, drivers, broadcasters, and fans differently
+## 2. Why this hurts engineers, analysts, broadcasters, fans, and drivers differently
 
 The 2026 changes hit the racing ecosystem at four distinct points.
 
 **Race engineers and strategists.** The search space for a coherent energy plan has exploded. Every track now has its own profile of harvest opportunities and deployment windows that interact with the 50/50 split, with Override Mode availability, with active-aero state, and with sustainable-fuel combustion characteristics and the regulations that bound those decisions are still being amended. Engineers need an open, explainable layer that reasons over telemetry against the *current* regulation text and shows its working in a way they can audit before recommending it forward. No public open-source tool currently does that for the 2026 era.
 
-**Drivers.** A 2026 driver is making more decisions per lap than at any point in the hybrid era. Max Verstappen has publicly described having to *downshift on a straight at full throttle* in a 2026 Monza simulation just to keep the engine in its power band. A move that goes against every instinct in racing and would damage a real gearbox if used routinely. The instincts the driver community spent a decade building no longer translate cleanly. A debrief tool that frames each lap's decisions in cause-and-consequence form, will help drivers and engineers build the new mental model faster.
+**Drivers and coaches.** A 2026 driver has to build new instincts around when energy should be saved, deployed, or recovered. A debrief tool that turns telemetry into cause-and-consequence feedback helps drivers and coaches build that mental model without relying on raw traces alone.
 
-**Broadcasters and motorsport analysts.** A modern F1 broadcast is a translation layer between the pit wall and the audience. In 2026, the moments that decide races are increasingly invisible to a camera. They live in the energy budget. What used to read on screen as *"they're just driving fast"* now hides an entire chess match in the energy decisions. Broadcasters need credible, plain-language explanations grounded in evidence, not a guess. Fan-companion apps from incumbents such as Oracle's Red Bull strategy stack and IBM's Ferrari fan app were built for the 2014–2025 hybrid rules; none reason over the 2026 regulation text.
+**Broadcasters and motorsport analysts.** A modern F1 broadcast is a translation layer between the pit wall and the audience. In 2026, energy-budget decisions are invisible on broadcast but measurable in telemetry. Broadcasters need credible, plain-language explanations grounded in evidence, not a guess. Most public racing AI surfaces metrics or runs as closed team tooling; it does not give broadcasters a regulation-grounded explanation layer they can audit and translate for the audience.
 
-**Fans.** The Formula 1's appeal has always been the chess match. The energy budget is just the latest form of that match. A fan who wants to follow the strategy story in 2026 either has to learn the acronyms (`MGU-K`, `SoC`, `Override Mode`, `X-mode`, `Z-mode`, super-clipping, low-power-start detection) or has to stop trying. A copilot that translates the engineer's reasoning into plain language, without dumbing it down, lets the audience grow with the sport instead of churning out of it.
+**Fans.** A fan who wants to follow the strategy story in 2026 either has to learn the acronyms (`MGU-K`, `SoC`, `Override Mode`, `X-mode`, `Z-mode`, super-clipping, low-power-start detection) or has to stop trying. A copilot that translates the engineer's reasoning into plain language, without dumbing it down, lets the audience understand energy-budget decisions that are invisible on broadcast but measurable in telemetry.
 
-The four audiences are different. The *missing layer* is the same: an explainable reasoning copilot, grounded in the actual regulation, that scales from pit walls to broadcast booths.
+The audiences are different. The *missing layer* is the same: an explainable reasoning copilot, grounded in the actual regulation, that scales from pit walls to broadcast booths.
 
 ---
 
@@ -36,8 +36,8 @@ The four audiences are different. The *missing layer* is the same: an explainabl
 
 The publicly visible AI in racing has converged on three patterns:
 
-- **Closed strategy stacks** at the team level (Oracle/Red Bull, Mercedes' internal tools). Powerful, proprietary, not auditable, and designed for the previous regulation cycle.
-- **Telemetry analytics dashboards** for fans (AWS F1 Insights, IBM's Ferrari fan app). Surface metrics, recap moments, score driver performance but they don't reason over the regulation, and they don't show their inner working.
+- **Closed strategy stacks** at the team level. Powerful, proprietary, not auditable, and often designed around private team workflows.
+- **Telemetry analytics dashboards** for fans. Useful for metrics and recap moments, but they do not reason over the regulation or show their inner working.
 - **Generic LLM chat layers** layered over racing data. Conversational, sometimes impressive, but they hallucinate citations, lack safety scoring, and have no concept of decision-support framing.
 
 None of these:
@@ -46,7 +46,7 @@ None of these:
 - Cite the specific clause that grounds each recommendation, dynamically rendered so it survives FIA amendments.
 - Show a deterministic and an AI-based safety pass before any output is shown to the user.
 - Ship as open source against a public, reproducible data path.
-- Let a user run a *what-if* perturbation against a session they brought themselves and watch the same safety gates run on the perturbed scenario.
+- Let a user run a counterfactual strategy review against a session they brought themselves and watch the same safety gates run on the alternate scenario.
 
 There is no open, explainable tool for the 2026 era. That is the gap OVERRIDE is built into.
 
@@ -68,13 +68,13 @@ These properties are what makes OVERRIDE useful in racing strategy context. It i
 
 ---
 
-## 5. One engine, four audiences
+## 5. One engine, multiple audiences
 
 The product surface mirrors the strategic split outlined in §2.
 
 | Audience | Surface | What they see |
 |---|---|---|
-| Race engineer / strategist | Engineer Mode | Cause → consequence → recommendation, full reasoning chain, verbatim regulation passage with document title and section, validator + Guardian badges, what-if perturbations |
+| Race engineer / strategist | Engineer Mode | Cause → consequence → recommendation, full reasoning chain, verbatim regulation passage with document title and section, validator + Guardian badges, counterfactual strategy review |
 | Broadcaster / motorsport analyst | Engineer Mode (light) → Fan Mode | Same evidence; broadcasters can copy the verbatim regulation passage for credibility, then switch to Fan Mode for the on-air phrasing |
 | Curious fan | Fan Mode | Headline, what happened, why it mattered, plain-language paraphrase of the rule. No acronyms, no raw kJ/MJ numbers, no coaching language |
 | Driver / coach | Engineer Mode | The same debrief surface as a strategist; drivers iterating on instinct against a new physics need cause-and-consequence framing, not raw telemetry |
@@ -101,6 +101,6 @@ Stating these limits clearly, in the language of the sport, is the only way an e
 
 ## 7. Summary
 
-**The 2026 regulation cycle changed the unit of strategic reasoning in F1.** Engineers, drivers, broadcasters, and fans each lost a piece of the mental model that worked from 2014 to 2025, and existing public AI tools built for the previous era do not fill the gap. OVERRIDE is an explainable race-strategy copilot that reasons over telemetry, grounds every recommendation in the actual FIA regulation text via Docling, surfaces both a deterministic and an AI-based safety pass, and renders into Engineer Mode or Fan Mode on the same engine.
+**The 2026 regulation cycle changed the unit of strategic reasoning in F1.** Engineers, analysts, broadcasters, fans, and drivers each lost a piece of the mental model that worked from 2014 to 2025, and existing public AI tools built for the previous era do not fill the gap. OVERRIDE is an explainable race-strategy copilot that reasons over telemetry, grounds every recommendation in the actual FIA regulation text via Docling, surfaces both a deterministic and an AI-based safety pass, and renders into Engineer Mode or Fan Mode on the same engine.
 
 It is the right tool for the 2026 era because in a regulation cycle this disruptive, the scarce resource is not faster predictions it is *understandable* ones. A copilot that shows its reasoning, cites the regulation it is grounded in, and translates the same explanation for an engineer and a fan is the most useful thing an open-source AI can be for racing right now.

@@ -6,7 +6,7 @@
 
 ## 1. Approach in one paragraph
 
-OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay or ingests a completed TORCS live capture; OVERRIDE detects inefficient deploy / harvest / recharge / override zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture - a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning + citations + what-if) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **v1.0 ships six IBM technologies - Granite Instruct, Granite Guardian, Granite Embedding, Granite Time Series TTM-R2, Docling, and Langflow.** Granite Time Series TTM-R2 runs as an optional isolated service because of torch dependency constraints; when the service is unavailable or a session lacks 30 completed laps, the pipeline returns `forecast=None` and continues from observed evidence only. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling and TTM-R2 run locally. See `docs/adrs/ADR-001-watsonx-runtime.md` and `docs/adrs/ADR-004-ttm-deployment.md`.)
+OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay or ingests a completed TORCS live capture; OVERRIDE detects inefficient deploy / harvest / recharge / override zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture - a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning, citations, and counterfactual strategy review) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **OVERRIDE integrates six IBM technologies - Granite Instruct, Granite Guardian, Granite Embedding, Granite Time Series TTM-R2, Docling, and Langflow.** Granite Time Series TTM-R2 runs as an optional isolated service because of torch dependency constraints; when the service is unavailable or a session lacks 30 completed laps, the pipeline returns `forecast=None` and continues from observed evidence only. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling and TTM-R2 run locally. See `docs/adrs/ADR-001-watsonx-runtime.md` and `docs/adrs/ADR-004-ttm-deployment.md`.)
 
 ---
 
@@ -90,7 +90,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Role.** Produce a structured causal explanation per detected zone, grounded in the retrieved regulation passage.
 
-**Model.** IBM Granite 4.x Instruct (`ibm/granite-4-h-small`), served via **watsonx.ai** (US-South) using the chat API (`/ml/v1/text/chat`). The model ID, region, and project ID are pinned in `models.json` after gate **G-1**. See `docs/adrs/ADR-001-watsonx-runtime.md` for why we serve via watsonx instead of local Ollama.
+**Model.** IBM Granite 4.x Instruct (`ibm/granite-4-h-small`), served via **watsonx.ai** (US-South) using the chat API (`/ml/v1/text/chat`). The model ID, region, and project ID are pinned in `models.json` after gate **G-1**. See `docs/adrs/ADR-001-watsonx-runtime.md` for the runtime rationale.
 
 **Prompt.** `prompts/reasoning.system.md` is the system prompt; it specifies the input shape (`lap_window`, `forecast`, `zone`, `regulation`) and the strict output contract.
 
@@ -137,7 +137,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Behavior on fail.** Both criteria must score ≥ `pass_threshold` (default 0.70). On fail, regenerate with an explicit-citation-required prompt, max 2 retries. After 2 retries, ship with `final_confidence = "low"` and a visible AI Safety Review badge on the card.
 
-**Why two passes.** Pass 1 protects the demo: hardcoded checks always work. Pass 2 catches semantic problems Pass 1 cannot see - a citation that exists but is irrelevant to the zone type, or a recommendation that approaches a regulatory limit without warning. Both pass results are *visible to the user* as separate badges; OVERRIDE shows its working.
+**Why two passes.** Pass 1 gives deterministic evidence checks before Pass 2 adds Granite Guardian semantic scoring. Both pass results are visible, so users can audit the recommendation rather than trust a black box.
 
 ### 3.8 Fan Mode translation (`core/fan_mode.py`, `prompts/fan_mode.system.md`)
 
@@ -151,7 +151,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Confidence handling.** When the upstream confidence is `low`, Fan output prepends *"It looks like…"* to `what_happened` so the audience is not misled.
 
-**Hard rule.** Fan Mode never recommends actions to drivers or teams. It explains what happened. What-if controls live in Engineer Mode only.
+**Hard rule.** Fan Mode never recommends actions to drivers or teams. It explains what happened. Counterfactual strategy review controls live in Engineer Mode only.
 
 ### 3.9 Langflow canvas (`langflow/override.flow.json`) - design layer
 
@@ -163,7 +163,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Role.** Production HTTP layer. Endpoints, request/response shapes, error envelope, observability, rate limits, and timing budget defined in [`04-api.md`](./04-api.md).
 
-**Key properties.** No auth in v1 (single-user, replay-first). OpenTelemetry instrumentation on every span. Sessions stored on local disk only (Parquet + JSON under `data/sessions/{session_id}/`). No database. Median pipeline budget: ≤ 30 s end-to-end on a warm watsonx.ai connection.
+**Key properties.** No auth in the submitted single-user environment. OpenTelemetry instrumentation on every span. Sessions stored on local disk only (Parquet + JSON under `data/sessions/{session_id}/`). No database. Median pipeline budget: ≤ 30 s end-to-end on a warm watsonx.ai connection.
 
 ### 3.11 Frontend (`ui/`)
 
@@ -180,7 +180,7 @@ Every non-obvious decision in OVERRIDE traces back to the thesis in [`00-thesis.
 - **Heuristics first, then AI.** Pure-Python zone detection runs every time. Granite reasons over the heuristics; it does not replace them. If every model fails, the heuristic baseline still produces useful zones.
 - **Lap-aggregated forecasting.** Stays inside TTM-R2's documented operating range and avoids overclaiming.
 - **Graceful degradation.** Pipeline runs end-to-end without TTM. Forecasting is enhancement, not gating.
-- **Two-pass safety.** Deterministic Pass 1 protects the demo if AI Pass 2 is rough. Both passes' results are shown - defense-in-depth, not a black box.
+- **Two-pass safety.** Pass 1 gives deterministic evidence checks before Pass 2 adds Granite Guardian semantic scoring. Both pass results are visible, so users can audit the recommendation rather than trust a black box.
 - **Dynamic regulation grounding.** Article numbers are read from the Docling extraction at runtime. The regulation moves; hardcoded prose rots.
 - **One engine, two surfaces.** Engineer Mode and Fan Mode share reasoning, grounding, and Guardian scoring. Only rendering differs. The explainability story scales from pit wall to broadcast booth without forking the model.
 - **Decision support, never replacement.** Language enforced everywhere - *supports / explains / highlights / recommends*, never *decides / autonomously / optimal*. This is also a regulatory framing for the IBM SkillsBuild brief, which excludes "autonomous systems that replace human decision-making."

@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis. Built for the IBM SkillsBuild AI Builders Challenge (May 2026), the project successfully delivers a production-ready system that demonstrates explainable AI decision support in the context of Formula 1's radical 2026 hybrid regulation changes.
+OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review. Built for the IBM SkillsBuild AI Builders Challenge (May 2026), the project successfully delivers a production-ready system that demonstrates explainable AI decision support in the context of Formula 1's radical 2026 hybrid regulation changes.
 
 **Key Achievement**: Complete end-to-end pipeline from telemetry ingestion to explainable recommendations, grounded in FIA 2026 regulations, with two-pass safety validation, and graceful degradation throughout.
 
@@ -36,7 +36,7 @@ OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans un
 9. [Challenges and Solutions](#9-challenges-and-solutions)
 10. [Metrics and Achievements](#10-metrics-and-achievements)
 11. [Educational Impact](#11-educational-impact)
-12. [Future Roadmap](#12-future-roadmap)
+12. [Future Work](#12-future-work)
 13. [Conclusion](#13-conclusion)
 
 ---
@@ -52,11 +52,11 @@ In 2026, Formula 1 enters the most disruptive technical regulation cycle in a de
 - **Active aerodynamics**: Z-Mode and X-Mode
 - **Sustainable fuel** changes engine behavior under load
 
-**Impact**: Every lap becomes an energy management decision. For race engineers and drivers, this means constant tactical choices about when to harvest, deploy, recharge, and trigger Override. For fans, broadcasts become harder to follow as tactics hide entire chess matches in the energy budget.
+**Impact**: Every lap becomes an energy management decision. For race engineers and drivers, this means constant tactical choices about when to harvest, deploy, recharge, and trigger Override. For fans, broadcasts become harder to follow because energy-budget decisions are invisible on broadcast but measurable in telemetry.
 
 ### 1.2 Gap in Existing Tools
 
-Publicly-shipped AI in this space (AWS F1 Insights, Oracle's Red Bull stack, IBM's Ferrari fan app) was built for the 2014–2025 hybrid rules. **There is no public, explainable tool for the 2026 era.**
+Most public racing AI surfaces metrics or runs as closed team tooling. **There is no open, auditable, regulation-grounded explanation layer for the 2026 hybrid era.**
 
 ### 1.3 OVERRIDE's Answer
 
@@ -65,7 +65,7 @@ An upload-first AI copilot that:
 2. Identifies inefficient energy-deployment zones
 3. Generates plain-language explanations grounded in 2026 F1 regulations
 4. Provides two-pass safety validation (deterministic + AI-based)
-5. Offers what-if simulation for strategy exploration
+5. Offers counterfactual strategy review for strategy exploration
 6. Serves both engineers (full technical detail) and fans (plain language)
 
 **Positioning**: Decision support, not replacement. The engineer reviews; the AI explains.
@@ -138,7 +138,7 @@ Engineer Mode (technical) ← Mode Toggle → Fan Mode (plain language)
 
 ### 3.2 watsonx.ai Runtime (ADR-001)
 
-**Decision**: Migrate from local Ollama to watsonx.ai cloud serving for Granite models.
+**Decision**: Use watsonx.ai cloud serving for Granite models.
 
 **Rationale**:
 - Local 8B inference: ~60s per forward pass (CPU)
@@ -167,7 +167,7 @@ podman-compose up override ttm  # Enable forecasting
 podman-compose up override      # Graceful degradation (no forecast)
 ```
 
-**Status**: ✅ Implementation complete (360 lines, 12 test functions, 425 test lines), deployed and healthy, MAE validation pending.
+**Status**: ✅ Implementation complete (360 lines, 12 test functions, 425 test lines), deployed and healthy; baseline MAE documented, additional TTM-R2 validation tracked separately.
 
 ---
 
@@ -305,7 +305,7 @@ class LapFeatures(BaseModel):
 - Channels: 5 (SoC, harvest, deploy, lap_time, avg_speed)
 - Quality gates: minimum laps threshold, interval width rejection
 
-**Status**: ✅ Complete (2026-05-21), deployed, health check passing, MAE validation pending
+**Status**: ✅ Complete (2026-05-21), deployed, health check passing; baseline MAE documented, additional TTM-R2 validation tracked separately
 
 **Test Coverage**: 12 tests in `tests/test_forecasting.py`
 
@@ -318,7 +318,7 @@ class LapFeatures(BaseModel):
 - `GET /api/sessions`: List sessions with pagination
 - `GET /api/sessions/{id}`: Retrieve session detail
 - `GET /api/sessions/{id}/zones/{zid}`: Get zone recommendation (Engineer/Fan/Both)
-- `POST /api/sessions/{id}/what-if`: Perturbation simulation
+- `POST /api/sessions/{id}/what-if`: Counterfactual strategy review
 - `POST /api/sessions/torcs-live`: Ingest live TORCS capture
 - `GET /api/sessions/{id}/stream`: SSE stream for live telemetry
 - `POST /api/torcs/start-race`, `/stop-race`: Control plane for TORCS daemon
@@ -333,7 +333,7 @@ class LapFeatures(BaseModel):
 - `/upload`: Sample replays, bring-your-own upload, live capture controls
 - `/sessions`: History, pagination, comparison, bulk delete
 - `/sessions/compare`: Side-by-side session comparison
-- `/session/:id`: Completed/active session detail with KPIs, recommendations, energy curve, what-if
+- `/session/:id`: Completed/active session detail with KPIs, recommendations, energy curve, and counterfactual strategy review
 - `/session/:id/laps/:lap`: Dedicated lap drill-down
 - `/cockpit`: Live race surface with control strip, noVNC frame, timing rail, hybrid rail
 - `/driver-lab`: Driver profile editor for TORCS configurations
@@ -363,10 +363,9 @@ class LapFeatures(BaseModel):
 | `test_regs.py` | Regulation chunking, retrieval, cap extraction | 39 |
 | `test_zone_detector.py` | Deterministic zone detection heuristics | 30 |
 | `test_ingest.py` | Shared schema validation, FastF1 logic | 25 |
-| `test_perturbations.py` | What-if perturbation semantics | 24 |
+| `test_perturbations.py` | Counterfactual perturbation semantics | 24 |
 | `test_validator.py` | Deterministic Pass-1 validator rules | 22 |
 | `test_reasoning.py` | Prompt rendering, parsing, client behavior | 20 |
-| `test_llm_clients_ollama.py` | Ollama protocol adapter, fail-loud probe | 19 |
 | `test_torcs_driver_recovery.py` | Managed-driver recovery, steering logic | 18 |
 | `test_pipeline.py` | End-to-end orchestration, retry behavior | 15 |
 | `test_torcs_control_daemon.py` | TORCS daemon launch/recovery/control | 11 |
@@ -453,7 +452,7 @@ Live watsonx.ai integration tests (run with `pytest -m network`):
 | `docs/05-security.md` | Threat model, mitigations, known gaps | ✅ Complete |
 | `docs/06-testing.md` | Test inventory, commands, coverage | ✅ Complete |
 | `docs/06-roadmap.md` | Implementation roadmap, phase gates | ✅ Complete |
-| `docs/07-deployment.md` | Deployment runbook, Cloudflare Tunnel setup | ✅ Complete |
+| `docs/07-deployment.md` | Deployment runbook and hosted review environment setup | ✅ Complete |
 
 ### 6.2 Architecture Decision Records (ADRs)
 
@@ -461,7 +460,7 @@ Live watsonx.ai integration tests (run with `pytest -m network`):
 |-----|-------|------|--------|
 | ADR-001 | watsonx.ai for Granite serving | 2026-05-08 | ✅ Accepted |
 | ADR-002 | TORCS as primary decision-logic sandbox | 2026-05-11 | ✅ Accepted |
-| ADR-003 | Hybrid LLM runtime (watsonx primary, ollama optional) | 2026-05-11 | ✅ Accepted |
+| ADR-003 | LLM runtime abstraction | 2026-05-11 | ✅ Accepted |
 | ADR-004 | TTM-R2 deployment via Docker service | 2026-05-21 | ✅ Accepted |
 
 ### 6.3 Prompts and Configuration
@@ -525,37 +524,27 @@ podman-compose up override ttm
 
 **Service Selection**: Explicit via `podman-compose up <services>` — no default "all services" to avoid 10 GB TORCS pull
 
-### 7.2 Hosted Demo (Ephemeral, May 27-31)
+### 7.2 Hosted Review Environment
 
-**URL**: https://override.patrickndille.com (Cloudflare Tunnel from local WSL2)
+**URL**: https://override.patrickndille.com
 
-**Architecture**:
-```
-Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podman Compose Stack
-```
+**Architecture**: hosted browser access to the same Podman Compose stack used by the local reproduction path.
 
 **Routes**:
-- `override.patrickndille.com` → `:8000` (public demo)
-- `torcs-run.patrickndille.com` → `:6080` (Cloudflare Access gated)
-- `jaeger.patrickndille.com` → `:16686` (Cloudflare Access gated)
-- `ollama`, `langflow` → routes deleted (no external access)
+- `override.patrickndille.com` exposes the public review surface.
+- Auxiliary operator tools are not exposed publicly.
 
 **Security**:
-- Cloudflare Access: one-time PIN + email allowlist for gated subdomains
 - WAF rate limit: 5 req/min/IP on `POST /api/sessions`
 - TORCS control daemon: bearer-token authenticated (`TORCS_CONTROL_SECRET`)
 - Input validation: regex-clamped session/zone/run IDs (no filesystem traversal)
 
 **Operational Hardening**:
 - `podman update --restart=always override torcs jaeger`
-- Windows host: no-sleep settings for May 24-31
-- `systemctl enable --now cloudflared`
-- `loginctl enable-linger $USER`
+- service restart policy configured for the review window
+- local reproduction path remains available through README commands
 
-**Tear-Down** (post-May-31):
-- `cloudflared tunnel delete torcs`
-- Delete Cloudflare Access applications
-- Delete DNS CNAME records
+**Tear-Down**:
 - `podman-compose down -v`
 
 ### 7.3 Container Images
@@ -563,7 +552,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 | Service | Base Image | Size | Purpose |
 |---------|-----------|------|---------|
 | `override` | python:3.12-slim | ~500 MB | Main app (API + UI) |
-| `torcs` | IBM SkillsBuild lab image | ~10 GB | TORCS simulator + Ollama |
+| `torcs` | IBM SkillsBuild lab image | ~10 GB | TORCS simulator |
 | `ttm` | python:3.12-slim | ~2 GB | TTM-R2 forecasting service |
 | `jaeger` | jaegertracing/all-in-one | ~50 MB | Trace collection + UI |
 | `langflow` | python:3.12-slim | ~1 GB | Langflow canvas |
@@ -601,10 +590,10 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 |------|---------------|-------------|--------|
 | **G-1** | watsonx.ai connectivity verified, model IDs pinned | 2026-05-08 | ✅ Passed |
 | **G-2** | SoC source decided + documented | 2026-05-11 | ✅ Passed |
-| **G-3** | TTM architecture complete (MAE validation pending) | 2026-05-21 | ✅ Passed |
+| **G-3** | TTM architecture complete; baseline MAE documented, additional TTM-R2 validation tracked separately | 2026-05-21 | ✅ Passed |
 | **G-4** | Regulation source verified, no hardcoded article numbers | 2026-05-08 | ✅ Passed |
 | **G-5** | Pass-1 functional regardless of Guardian threshold | 2026-05-09 | ✅ Passed |
-| **G-6** | Video ≤ 2:55 (deferred to submission window) | Pending | ⏳ Pending |
+| **G-6** | Video complete and available through `https://override-video.patrickndille.com` | Final close | ✅ Passed |
 
 ### 8.3 Phase Gates (Scope Cuts)
 
@@ -634,7 +623,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 - Docker service: `Dockerfile.ttm`, `ttm_service.py`
 - HTTP client wrapper with graceful fallback
 - Deployed and healthy (health check passing)
-- MAE validation pending in `.venv-ttm` environment
+- Baseline MAE validation documented; additional TTM-R2 validation tracked in the isolated service environment
 
 **P2.5 — Docling + Regulation Verification** (✅ Complete, Gate G-4 closed 2026-05-08):
 - Document: FIA 2026 F1 Technical Regulations — Section C, Issue 18
@@ -660,11 +649,10 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 - Graceful degradation verified (5 failure modes)
 - All model versions locked
 
-**P4.4 — Submission Portal** (⏳ Pending):
-- YouTube video: unlisted, processing
+**P4.4 — Submission Portal** (✅ Complete):
+- Demo video: complete and available through `https://override-video.patrickndille.com`
 - GitHub repo: public, README complete
-- BeMyApp project page: ready to publish
-- First-10-teams bonus eligible if hit before May 23
+- Submission portal copy complete; public publish handled outside the repository
 
 ---
 
@@ -695,17 +683,16 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 
 **Outcome**: ✅ Current live run shows 1/1 first-try Pass-1 pass. Granite now reliably produces verbatim citations.
 
-#### Challenge 3: Ollama Runtime Quality (350M Model)
+#### Challenge 3: Runtime Model Quality
 
-**Problem**: `granite4:350m` via Ollama produced off-topic hallucinations for structured reasoning prompts. Model interpreted prompt as Python code analysis task.
+**Problem**: The smaller local Granite runtime produced off-topic outputs for structured reasoning prompts and did not meet the reliability bar for the submission path.
 
 **Solution** (ADR-003):
-- Hybrid LLM runtime: watsonx primary (default), ollama optional via env switch
-- `OVERRIDE_LLM_RUNTIME=watsonx` uses 8B granite-4-h-small (production quality)
-- `OVERRIDE_LLM_RUNTIME=ollama` routes to 350M model (v1.1 candidate, not demo path)
-- Fail-loud startup probe: refuses to boot if Ollama unreachable
+- watsonx.ai remains the primary Granite runtime for the submitted demo.
+- Local runtime experimentation is isolated behind the runtime abstraction.
+- The application fails loudly if a configured runtime is unreachable.
 
-**Outcome**: ✅ Demo uses watsonx (reliable), ollama path available for local-only judges
+**Outcome**: ✅ Submitted demo uses watsonx.ai for reliable Granite reasoning.
 
 #### Challenge 4: Langflow Component Loading
 
@@ -754,23 +741,21 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 **Solution**:
 - Test suite uses mocked watsonx (435 local tests)
 - 4 network-marked tests for live integration verification
-- Single-zone Langflow run for QA audit (8.2s, ~$0.05)
-- Deferred multi-session live runs to demo-recording window
+- Single-zone Langflow run for QA audit (8.2s)
+- Multi-session live runs tracked outside the final submission path
 
 **Outcome**: ✅ Budget preserved for submission video recording
 
-#### Challenge 8: Cloudflare Tunnel vs VM Deployment
+#### Challenge 8: Hosted Review Environment
 
-**Problem**: Original plan specified Hetzner CX32 VM (~$3 for judging window). Setup friction: SSH keys, UFW config, tear-down.
+**Problem**: The project needed a review link without turning deployment operations into the product story.
 
-**Solution** (v6 plan pivot):
-- Cloudflare Tunnel from local WSL2 ($0 cost)
-- Automatic TLS at Cloudflare edge
-- No SSH key management, no UFW config
-- Tear-down: revoke tunnel routes
-- Trade-off: availability tracks laptop uptime (mitigated via `--restart=always`, no-sleep settings)
+**Solution**:
+- Hosted review environment at `https://override.patrickndille.com`
+- README local-clone path remains the canonical reproduction flow
+- Operator internals documented in `docs/07-deployment.md`
 
-**Outcome**: ✅ Hosted demo live at https://override.patrickndille.com, $0 infrastructure cost
+**Outcome**: ✅ Hosted review environment live at https://override.patrickndille.com
 
 ---
 
@@ -802,7 +787,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 | **Total (engineer happy path)** | **~8.2 s** | First-try pass |
 
 **With Retries**:
-- One what-if: ~14–16 s end-to-end
+- One counterfactual review: ~14–16 s end-to-end
 - Pass-1 retry: +4.0 s (reasoning regeneration)
 - Pass-2 retry: +5.5 s (reasoning + Guardian)
 
@@ -866,7 +851,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 **Key Learnings**:
 1. TORCS provides controlled telemetry-generation environment
 2. Simulation creates safe operating environment for AI testing
-3. Sense-decide-act loop demonstrates autonomous control
+3. Sense-plan-act loop demonstrates simulator control concepts
 4. Parameter tuning shows tradeoffs between speed, stability, control
 5. TORCS validates OVERRIDE's replay-first approach
 
@@ -905,23 +890,23 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 
 ---
 
-## 12. Future Roadmap (v1.1+)
+## 12. Future Work
 
-### 12.1 Deferred from v1.0
+### 12.1 Enhancement Candidates
 
 | Feature | Status | Pointer |
 |---------|--------|---------|
 | **Section B (Sporting Regulations) grounding** | PDF cached, not in chunk corpus | `docs/regulation-source.md` |
-| **Full Ollama-only mode** | Chat only via `granite4:350m` | ADR-003 |
-| **CI workflows** | Not in v1.0 scope | `.github/workflows/` (empty) |
-| **TTM-R2 MAE validation** | Implementation complete, evaluation pending | `.venv-ttm` environment |
+| **Local runtime parity** | Runtime abstraction documented | ADR-003 |
+| **CI workflows** | Future automation candidate | `.github/workflows/` |
+| **TTM-R2 real-model MAE validation** | Baseline complete; additional sweep planned | `.venv-ttm` / TTM service environment |
 
-### 12.2 v1.1 Candidates
+### 12.2 Candidate Improvements
 
-**Ollama Runtime Improvements**:
-- Migrate to `granite-4-h-small` (8B) via Ollama when tag ships
-- Guardian-equivalent BYOC scorer for ollama-only mode
-- Embedding path: pull `granite-embedding:278m-multilingual`
+**Runtime Improvements**:
+- Evaluate local Granite model parity when the runtime environment supports it
+- Evaluate local Guardian-equivalent safety scoring
+- Evaluate local embedding path for regulation retrieval
 
 **TTM-R2 Enhancements**:
 - Run MAE evaluation on real TORCS sessions
@@ -931,7 +916,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 
 **Security Hardening**:
 - Application-layer rate limiting (FastAPI-level per-IP limiter)
-- Audit log for what-if invocations and session deletions
+- Audit log for counterfactual review invocations and session deletions
 - mTLS inside compose network
 - Supply-chain attestation (SBOM, signed images, SLSA)
 
@@ -941,7 +926,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 - Clean-machine setup verification
 - Performance benchmarking suite
 
-### 12.3 v1.2+ Vision
+### 12.3 Longer-Term Vision
 
 **Real-Time Capabilities**:
 - Live trackside inference (requires licensed F1 data)
@@ -971,7 +956,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 - ✅ Use of at least one IBM AI-supported technology (6 deployed)
 - ✅ Public GitHub repository with functioning prototype
 - ✅ Clear README with problem, approach, and racing context
-- ✅ Submission on challenge platform (ready to publish)
+- ✅ Submission package complete on the challenge platform; public publish handled outside the repository
 
 **Technical Execution**:
 - ✅ Effective use of IBM and open-source technologies
@@ -1009,12 +994,12 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 **Architectural**:
 1. **Graceful degradation** enforced throughout (FR-3 guardrail)
 2. **Service isolation** resolves dependency conflicts (ADR-004)
-3. **Hybrid LLM runtime** supports both watsonx and Ollama (ADR-003)
+3. **LLM runtime abstraction** keeps model-serving choices explicit (ADR-003)
 4. **Replay-first design** ensures determinism and auditability
 5. **Dual-mode UI** serves both technical and non-technical audiences
 
 **Operational**:
-1. **Zero-cost hosted demo** via Cloudflare Tunnel
+1. **Hosted review environment** for evaluator access
 2. **One-command local setup** via podman-compose
 3. **Comprehensive documentation** (39 files, 4 ADRs)
 4. **Educational integration** with IBM TORCS Learning Lab
@@ -1023,7 +1008,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 
 **For Racing Teams**:
 - Explainable strategy recommendations grounded in regulations
-- What-if simulation for strategy exploration
+- Counterfactual strategy review for strategy exploration
 - Post-race debriefs with zone-level analysis
 - Regulation compliance verification
 
@@ -1058,7 +1043,7 @@ Judge's Browser → Cloudflare Edge (TLS) → WSS Tunnel → Local WSL2 → Podm
 1. **Earlier TTM-R2 evaluation** would have identified dependency conflict sooner
 2. **More aggressive watsonx budget management** to enable multi-session live runs
 3. **Earlier Langflow integration** to catch component signature mismatches
-4. **Automated CI** would have caught regressions faster (deferred to v1.1)
+4. **Automated CI** would have caught regressions faster
 
 **Key Insights**:
 1. **Explainability > raw performance** for decision support systems
@@ -1146,7 +1131,7 @@ podman-compose up override torcs jaeger langflow ttm
 # Baseline results documented in docs/plans/ttm-r2-mae-baseline-results.md
 # Linear-trend MAE: 0.0064–0.0986 across context lengths 5–30
 # Best performance: context=15 (MAE=0.0202)
-# Production threshold remains at 30 laps pending real TTM-R2 validation
+# Production threshold remains at 30 laps until additional TTM-R2 validation is rerun
 ```
 
 ### Appendix C: Key Metrics Summary
@@ -1161,12 +1146,13 @@ podman-compose up override torcs jaeger langflow ttm
 | **ADRs** | 4 |
 | **Pipeline Latency** | 8.2s (first-try) |
 | **Validator Pass-Rate** | 100% (Issue 18) |
-| **Infrastructure Cost** | $0 (Cloudflare Tunnel) |
+| **Hosted Review Environment** | `https://override.patrickndille.com` |
 
 ### Appendix D: Repository Links
 
 - **GitHub**: https://github.com/broadcomms/override-may-2026
-- **Hosted Demo**: https://override.patrickndille.com (May 27-31, 2026)
+- **Product Video**: https://override-video.patrickndille.com
+- **Hosted Review Environment**: https://override.patrickndille.com
 - **Challenge**: IBM SkillsBuild AI Builders Challenge, May 2026
 - **License**: Apache 2.0
 

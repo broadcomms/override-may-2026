@@ -6,11 +6,11 @@
 
 ## 1. Executive summary
 
-**OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and what-if analysis.**
+**OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review.**
 
 A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: 
 
-a. **Engineer Mode** for race engineers and analysts who need full reasoning + citations + what-if; 
+a. **Engineer Mode** for race engineers and analysts who need full reasoning, citations, and counterfactual strategy review;
 
 b. **Fan Mode** for broadcasters and viewers who need plain language.
 
@@ -27,9 +27,9 @@ The 2026 F1 regulation cycle is the deepest technical reset since 2014. The MGU-
 This produces two pains:
 
 - **Engineers and analysts** face an exploded strategic search space without an open, explainable tool that reasons over telemetry against the new regulations. They need a debrief layer that shows reasoning and cites the rule it was grounded in.
-- **Broadcasters and fans** can no longer follow what's happening on track. What used to read as *"they're just driving fast"* now hides an entire chess match in the energy budget. They need a plain-language layer that translates the same intelligence without dumbing it down.
+- **Broadcasters and fans** can no longer follow what's happening on track. Energy-budget decisions are invisible on broadcast but measurable in telemetry. They need a plain-language layer that translates the same intelligence without dumbing it down.
 
-The publicly visible AI in this space ([AWS F1](https://aws.amazon.com/sports/f1/) Insights, [Oracle's Red Bull Racing](https://www.oracle.com/ca-en/redbullracing/) strategy stack, even [IBM's Scuderia Ferrari HP](https://www.ibm.com/sports/ferrari) fan app) was built for the 2014–2025 rules. None reason today over the 2026 regulation text, none show their working in a way an engineer can audit the AI output, and none ship as open source against a public, reproducible data path.
+Most public racing AI surfaces metrics or runs as closed team tooling. Those systems can be useful, but they rarely give users an open, auditable way to reason over 2026 hybrid-energy telemetry, dynamic regulation grounding, and counterfactual strategy review in one place.
 
 ### 2.2 Why now
 
@@ -47,8 +47,8 @@ OVERRIDE has three audiences. The scope is **all three sharing one backend**, wi
 
 - Builds a mental model of energy decisions across a session.
 - Needs to see the reasoning *and* the regulation it was grounded in not a number.
-- Wants to test alternative strategies (what-if) without rebuilding a simulation.
-- Reviews on a laptop or 13 inch table, not a phone (Mobile defered V1.1, Mobile App V2.0).
+- Wants to test alternative strategies through counterfactual strategy review without rebuilding a simulation.
+- Reviews on a laptop or 13 inch table, not a phone. Mobile is outside the submitted scope.
 
 ### 3.2 Secondary: broadcaster / motorsport analyst / advanced fan
 
@@ -64,7 +64,7 @@ OVERRIDE has three audiences. The scope is **all three sharing one backend**, wi
 
 ### 3.4 Crossover: driver / coach / driver-development engineer
 
-- Iterating instinct against new physics: the 2026 split breaks driving habits built over a decade (e.g., the Verstappen Monza-simulator example of needing to downshift at full throttle on a straight to keep the engine in its power band).
+- Builds new instincts around when energy should be saved, deployed, or recovered.
 - Uses the same Engineer Mode debrief surface as a strategist; cause→consequence framing helps build the new mental model faster than raw telemetry.
 - Not a separate UI - same engine, same Engineer Mode rendering. Listed here because the *why-it-matters* argument depends on this audience.
 
@@ -95,10 +95,10 @@ Acceptance criteria are abbreviated, full contracts live in the API and UI docs.
 - `[E]` I can collapse the reasoning chain to keep the card compact; expanding is one click.
 - `[A]` As an analyst, I can copy the verbatim regulation passage and the reasoning chain to paste into my own copy.
 
-### Run a what-if
+### Run a counterfactual strategy review
 
-- `[E]` I select a perturbation (`delay_first_deploy`, `skip_harvest_zone`, or `extend_override`) on one zone, click Run, and see the original card and the perturbed card side by side.
-- `[E]` A what-if that fails Pass 1 or Pass 2 is shown with the failure surfaced. The system never silently drops any result.
+- `[E]` I select a counterfactual perturbation (`delay_first_deploy`, `skip_harvest_zone`, or `extend_override`) on one zone, click Run, and see the original card and the perturbed card side by side.
+- `[E]` A counterfactual review that fails Pass 1 or Pass 2 is shown with the failure surfaced. The system never silently drops any result.
 - `[E]` I can reset the card to the original recommendation in one click.
 
 ### Switch to Fan Mode
@@ -138,7 +138,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 - **FR-3.2 (MUST)** When `forecast` is null, the energy curve renders the empty-state hint and the reasoning prompt does not reference future laps with certainty.
 - **FR-3.3 (MUST)** Never return a partial / fabricated forecast.
 
-> **v1.0 implementation note (2026-05-21).** TTM-R2 forecasting is **fully implemented** in v1.0 with complete test coverage (12 functions, 425 lines). Due to dependency conflicts (torch~=2.10 vs production torch==2.11.0), TTM-R2 is deployed as a separate Docker service per ADR-004. The pipeline gracefully degrades when the service is unavailable (FR-3 compliance). Start with `podman-compose up override ttm` to enable forecasting. Without the TTM service, the energy curve renders "Forecast unavailable (session requires ≥30 laps)" and reasoning continues from observed data only. See [`docs/adrs/ADR-004-ttm-deployment.md`](adrs/ADR-004-ttm-deployment.md) for architecture details and [`docs/plans/ttm-r2-mae-baseline-results.md`](plans/ttm-r2-mae-baseline-results.md) for baseline evaluation results.
+> **Implementation note (2026-05-21).** TTM-R2 forecasting is implemented with complete test coverage (12 functions, 425 lines). Due to dependency conflicts (torch~=2.10 vs production torch==2.11.0), TTM-R2 is deployed as a separate Docker service per ADR-004. The pipeline gracefully degrades when the service is unavailable (FR-3 compliance). Start with `podman-compose up override ttm` to enable forecasting. Without the TTM service, the energy curve renders "Forecast unavailable (session requires ≥30 laps)" and reasoning continues from observed data only. See [`docs/adrs/ADR-004-ttm-deployment.md`](adrs/ADR-004-ttm-deployment.md) for architecture details and [`docs/plans/ttm-r2-mae-baseline-results.md`](plans/ttm-r2-mae-baseline-results.md) for baseline evaluation results.
 
 ### 5.4 Regulation grounding
 
@@ -168,17 +168,17 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 - **FR-7.3 (MUST)** When the upstream confidence is `low`, Fan output prepends *"It looks like"* to `what_happened`.
 - **FR-7.4 (SHOULD)** Fan Mode is generated lazily on first request, not on upload. Keeps the median upload → debrief latency below 30 s.
 
-### 5.8 What-if
+### 5.8 Counterfactual strategy review
 
-- **FR-8.1 (MUST)** Three perturbations supported in v1: `delay_first_deploy`, `skip_harvest_zone`, `extend_override`.
-- **FR-8.2 (MUST)** A what-if runs the **full** pipeline (detect → ground → reason → validate → Guardian) on the perturbed scenario. Failures are surfaced, not hidden.
-- **FR-8.3 (MUST)** What-if controls live in Engineer Mode only. Fan Mode redirects to Engineer Mode when a what-if is initiated.
+- **FR-8.1 (MUST)** Three perturbations supported: `delay_first_deploy`, `skip_harvest_zone`, `extend_override`.
+- **FR-8.2 (MUST)** A counterfactual review runs the **full** pipeline (detect → ground → reason → validate → Guardian) on the perturbed scenario. Failures are surfaced, not hidden.
+- **FR-8.3 (MUST)** Counterfactual review controls live in Engineer Mode only. Fan Mode redirects to Engineer Mode when a counterfactual review is initiated.
 
 ### 5.9 UI
 
 - **FR-9.1 (MUST)** Routes: `/upload`, `/sessions`, `/session/[session_id]`. Mode toggle in the header on session pages.
 - **FR-9.2 (MUST)** Empty / loading / error states for: forecast unavailable, no zones detected, low confidence, validator-failed-permanently, regulation source unavailable, model unavailable. All defined in [`04-ui-ux-design.md` §7](./04-ui-ux-design.md#7-empty--loading--error-states).
-- **FR-9.3 (MUST)** WCAG 2.1 AA contrast on all text. Charts paired with adjacent screen-reader-friendly data tables. Keyboard navigation for mode toggle, zone selection, what-if controls. `prefers-reduced-motion` honored.
+- **FR-9.3 (MUST)** WCAG 2.1 AA contrast on all text. Charts paired with adjacent screen-reader-friendly data tables. Keyboard navigation for mode toggle, zone selection, and counterfactual review controls. `prefers-reduced-motion` honored.
 - **FR-9.4 (SHOULD)** Sample-replay chips on `/upload` so judges and reviewers can demo the product without bringing a file.
 
 ### 5.10 Observability + reproducibility
@@ -199,7 +199,7 @@ Numbered for cross-reference. **MUST** is a launch blocker; **SHOULD** is a laun
 | **Portability** | One-command setup: `podman-compose up` for OVERRIDE alone. Auxiliary services use explicit service selection (`podman-compose up override torcs`, `podman-compose up override jaeger`, `podman-compose up override langflow`). Verified on a clean machine before submission. No GPU required — Granite reasoning happens on watsonx.ai. The clean machine only needs a network connection and a working `.env`. |
 | **Accessibility** | WCAG 2.1 AA. Per FR-9.3. |
 | **Observability** | Per FR-10. JSON logs, request IDs, no PII, no stack traces in prod responses. |
-| **Security** | No auth in v1 (single-user, replay-first). Inputs validated at the upload boundary. Secrets only in `.env` (gitignored). Pinned dependency versions. Detail in `05-security.md`. |
+| **Security** | No auth in the submitted single-user environment. Inputs validated at the upload boundary. Secrets only in `.env` (gitignored). Pinned dependency versions. Detail in `05-security.md`. |
 | **Storage** | Local filesystem only. No DB. Sessions stored as Parquet + JSON under `data/sessions/{session_id}/`. |
 | **License** | Apache 2.0. Matches Granite licensing. |
 
@@ -242,7 +242,7 @@ OVERRIDE has two scoring lenses: the IBM SkillsBuild judging rubric (external) a
 The challenge rubric scores on Technical Execution, Innovation, Challenge Fit, and Implementation & Feasibility. OVERRIDE targets:
 
 - **Technical Execution**: Granite Instruct, Granite Guardian, Granite TTM-R2, Docling, and Langflow all integrated. Two-pass safety visibly surfaces. README, video, repo, license, models.json all present.
-- **Innovation**: Explainability-as-product, dual-mode (Engineer + Fan) sharing one engine, BYOC criteria for energy-domain safety, dynamic regulation grounding, what-if loop closing back through the same safety gates.
+- **Innovation**: Explainability-as-product, dual-mode (Engineer + Fan) sharing one engine, BYOC criteria for energy-domain safety, dynamic regulation grounding, and counterfactual review closing back through the same safety gates.
 - **Challenge Fit**: Explicitly addresses both *AI Strategy & Decision Support* and *Fan Experience* solution areas from the challenge brief.
 - **Implementation & Feasibility**: Runs on a linux (debian) laptop (8GB RAM, 4 vCPUs, 32GB storage), replay-first, deterministic, originals-only visuals, no licensed data dependencies.
 
@@ -266,7 +266,7 @@ The challenge rubric scores on Technical Execution, Innovation, Challenge Fit, a
 Questions that must be resolved before or during implementation but which do not block this PRD.
 
 - **OQ-1** Which exact FIA document grounds the recommendations? Resolved at gate G-4 (roadmap P2.5). Until then, prompts use generic phrasing and the `regulation_source` API field is null.
-- **OQ-2** ~~Which exact Ollama tags are stable for Granite 4.x Instruct and Granite Guardian?~~ **Resolved 2026-05-08:** migrated off Ollama to watsonx.ai. Models pinned: `ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`. See `docs/adrs/ADR-001-watsonx-runtime.md`.
+- **OQ-2** **Resolved 2026-05-08:** watsonx.ai runtime selected. Models pinned: `ibm/granite-4-h-small`, `ibm/granite-guardian-3-8b`. See `docs/adrs/ADR-001-watsonx-runtime.md`.
 - **OQ-3** Does the TORCS simulator expose battery SoC directly, or do we derive it from throttle/brake integrals? Resolved at gate G-2 (roadmap P1.3).
 - **OQ-4** SSE streaming endpoint (API §4.10) — keep for the demo recording, or cut as scope creep? Decide during P3.5.
 - **OQ-5** Heatmap density at >60 laps — horizontal scroll vs. 2-lap aggregation. Decide during P3.5.

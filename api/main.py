@@ -208,7 +208,7 @@ def get_chat_client() -> WatsonxChatClient:
             raise RuntimeError(
                 f"OVERRIDE_LLM_RUNTIME=ollama but Ollama at {base_url!r} is not reachable: "
                 f"{err}. Either bring up the TORCS lab container "
-                f"(`podman compose --profile torcs up` or `./scripts/run_torcs_lab.sh`), "
+                f"(`podman-compose up override torcs` or `./scripts/run_torcs_lab.sh`), "
                 f"or point OVERRIDE_OLLAMA_BASE_URL at a reachable ollama instance, "
                 f"or set OVERRIDE_LLM_RUNTIME=watsonx (default)."
             )

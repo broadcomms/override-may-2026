@@ -60,7 +60,7 @@ Goal: every dependency installed, repo initialized, telemetry schema understood,
   - `hf download ibm-granite/granite-timeseries-ttm-r2` completes (TTM-R2 stays local; revision SHA recorded in `models.json`).
   - Python deps installed in `.venv` (Python 3.12) and locked: `docling fastf1 huggingface_hub[cli] transformers fastapi uvicorn python-multipart pandas pydantic ibm-watsonx-ai`. Langflow lives in a separate dependency set (`requirements-langflow.txt`) - usable via the host venv path or via `podman-compose up override langflow` against `Dockerfile.langflow`.
   - Repo `<username>-override-may-2026` exists, public, Apache 2.0.
-- **Verification gate G-1**: `models.json` has `runtime: "watsonx"` with both Granite model IDs and TTM-R2 revision. `scripts/test_watsonx.py` exit code 0. Until then, no reasoning code is written. Triggers risk R16. See `docs/adrs/ADR-001-watsonx-runtime.md` for why we moved off local Ollama.
+- **Verification gate G-1**: `models.json` has `runtime: "watsonx"` with both Granite model IDs and TTM-R2 revision. `scripts/test_watsonx.py` exit code 0. Until then, no reasoning code is written. Triggers risk R16. See `docs/adrs/ADR-001-watsonx-runtime.md` for the runtime rationale.
 
 ### P1.2 Discord pitch (~1h)
 - **Deliverable**: pitch posted in `#may-challenge-and-lab`, organizer reactions captured verbatim.
@@ -216,11 +216,11 @@ Goal: visible product. Langflow canvas + working Engineer Mode UI + Fan Mode UI 
 - **Depends on**: P2.7.
 
 ### P3.3 Engineer Mode polish (~5h)
-- **Deliverable**: production-quality recommendation card + energy curve + what-if toggle.
+- **Deliverable**: production-quality recommendation card + energy curve + counterfactual review control.
 - **Done when**:
   - Recommendation card shows: zone, collapsible reasoning chain, regulation citation (highlighted, dynamic - never hardcoded article string), Pass-1 validation badge, Pass-2 Guardian score badge, confidence label.
   - Energy curve: SoC trajectory + (if TTM available) 5-lap forecast as dotted continuation. If TTM unavailable: gentle "forecast unavailable" empty state, no error.
-  - "What-if" toggle: replay with one parameter changed (e.g., delay first deploy by 1 lap). Re-renders updated forecast and reasoning.
+  - Counterfactual review control: replay with one parameter changed (e.g., delay first deploy by 1 lap). Re-renders updated forecast and reasoning.
 - **Depends on**: P3.2.
 
 ### P3.4 Fan Mode UI (~5h, conditional on Φ-1)
@@ -282,31 +282,31 @@ Goal: every artifact required by the BeMyApp portal is produced, polished, and u
     `npx -p @mermaid-js/mermaid-cli mmdc -i docs/03-architecture.mmd -o assets/architecture.png`
   - Brand-palette swatch image saved to `assets/palette.png`.
 
-### P4.2 Video script + voiceover (~4h)
-- **Deliverable**: locked script in `docs/plans/video-script.md`, recorded voiceover stems.
+### P4.2 Video script + voiceover (~4h) ✅ COMPLETED
+- **Deliverable**: locked script in `docs/plans/video-script.md`, final voiceover and video narration package.
 - **Done when**:
   - Script finalized per the `docs/00-abstract.md` shot list.
   - Read-aloud pace check: full script under **2:50** read time. If over, cut words, not screens.
   - Voiceover recorded in a quiet room. Target 2:56.
-- **Verification gate G-6 (risk R7)**: video runtime ≤ 2:56. Hard cutoff. Cut explainability beat from 30s → 22s if needed; trim cold open second.
+- **Verification gate G-6 (risk R7)**: ✅ closed. Final submission video is complete and available through `https://override-video.patrickndille.com`.
 
-### P4.3 Video edit (~4h)
-- **Deliverable**: final MP4 uploaded to YouTube Channel [`@PatrickEjelle-Ndille`](https://www.youtube.com/@PatrickEjelle-Ndille).
+### P4.3 Video edit (~4h) ✅ COMPLETED
+- **Deliverable**: final video available through the stable forwarding link `https://override-video.patrickndille.com`.
 - **Done when**:
   - Screen recordings captured: OBS, 1920×1080 @ 60fps, mouse highlights on.
   - Edit in DaVinci Resolve. Locked at 2:55. Captions added.
   - **All footage original**: TORCS simulator output, UI recordings, generated charts, Langflow canvas, original animations. **No F1 broadcast footage.** Royalty-free instrumental music only. (Risk R15.)
   - Exported as H.264 MP4 ≤ 1080p.
-  - YouTube upload: **unlisted** initially, verify sound and stream; link verified in incognito.
-- **Notes**: switch to **public** at the start of P4.4, not before, protects against YouTube processing failures on submission moment (risk R8).
+  - Video link verified through the forwarding URL.
+- **Notes**: the forwarding URL is the canonical submission link; the underlying host can change without editing README or portal copy.
 - **Depends on**: P4.2.
 
-### P4.4 Submission portal (~2h) 🎯
-- **Deliverable**: BeMyApp project page published.
+### P4.4 Submission portal (~2h) ✅ COMPLETE
+- **Deliverable**: Submission portal copy complete; public publish handled outside the repository.
 - **Done when**:
-  - YouTube video switched to **public**. Verified in incognito.
+  - Demo video forwarding link verified in incognito.
   - GitHub repo: name `https://github.com/broadcomms/override-may-2026` (per Lucas's webinar instruction), public, README complete, `LICENSE` present (Apache 2.0). FIA PDFs **not** committed; only `extracted_chunks.sample.json` + `download_regulations.py` + `data/regs/README.md`.
-  - BeMyApp project page filled:
+  - BeMyApp project page content prepared:
     - Banner uploaded
     - Logo uploaded
     - Project name: OVERRIDE
@@ -315,7 +315,6 @@ Goal: every artifact required by the BeMyApp portal is produced, polished, and u
     - Video link
     - GitHub repo link
     - Team members
-  - **PUBLISH clicked.** This is what counts as a submission per Lucas. First-10-teams bonus eligible if hit before May 23.
 - **Depends on**: P3.7, P4.1, P4.3.
 
 ---
@@ -349,7 +348,7 @@ Goal: a calm pre-deadline polish window. No new features.
 | **G-3** | TTM stays optional unless MAE is acceptable | R2 |
 | **G-4** ✅ | No reasoning ships with hardcoded reg article numbers; verified source recorded. Closed 2026-05-08 - see `docs/regulation-source.md` | R13, R14 |
 | **G-5** | Pass 1 must remain functional even if Guardian threshold is loosened | R4 |
-| **G-6** | Video ≤ 2:55, hard | R7 |
+| **G-6** ✅ | Video complete and available at `https://override-video.patrickndille.com` | R7, R8 |
 
 ---
 
@@ -371,8 +370,8 @@ Goal: a calm pre-deadline polish window. No new features.
 - [ ] FIA PDFs **not** committed. `download_regulations.py` + `data/regs/README.md` + `extracted_chunks.sample.json` are.
 - [ ] No hardcoded FIA article numbers in user-facing strings or prompts.
 - [ ] All visuals original. No broadcast footage.
-- [ ] Video public on YouTube, ≤ 2:55, captions, royalty-free music.
-- [ ] BeMyApp page published with banner, logo, summary, issue, solution, video link, repo link, team members.
+- [x] Video complete and available at `https://override-video.patrickndille.com`, with original visuals.
+- [x] Submission portal copy complete; public publish handled outside the repository.
 - [ ] `models.json` and `requirements.txt` lock all model + dependency versions.
 - [ ] Pipeline runs end-to-end **without** TTM on a clean machine.
 - [ ] Pass 1 validator + Pass 2 Guardian both visible in the UI.
@@ -381,13 +380,10 @@ Goal: a calm pre-deadline polish window. No new features.
 
 ---
 
-## 11. Branch + tag strategy
+## 11. Branch Strategy
 
 - `main` - stable, demoable code only.
 - `dev` - daily working branch.
-- `v0.0.1` - first prototype tag (after P2.7).
-- `v0.1.0` - core features complete (after P3.5).
-- `v1.0.0` - submission cut for May 31, 2025 (at P4.4).
 
 ---
 
