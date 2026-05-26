@@ -155,6 +155,20 @@ While the review window is active, the browser demo is maintained at:
 
 Use the shipped demo fixtures on the upload page, or ingest an available TORCS capture, to review the Engineer Mode, Fan Mode, counterfactual strategy review, and AI Race Engineer surfaces. You can also upload a supported TORCS or FastF1-style replay export such as [`data/samples/laps.parquet`](data/samples/laps.parquet).
 
+#### Bring Your Own Replay
+1. Open the browser demo at **[https://override.patrickndille.com](https://override.patrickndille.com)**.
+2. Click the upload area to select a file.
+3. Select a supported TORCS or FastF1-style replay export, such as [`data/samples/laps.parquet`](data/samples/laps.parquet).
+
+#### TORCS Lab Simulator
+1. Open the browser demo at **[https://override.patrickndille.com](https://override.patrickndille.com)**.
+2. In Race Control, select a track and click **Start Race**.
+3. Wait for the simulator to launch and the cockpit to open.
+4. Verify the timing state, hybrid rail, and AI Race Engineer panel are visible.
+5. Watch the race for 2-3 laps, then ask the AI Race Engineer a question about the live run.
+6. Stop the race by clicking **Stop Race**.
+7. Return to Upload and ingest the TORCS capture.
+
 ### Run locally
 
 ```bash
