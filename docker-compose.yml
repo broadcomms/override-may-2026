@@ -104,6 +104,7 @@ services:
       dockerfile: Dockerfile.torcs
     image: override-torcs:local
     container_name: torcs
+    restart: unless-stopped
     profiles: [torcs]
     # The init script absorbs two root-only fixes from RESULTS.md:
     #   chown -R student:student /opt/ollama   (Ollama bundled-but-broken)

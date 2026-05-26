@@ -72,25 +72,12 @@ apt install -y git curl jq ufw podman podman-compose python3-venv build-essentia
 
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow from <YOUR_PUBLIC_IP>/32 to any port 22 proto tcp
+# sudo ufw allow from any to any port 22 proto tcp
+ufw allow from <ONLY_YOUR_PUBLIC_IP>/32 to any port 22 proto tcp
 ufw enable
 ```
 
-After the compose network exists, allow the Podman bridge to answer container DNS and route container-to-container traffic. Without this, `override` can hang resolving `torcs` even when the `torcs` container is healthy.
 
-```bash
-cd /opt/override-may-2026
-podman-compose up -d override torcs ttm
-
-PODMAN_IFACE=$(podman network inspect override-may-2026_override-net | jq -r '.[0].network_interface')
-PODMAN_SUBNET=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].subnet')
-PODMAN_GATEWAY=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].gateway')
-
-ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto udp
-ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto tcp
-ufw route allow in on "$PODMAN_IFACE" out on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_SUBNET"
-ufw reload
-```
 
 Clone the release branch:
 
@@ -131,8 +118,25 @@ PY
 
 ```bash
 cd /opt/override-may-2026
-podman-compose build override torcs ttm
-podman-compose up -d override torcs ttm
+podman-compose build override torcs
+podman-compose up -d override torcs
+```
+
+
+After the compose network exists, allow the Podman bridge to answer container DNS and route container-to-container traffic. Without this, `override` can hang resolving `torcs` even when the `torcs` container is healthy.
+
+```bash
+cd /opt/override-may-2026
+podman-compose up -d override torcs
+
+PODMAN_IFACE=$(podman network inspect override-may-2026_override-net | jq -r '.[0].network_interface')
+PODMAN_SUBNET=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].subnet')
+PODMAN_GATEWAY=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].gateway')
+
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto udp
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto tcp
+ufw route allow in on "$PODMAN_IFACE" out on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_SUBNET"
+ufw reload
 ```
 
 The cloud release branch removes WSL-only device mounts and forces TORCS through Xvfb + Mesa llvmpipe:
@@ -148,7 +152,7 @@ Only loopback ports are bound on the VM:
 |---|---|
 | OVERRIDE | `127.0.0.1:8000` |
 | TORCS noVNC | `127.0.0.1:6080` |
-| TTM-R2 service | `127.0.0.1:8001` |
+| TTM-R2 service, optional | `127.0.0.1:8001` |
 | Jaeger, optional | `127.0.0.1:16686` |
 | Langflow, operator-only | `127.0.0.1:7860` |
 
@@ -240,7 +244,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/override-may-2026
-ExecStart=/usr/bin/podman-compose up -d override torcs ttm
+ExecStart=/usr/bin/podman-compose up -d override torcs
 ExecStop=/usr/bin/podman-compose down
 TimeoutStartSec=0
 
@@ -256,11 +260,7 @@ systemctl enable --now override-compose
 systemctl status override-compose
 ```
 
-After compose starts, set restart policy on the long-lived containers:
-
-```bash
-podman update --restart=always override torcs override-ttm
-```
+`docker-compose.yml` carries `restart: unless-stopped` for the long-lived app and TORCS containers. Some Ubuntu-packaged Podman builds do not support `podman update --restart`, so keep restart behavior in compose and let systemd recreate the stack after VM reboot.
 
 ---
 

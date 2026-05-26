@@ -49,8 +49,8 @@ TORCS_CONTROL_SECRET=<long_random_secret>
 Start:
 
 ```bash
-podman-compose build override torcs ttm
-podman-compose up -d override torcs ttm
+podman-compose build override torcs
+podman-compose up -d override torcs
 ```
 
 If UFW is enabled, allow Podman bridge DNS and container-to-container routing:
