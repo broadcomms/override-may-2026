@@ -5,5 +5,11 @@ USER root
 RUN mv /etc/apt/sources.list.d/vscode.sources /etc/apt/sources.list.d/vscode.sources.disabled 2>/dev/null || true
 RUN apt-get update \
     && apt-get install -y --no-install-recommends xdotool python3-pip \
+        xautomation \
+        net-tools \
+        x11-xserver-utils \
+        mesa-utils \
+        libgl1 \
+        libgl1-mesa-dri \
     && python3 -m pip install --no-cache-dir fastapi 'uvicorn[standard]' \
     && rm -rf /var/lib/apt/lists/*

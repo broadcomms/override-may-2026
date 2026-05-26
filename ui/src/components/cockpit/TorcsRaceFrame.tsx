@@ -124,6 +124,14 @@ export function TorcsRaceFrame({
           top-heavy crop. That hides the noVNC status bar and the TORCS/XFCE
           top seam without reintroducing the lower grey strip. */}
       <div className="relative w-full aspect-[8/5] overflow-hidden bg-black">
+        <a
+          href={frameUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute right-3 top-3 z-30 rounded-md border border-border/80 bg-bg/90 px-3 py-1.5 text-xs text-muted backdrop-blur-sm transition-colors hover:text-text"
+        >
+          Open simulator surface ↗
+        </a>
         {/* SCR-wait overlay: noVNC is black while TORCS X11 is still initialising.
             Sits above the iframe (z-20) so it covers the blank frame during the
             launching → waiting_scr window. Clears automatically once the state

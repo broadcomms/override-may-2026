@@ -288,3 +288,25 @@ This directly maps to the challenge rubric: technical execution, innovation, cha
 | Hosted links | Keep `https://override-video.patrickndille.com` as the canonical product video URL | Stable forwarding link keeps the judging surface clean |
 | Operational internals | Keep runtime history and hosting mechanics in ADRs/runbooks | Public surfaces should show value and reproducibility, not operator plumbing |
 | Submission status | Portal copy is complete; external portal state is handled outside the repository | Avoids stale checklist language inside judge-readable docs |
+
+---
+
+## 15. IBM Cloud VM Release Branch Sync Record
+
+**Review window**: 2026-05-26
+**Purpose**: Align the `v1.0.0` release branch with the IBM Cloud Ubuntu VM deployment plan while leaving `dev` optimized for local WSL development.
+
+### Documents synced
+
+- `docs/07-deployment.md`
+- `docs/05-security.md`
+- `docs/13-deploy-to-cloud-vm.md`
+
+### Sync decisions
+
+| Area | Decision | Rationale |
+|---|---|---|
+| Release branch | `v1.0.0` is the IBM Cloud VM branch, not a tag | Gives the hosted review environment a stable code line without changing `dev` |
+| TORCS runtime | Cloud branch removes WSL device mounts and uses Xvfb + llvmpipe | Allows `podman-compose up -d override torcs ttm` on Ubuntu 24.04 without GPU passthrough |
+| Public routes | OVERRIDE is public; TORCS noVNC and Jaeger are Cloudflare Access gated | Keeps the review app reachable while protecting unauthenticated admin surfaces |
+| Port binding | App and auxiliary services bind to loopback on the VM | Cloudflare Tunnel becomes the intentional public edge |

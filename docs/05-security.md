@@ -1,6 +1,6 @@
 # Security
 
-> **Version:** v1.0 (submission scope). Last updated 2026-05-14.
+> **Version:** v1.0.0 branch security posture. Last updated 2026-05-26.
 
 > **Posture:** single-user, replay-first, no PII. The system is a demo/judging surface for the IBM SkillsBuild AI Builders Challenge, not a multi-tenant production service.
 
@@ -12,15 +12,15 @@ This document is referenced as the security baseline by `docs/07-deployment.md` 
 
 ## §1 - Threat model
 
-**Operator scope.** OVERRIDE v1.0 is a single-operator system. The operator is the deployment owner - the person who set up `.env` with their `WATSONX_API_KEY`, brought up the Podman compose stack, and (for the hosted demo) provisioned the Cloudflare Tunnel. Everyone else - judges, demo viewers, anyone hitting `override.patrickndille.com` from the public internet - is a **read-mostly visitor** with no privileged operations exposed to them.
+**Operator scope.** OVERRIDE is a single-operator hosted review system. The operator is the deployment owner - the person who set up `.env` with their `WATSONX_API_KEY`, brought up the Podman compose stack on the IBM Cloud VM, and provisioned the Cloudflare Tunnel. Everyone else - judges, demo viewers, anyone hitting `override.patrickndille.com` from the public internet - is a visitor to the review surface.
 
-**Replay-first.** The demo path of record is fixture-driven (`?fixture=1`). Live pipeline invocations on the public endpoint are tolerated as a courtesy to curious judges but capped by Cloudflare WAF rate-limit and by the watsonx Essentials CA$10 budget alert (see R18). Nothing in v1.0 depends on a visitor's ability to invoke the live pipeline; failure to do so degrades the experience but preserves the rubric story.
+**Replay-first.** The demo path of record is fixture-driven (`?fixture=1`). Live pipeline invocations on the public endpoint are tolerated as a courtesy to curious judges but capped by Cloudflare WAF rate-limit and by the watsonx Essentials budget alert (see R18). Nothing in the review story depends on a visitor's ability to invoke the live pipeline; failure to do so degrades the experience but preserves the rubric story.
 
 **Worst-case attacker.** Anyone on the public internet who can reach `https://override.patrickndille.com` during the judging window. **What they CAN do** if mitigations work as designed:
 
 - Hit `/api/health`, `/api/version`, `/api/sessions` (list), `/api/sessions/{id}` (read), `/api/sessions/{id}/laps|zones|zones/{id}` (read), `/api/regulation-source` (read), `/api/torcs-status` (read).
 - POST `/api/sessions` (upload), `/api/sessions/{id}/what-if` (perturb), `/api/sessions/torcs-live` (ingest) - these burn watsonx credit per call but cannot bypass the WAF rate-limit (5 req/min/IP on `POST /api/sessions`) or the validator/Guardian path that gates output structure.
-- Hit `/api/torcs/start-race` and `/stop-race` (the Phase 2 control plane endpoints). The frontend hides the buttons unless `window.location.hostname === "localhost"`, but the API itself is unauthenticated in v1.0 (see §5 "Known gaps").
+- Hit `/api/torcs/start-race` and `/stop-race` (the live TORCS control-plane proxy endpoints). These are unauthenticated on the public OVERRIDE route in this branch; see §5 for the accepted demo-scope gap and mitigations.
 
 **What they CANNOT do** if mitigations work as designed:
 
@@ -30,7 +30,7 @@ This document is referenced as the security baseline by `docs/07-deployment.md` 
 - Reach the TORCS container's internal control daemon at `torcs:7000`. That port is never mapped to the host in `docker-compose.yml`; it is only reachable from the `override` service over the `override-net` Docker bridge, and every endpoint except `/health` requires the `TORCS_CONTROL_SECRET` bearer (constant-time-compared via `secrets.compare_digest`).
 - Exfiltrate FIA regulation PDFs. PDFs are not committed (R14); only the derivative `data/regs/extracted_chunks.sample.json` is in the repo. The `/api/regulation-source` endpoint returns chunks, not full text.
 
-**Out-of-scope adversaries.** Insiders with shell access to the deployment laptop, supply-chain attackers compromising IBM watsonx itself, network attackers between the laptop and Cloudflare with active MITM capability against TLS. Defense against these is documented as v1.1+ work in §6.
+**Out-of-scope adversaries.** Insiders with shell access to the IBM Cloud VM, supply-chain attackers compromising IBM watsonx itself, network attackers between the VM and Cloudflare with active MITM capability against TLS. Defense against these is documented as future hardening work in §6.
 
 ---
 
@@ -50,18 +50,18 @@ Public-facing HTTP surface (`https://override.patrickndille.com`, Cloudflare-Tun
 | POST | `/api/sessions/torcs-live` | None | inherits POST /api/sessions WAF | Reads from shared `torcs-telemetry` volume only; `run_id` regex `^[A-Za-z0-9_-]+$`. |
 | GET | `/api/torcs-status` | None | none | Lists JSONL files in the shared volume. Returns `available: false` for empty volumes (never 404). |
 | GET | `/api/regulation-source` | None | none | Returns extracted chunks; no PDF content. |
-| POST | `/api/torcs/start-race`, `/stop-race` | **None (v1.0 gap - see §5)** | none | UI hides the buttons on non-localhost; backend proxies to internal daemon. |
-| DELETE | `/api/sessions/{id}` | None | none | Single-user model - anyone can delete; documented as v1.0 limitation. |
+| POST | `/api/torcs/start-race`, `/stop-race` | **None (demo-scope gap - see §5)** | none | Public OVERRIDE route can proxy live-race control to the internal daemon. |
+| DELETE | `/api/sessions/{id}` | None | none | Single-user model - anyone can delete; documented limitation. |
 
-Gated subdomains (Cloudflare Access - one-time PIN + email allowlist; see 07-deployment.md §2):
+Gated subdomains (Cloudflare Access - one-time PIN + email allowlist; see 07-deployment.md §5):
 
-- `torcs.patrickndille.com` → `localhost:6080` (TORCS desktop via noVNC).
+- `torcs-run.patrickndille.com` → `localhost:6080` (TORCS desktop via noVNC).
 - `jaeger.patrickndille.com` → `localhost:16686` (trace UI).
 
 Deleted subdomains (no tunnel route; only reachable from the operator's own loopback):
 
-- `ollama` → `localhost:11434` - free LLM inference would be abused, no legitimate external consumer.
-- `langflow` → `localhost:7860` - design canvas with arbitrary-tool execution, out of demo scope.
+- `ollama` → no public route. The TORCS lab image may expose Ollama inside the container, but the release compose file does not bind it to the host.
+- `langflow` → no public route. The release compose file binds it to loopback only for operator use.
 
 Internal-only surface (`override-net` Docker bridge - no host port mapping):
 
@@ -112,9 +112,9 @@ Internal-only surface (`override-net` Docker bridge - no host port mapping):
 
 **Edge protections (Cloudflare):**
 
-- One-time PIN + email allowlist on `torcs` and `jaeger` subdomains. Session duration 24h; allowlist managed in the Cloudflare dashboard per 07-deployment.md §2.
+- One-time PIN + email allowlist on `torcs-run` and `jaeger` subdomains. Session duration 24h; allowlist managed in the Cloudflare dashboard per 07-deployment.md §5.
 - WAF zone rule: rate-limit `POST /api/sessions` at 5 req/min/IP. Covers `/api/sessions/{id}/what-if` and `/api/sessions/torcs-live` by URL-prefix match.
-- TLS termination at the Cloudflare edge; cloudflared maintains an outbound WSS tunnel to the local WSL2 host. No inbound ports opened on the operator's network.
+- TLS termination at the Cloudflare edge; cloudflared maintains an outbound tunnel to the IBM Cloud VM. The VM security group and UFW expose SSH only to the operator IP; application ports bind to loopback.
 
 **Asset / content discipline (rubric):**
 
@@ -128,28 +128,27 @@ Internal-only surface (`override-net` Docker bridge - no host port mapping):
 
 Listed concretely so the T-72h walk-through has something to check:
 
-- `podman update --restart=always override torcs jaeger` - survives container crashes.
-- Windows host: Settings → System → Power → Screen and sleep → Never (plugged in), for May 24–31.
-- `systemctl enable --now cloudflared` - survives WSL reboots.
-- `loginctl enable-linger $USER` - containers survive SSH disconnect on a fresh login session.
+- `podman update --restart=always override torcs override-ttm` - survives container crashes.
+- `systemctl enable --now override-compose` - restarts the compose stack after VM reboot.
+- `systemctl enable --now cloudflared` - keeps the tunnel attached after VM reboot.
 - `TORCS_CONTROL_SECRET` rotated before the judging window - invalidates any value committed to a dev `.env` or leaked in chat logs (per ADR-004 §"Consequences").
-- Pre-flight: external-network smoke from a cellular device against all three subdomains. `override` → 200; `torcs` and `jaeger` → 302 redirect to Cloudflare Access (NOT 200 directly).
+- Pre-flight: external-network smoke from a cellular device against all published subdomains. `override` returns 200; `torcs-run` and optional `jaeger` redirect to Cloudflare Access unless the reviewer is already authenticated.
 
 ---
 
-## §5 - Known gaps (v1.0 → v1.1)
+## §5 - Known gaps
 
-**The `/api/torcs/start-race` and `/api/torcs/stop-race` endpoints are unauthenticated in v1.0.** The frontend localhost-hostname guard hides the buttons when accessed via `override.patrickndille.com`, but a curl request still reaches the daemon-proxy code path. The TORCS control daemon itself is bearer-authenticated, and the daemon is only reachable from the override service over `override-net` - so even an unauthenticated proxy call has to traverse the bearer check before it can start a race. **The risk surface is therefore "anyone can trigger a watsonx call by hitting the override endpoint, which then attempts a daemon call that fails with 401 if `TORCS_CONTROL_SECRET` is set."** Acceptable for v1.0; closed in v1.1 by gating the proxy endpoint behind a Cloudflare Access policy or by adding a server-side hostname check in the FastAPI handler.
+**The `/api/torcs/start-race` and `/api/torcs/stop-race` endpoints are unauthenticated on the public OVERRIDE route.** This branch intentionally supports live cloud TORCS during the review window, so visitors who can reach `override.patrickndille.com` can attempt to start or stop the simulator through the OVERRIDE API. The TORCS control daemon itself remains bearer-authenticated and internal to `override-net`; the public risk is operational disruption of a single demo VM, not host-level access. For a private review, gate the entire `override.patrickndille.com` route behind Cloudflare Access. Longer-term fix: add server-side auth for control-plane proxy endpoints.
 
-**`DELETE /api/sessions/{id}` has no authz.** Single-user model; the public visitor can delete sessions. Acceptable because (a) the public visitor doesn't know which session IDs to target, (b) replay is fixture-driven, and (c) the operator can re-upload the canonical sample to reconstruct the dashboard. v1.1 candidate: per-IP delete rate-limit or full session-list authentication.
+**`DELETE /api/sessions/{id}` has no authz.** Single-user model; the public visitor can delete sessions. Acceptable because (a) the public visitor doesn't know which session IDs to target, (b) replay is fixture-driven, and (c) the operator can re-upload the canonical sample to reconstruct the dashboard. Future hardening candidate: per-IP delete rate-limit or full session-list authentication.
 
-**No application-layer rate limit.** Only the Cloudflare WAF rule covers `POST /api/sessions`. A FastAPI-level per-IP limiter is documented as v1.1 work in `docs/05-risk-register.md` R18.
+**No application-layer rate limit.** Only the Cloudflare WAF rule covers `POST /api/sessions`. A FastAPI-level per-IP limiter is documented as future hardening work in `docs/05-risk-register.md` R18.
 
-**No audit log.** What-if invocations and session deletions don't write a tamper-evident trail. Adequate for v1.0 (no compliance requirement); v1.1 candidate: append-only journal under `data/sessions/_audit.jsonl`.
+**No audit log.** Counterfactual review invocations and session deletions don't write a tamper-evident trail. Adequate for the review environment; future candidate: append-only journal under `data/sessions/_audit.jsonl`.
 
-**No mTLS inside the compose network.** Override → torcs control daemon traffic is plaintext HTTP over `override-net`. Process-local on a single host (single-operator model), so the threat is contained. ADR-004 §"What this is not" documents this as v1.2 work pending a multi-host deployment.
+**No mTLS inside the compose network.** Override → torcs control daemon traffic is plaintext HTTP over `override-net`. Process-local on a single host (single-operator model), so the threat is contained. ADR-004 §"What this is not" documents this as future work pending a multi-host deployment.
 
-**No supply-chain attestation.** `requirements.txt` is pinned, `models.json` records watsonx model IDs, but there's no SBOM, no signed image, no SLSA attestation. v1.1+ - out of scope for the May 2026 submission window.
+**No supply-chain attestation.** `requirements.txt` is pinned, `models.json` records watsonx model IDs, but there's no SBOM, no signed image, no SLSA attestation. Out of scope for the May 2026 submission window.
 
 ---
 

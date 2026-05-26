@@ -1,15 +1,13 @@
-# OVERRIDE — Compose V2 stack (v6 plan task 3.1, architecture per ADR-002 + ADR-004)
+# OVERRIDE — Compose V2 stack for the IBM Cloud VM release branch
 #
 # Five services, four profiles in the compose spec, one shared volume.
-# Supported operator commands in this repo's tested WSL environment:
+# Supported operator commands on Ubuntu 24.04 cloud hosts:
 #
 #   podman-compose up                                # Mode 1: OVERRIDE alone
 #     → only the override service. Fast (~10 s boot). Fixture-driven demo.
-#       The demo video uses this mode against fixture-mode UI; the live
-#       hosted demo URL is fronted by a Cloudflare Tunnel from the local
-#       WSL host (override.patrickndille.com → localhost:8000). See
-#       docs/07-deployment.md for the deployment posture. (The original
-#       v6 §3.7 Hetzner CX32 VM plan was replaced post-pre-flight.)
+#       The hosted review URL is fronted by a Cloudflare Tunnel from the
+#       IBM Cloud VM (override.patrickndille.com → localhost:8000). See
+#       docs/07-deployment.md for the deployment posture.
 #
 #   podman-compose up override ttm                   # Mode 2: + TTM-R2 forecasting
 #     → override + ttm. The ttm service provides 5-lap SoC forecasting via
@@ -56,7 +54,7 @@ services:
     container_name: override
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file: .env
     environment:
       # When OVERRIDE_LLM_RUNTIME=ollama, route chat to the TORCS container's
@@ -70,11 +68,11 @@ services:
       # The override proxy endpoints fail gracefully (503) with a "control
       # daemon unreachable" message when the torcs service isn't running,
       # so the default OVERRIDE-only run remains unaffected.
-      TORCS_CONTROL_URL: http://torcs:7000
+      TORCS_CONTROL_URL: ${TORCS_CONTROL_URL:-http://torcs:7000}
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
       # TTM-R2 forecast service — resolves to the ttm service when up.
       # When not running, forecast_lap_window_http returns None gracefully.
-      TTM_SERVICE_URL: http://ttm:8001
+      TTM_SERVICE_URL: ${TTM_SERVICE_URL:-http://ttm:8001}
     volumes:
       # Session persistence — survives container restarts.
       - ./data/sessions:/app/data/sessions:Z
@@ -106,34 +104,17 @@ services:
       dockerfile: Dockerfile.torcs
     image: override-torcs:local
     container_name: torcs
+    restart: unless-stopped
     profiles: [torcs]
     # The init script absorbs two root-only fixes from RESULTS.md:
     #   chown -R student:student /opt/ollama   (Ollama bundled-but-broken)
-    #   echo DONT_PROMPT_WSL_INSTALL=1 >> /etc/environment
+    #   write the lab image's VS Code prompt-suppression flag to /etc/environment
     # The image's default USER is `student` (UID 1000 typically) which
     # can't perform either — RESULTS.md documents the manual `podman exec
     # -u root` workaround. We invoke the entrypoint as root so the chown
     # + echo succeed; start.sh inherits root and runs ollama/Xvfb/VNC as
     # root, which works fine (the lab's documented workaround model).
     user: "0:0"
-    # WSL2 GPU passthrough — bind /dev/dxg into the container so Mesa can
-    # load d3d12_dri.so and route OpenGL through Direct3D 12 to the Windows
-    # host GPU. Without this, the container has no GPU device and Mesa
-    # falls back to llvmpipe software rasterization, which produces the
-    # "white bars where menu text should be" artifact under TORCS's
-    # fixed-function GL path (seen 2026-05-13).
-    #
-    # Local-only convenience: this only matters on the WSL2 host that
-    # records the demo video / runs the local-dev TORCS service.
-    # - On a non-WSL2 host (real Linux server, cloud VM) /dev/dxg does
-    #   not exist and `podman-compose up override torcs` will fail to
-    #   start the service. The public-facing Cloudflare-fronted demo
-    #   does NOT bring up the torcs service, so this binding never matters
-    #   for the hosted path. If you ever stand up TORCS on a real Linux
-    #   GPU host, swap `/dev/dxg` for `/dev/dri` and drop the WSL volume
-    #   mounts below.
-    devices:
-      - /dev/dxg:/dev/dxg
     environment:
       # Phase 2 control daemon — when present, init script switches into
       # control-daemon mode (backgrounds start.sh, waits for noVNC, then
@@ -146,7 +127,7 @@ services:
       # panels, hides desktop file icons, applies a branded backdrop, and
       # auto-launches TORCS on session start. Leave at "0" (default) for
       # the normal full desktop with the manual launcher icon.
-      OVERRIDE_KIOSK_MODE: ${OVERRIDE_KIOSK_MODE:-0}
+      OVERRIDE_KIOSK_MODE: ${OVERRIDE_KIOSK_MODE:-1}
       # Stop-race GUI reset (control_daemon.py) — after Stop race the
       # daemon sends an xte key sequence to drive TORCS back to a stable
       # menu state (Abandon Race) so the operator needs no second action.
@@ -156,26 +137,13 @@ services:
       OVERRIDE_TORCS_GUI_RESET: ${OVERRIDE_TORCS_GUI_RESET:-1}
       OVERRIDE_TORCS_GUI_SETTLE_S: ${OVERRIDE_TORCS_GUI_SETTLE_S:-1.0}
       OVERRIDE_TORCS_GUI_RESET_KEYS: ${OVERRIDE_TORCS_GUI_RESET_KEYS:-Escape:Down:Return}
-      # WSL2 GPU passthrough — tells Mesa where the WSL-provided GL stack
-      # lives (libd3d12.so + libDXCore etc.). Inert on non-WSL2 hosts
-      # because /usr/lib/wsl/lib won't be bind-mounted there.
-      LD_LIBRARY_PATH: /usr/lib/wsl/lib
-      # WSL2 audio passthrough — point OpenAL (TORCS's audio backend per
-      # ~/.torcs/config/sound.xml `state=openal`) at WSLg's PulseAudio
-      # socket. The /mnt/wslg volume below brings the socket into the
-      # container; without this env var, OpenAL probes localhost:4713
-      # (default Pulse TCP port), finds nothing, and silently disables
-      # audio. The unix:... scheme is mandatory — Pulse won't parse a
-      # bare path. Same WSL-only caveat as the GPU bindings: on a real
-      # Linux host with hardware audio, set this to your host's
-      # /run/user/<uid>/pulse/native socket instead, or drop the var
-      # entirely and let OpenAL auto-detect ALSA.
-      PULSE_SERVER: unix:/mnt/wslg/PulseServer
+      # IBM Cloud VM release path — no host GPU is required. TORCS renders
+      # through Xvfb + llvmpipe so noVNC stays portable on a standard Ubuntu VM.
+      LIBGL_ALWAYS_SOFTWARE: ${LIBGL_ALWAYS_SOFTWARE:-1}
+      MESA_LOADER_DRIVER_OVERRIDE: ${MESA_LOADER_DRIVER_OVERRIDE:-llvmpipe}
+      GALLIUM_DRIVER: ${GALLIUM_DRIVER:-llvmpipe}
     ports:
-      - "5900:5900"        # VNC (drive via dedicated VNC client)
-      - "6080:6080"        # noVNC web (drive in a browser at /vnc.html)
-      - "3001:3001/udp"    # SCR — gym_torcs ↔ TORCS server channel
-      - "11434:11434"      # Ollama HTTP API (granite4:350m bundled)
+      - "127.0.0.1:6080:6080"  # noVNC web, exposed only through Cloudflare Access
       # NOTE: port 7000 (control daemon) is INTENTIONALLY NOT mapped to
       # the host. The daemon is reachable from the override service via
       # http://torcs:7000 over override-net, but never from the host
@@ -186,7 +154,7 @@ services:
       # gym_torcs source — committed under RaceYourCode/ in the repo root.
       # control_daemon.py also lives here; mounted into the image so the
       # init script can `python3 -m uvicorn control_daemon:app ...`.
-      # ":Z" relabels for SELinux (no-op on Ubuntu/WSL); see gotcha #7.
+      # ":Z" relabels for SELinux (no-op on Ubuntu); see gotcha #7.
       - ./RaceYourCode:/home/student/workspace:Z
       # Telemetry shared bus — see override service for the other end.
       - torcs-telemetry:/home/student/workspace/gym_torcs/telemetry:Z
@@ -196,14 +164,6 @@ services:
       # also handles the daemon boot chain (start.sh background → wait for
       # noVNC → exec uvicorn; runtime dependency installs are only a fallback).
       - ./scripts/torcs_container_init.sh:/usr/local/bin/torcs_init.sh:Z,ro
-      # WSL2 GPU passthrough — mounts the Windows-host-provided WSL GL
-      # stack so Mesa's d3d12_dri.so can find its driver shims. Companion
-      # to the /dev/dxg device above; same WSL-only caveat applies.
-      # /mnt/wslg is optional but pulls in WSLg's PulseAudio + GUI sockets
-      # if the user later wants audio in TORCS too. Read-only is safe —
-      # the container never writes to these paths.
-      - /usr/lib/wsl:/usr/lib/wsl:ro
-      - /mnt/wslg:/mnt/wslg
       # OVERRIDE brand assets — mounted read-only for kiosk backdrop.
       # When OVERRIDE_KIOSK_MODE=1 and this path exists inside the
       # container, the init script uses logo-on-dark.png as the desktop
@@ -243,7 +203,7 @@ services:
     profiles: [ttm]
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     environment:
       # TTM-R2 configuration (matches core/forecasting.py defaults)
       TTM_CONTEXT_LENGTH: ${TTM_CONTEXT_LENGTH:-30}
@@ -270,9 +230,9 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"      # Jaeger UI — http://localhost:16686
-      - "4317:4317"        # OTLP gRPC (what override exports to)
-      - "4318:4318"        # OTLP HTTP
+      - "127.0.0.1:16686:16686"  # Jaeger UI — tunnel only when gated
+      - "127.0.0.1:4317:4317"    # OTLP gRPC (what override exports to)
+      - "127.0.0.1:4318:4318"    # OTLP HTTP
     networks:
       - override-net
 
@@ -296,7 +256,7 @@ services:
     profiles: [langflow]
     restart: unless-stopped
     ports:
-      - "7860:7860"        # Langflow UI — http://localhost:7860
+      - "127.0.0.1:7860:7860"    # Langflow UI — operator-only loopback
     env_file: .env
     environment:
       PYTHONPATH: /workspace
