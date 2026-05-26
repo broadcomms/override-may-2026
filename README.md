@@ -33,9 +33,9 @@
 
 Formula 1's 2026 regulation cycle turns energy management from a background system into one of the central strategic problems of every lap. The MGU-H is removed, the MGU-K triples to 350 kW, power delivery shifts toward a roughly 50/50 combustion-electric split, DRS gives way to Override Mode, active aerodynamics changes straight-line and cornering behavior, and sustainable fuel changes how the power unit behaves under load.
 
-For engineers and analysts, that means each lap now carries a sequence of harvest, deploy, recharge, and Override tradeoffs. For broadcasters and fans, the deciding moments become harder to see: energy-budget decisions are often invisible on broadcast but measurable in telemetry. Existing public racing AI tools were shaped around the 2014-2025 hybrid era, so they do not provide an open, explainable layer for the new 2026 energy-management problem.
+For engineers and analysts, that means each lap now carries a sequence of harvest, deploy, recharge, and Override tradeoffs. For broadcasters and fans, the deciding moments become harder to see: energy-budget decisions are often invisible on broadcast but measurable in telemetry. Existing public racing AI tools were shaped around the 2014–2025 hybrid era, so they do not directly provide an open, explainable layer for the new 2026 energy-management problem.
 
-OVERRIDE addresses that gap with a race-strategy copilot that explains telemetry-backed energy decisions instead of hiding them inside a black box.
+OVERRIDE builds as the explainable race intelligence layer for 2026 FIA Formula 1 hybrid energy management strategy, by translating telemetry-backed energy decisions into clear reasoning, regulatory evidence, and actionable insight that engineers, analysts, broadcasters, and fans can trust.
 
 ## Our AI / Technical Approach
 
@@ -49,9 +49,9 @@ The same engine supports Engineer Mode, Fan Mode, counterfactual strategy review
 
 Racing is not short on data. The harder problem is trust: engineers, drivers, broadcasters, and fans need to understand why a strategy recommendation makes sense, what evidence supports it, and which regulation text it is grounded in.
 
-OVERRIDE makes energy-budget decisions that are invisible on broadcast but measurable in telemetry easier to understand. Engineers and analysts get an auditable debrief that highlights cause, consequence, recommendation, validation status, and regulation grounding. Broadcasters get evidence-backed explanations they can translate on air. Fans get the same strategy story without needing to decode every acronym. Drivers and coaches get cause-and-effect feedback for building a new 2026 mental model.
+OVERRIDE makes energy-budget decisions that are invisible on broadcast but measurable in telemetry easier to understand. Engineers and analysts get an auditable debrief that highlights cause, consequence, recommendation, validation status, and regulation grounding. Broadcasters get evidence-backed explanations they can translate on air. Fans get the same strategy story without needing to decode every technical acronym. Drivers and coaches get cause-and-effect feedback for building a new 2026 mental model.
 
-The result is decision support, not replacement. OVERRIDE does not call the race or act for a team; it explains the tradeoffs, highlights the risk, and recommends options a human can review. That is the right shape of AI for a sport where trust, regulation, and explainability matter as much as speed.
+The result is decision support, not replacement. OVERRIDE does not call the race or act for a team; it explains the tradeoffs, highlights the risk, and recommends options a human can review. That is the right shape of AI for a fast paced sport where trust, regulation, and explainability matter as much as speed.
 
 ## Strategy Decision Support
 
@@ -61,7 +61,7 @@ OVERRIDE is built for energy-budget decisions that are invisible on broadcast bu
 
 The product is intentionally decision support. It highlights pressure, explains tradeoffs, validates model output, and recommends options a human can review.
 
-## Trust Architecture
+## The Trust Layer
 
 OVERRIDE uses a four-part proof frame:
 
@@ -76,28 +76,15 @@ OVERRIDE uses a four-part proof frame:
 
 Forecasting is an enhancement, not a dependency. IBM Granite Time Series TTM-R2 can add a 5-lap state-of-charge forecast through an optional isolated service. If the service is unavailable or the session is too short, OVERRIDE continues from observed telemetry with `forecast=None`.
 
-## Product Surfaces
-
-| Surface | What it proves | Visible outcome |
-|---|---|---|
-| **Upload + Live Capture** | The system can start from demo fixtures, user uploads, or completed TORCS telemetry captures. | Judges can launch a race, ingest a capture, or drop in a replay session. |
-| **Live Cockpit** | OVERRIDE connects the IBM TORCS learning lab to a live strategy cockpit. | TORCS frame, timing rail, hybrid rail, lap timeline, and live AI Race Engineer readout. |
-| **Post-Race Debrief** | A completed run becomes structured strategy intelligence. | Race report, driver/battery/risk scores, key moments, energy curve, and zone heatmap. |
-| **Recommendation Card** | The model output is explainable and auditable. | Cause, consequence, recommendation, reasoning chain, validation badge, Guardian score, and dynamic regulation citation. |
-| **Counterfactual Strategy Review** | Users can test alternate energy choices without bypassing safety gates. | Before/after comparison, newly detected zones, and the same validation flow rerun on the alternate scenario. |
-| **Fan Mode** | The same reasoning can become accessible without losing grounding. | Plain-language explanation of what happened, why it mattered, and which rule shaped the recommendation. |
-| **AI Race Engineer** | The system supports follow-up questions inside the current race or session context. | Page-aware assistant grounded in live telemetry, lap context, recommendations, and report artifacts. |
-| **Driver Lab** | TORCS launch behavior is configurable and reproducible. | Driver profiles can be validated, duplicated, saved, and snapshotted into each live session. |
-
-## Architecture
+## System Architecture
 
 <p align="center"><img src="assets/architecture.png" alt="OVERRIDE architecture" width="90%"/></p>
 
 
 
-### Implementation Flow
+### Implementation
 
-| Stage | Component | Tech |
+| Stage | Component | Technology |
 |---|---|---|
 | Ingest | `torcs_parser` / `fastf1_parser` | Python, Pandas |
 | Aggregate | Lap-level energy features | Custom `analysis/` pipeline |
@@ -109,32 +96,30 @@ Forecasting is an enhancement, not a dependency. IBM Granite Time Series TTM-R2 
 | Orchestrate | Visual pipeline mirror and demo canvas | **Langflow** |
 | Translate | Engineer Mode, Fan Mode, and copilot responses | **IBM Granite Instruct** |
 
-## Execution Evidence
+## Main Features
 
-Screenshots are used here as proof points reviewers can verify, not as decoration.
-
-### What Users See
+Screenshots of the UI can be found in the [assets/screenshots/](assets/screenshots) directory.
 
 | Feature | Screenshot | Description |
 |---|---|---|
-| **Race Control / Live Capture** | <img src="assets/screenshots/race-control.png" alt="OVERRIDE race control with track, launch mode, driver profile, and capture ingest list" width="240"/> | The live TORCS lab can be launched from the UI, configured by track/lap/profile, and completed JSONL captures can be ingested into a full session debrief. |
-| **Live Cockpit Simulation** | <img src="assets/screenshots/cockpit.png" alt="OVERRIDE live cockpit with TORCS frame, timing rail, lap timeline, and hybrid energy rail" width="240"/> | The live cockpit combines the TORCS frame, timing panel, lap timeline, SoC, harvest, deploy, and AI Race Engineer entry point in one race surface. |
-| **Live Race Commentary** | <img src="assets/screenshots/live-race-explainer.png" alt="OVERRIDE live race explainer with Granite readout and deterministic telemetry guardrail" width="240"/> | Granite can generate a live race-engineer readout from recent closed laps while deterministic telemetry guardrails continue to highlight battery pressure. |
-| **AI Race Assistant** | <img src="assets/screenshots/ai-race-assistant.png" alt="OVERRIDE AI Race Engineer assistant answering a live battery-pressure question" width="240"/> | The assistant answers follow-up questions the current live race context, grounding responses in real-time stream state, recent lap insights, and battery pressure estimates. |
-| **Energy Strategy Forecast** | <img src="assets/screenshots/energy-forcast.png" alt="OVERRIDE energy curve with forecasted state-of-charge points and zone heatmap" width="240"/> | The energy curve shows observed SoC, forecast continuation, and detected zone evidence so strategy pressure is visible without reading raw telemetry. |
-| **Post-Race Report and Analysis** | <img src="assets/screenshots/race-report.png" alt="OVERRIDE post-race intelligence report with scores, key moments, commentary, and lap drill-down" width="240"/> | A completed run becomes an executive debrief with driver, battery, consistency, and risk scores, plus key moments, AI commentary, lap drill-down, and PDF export. |
-| **Engineer Reasoning/ Zone Card** | <img src="assets/screenshots/reasoning-card.png" alt="OVERRIDE engineer reasoning card with cause, consequence, recommendation, and citation" width="240"/> | The recommendation card exposes cause, consequence, recommendation, reasoning chain, confidence, and dynamic regulation grounding. |
-| **Counterfactual Strategy Review** | <img src="assets/screenshots/counter-factual.png" alt="OVERRIDE counterfactual strategy review with before and after energy-zone comparison" width="240"/> | Alternate energy choices rerun through the same pipeline, showing before/after zone changes, newly detected pressure, and validation badges. |
-| **Fan Mode** | <img src="assets/screenshots/fan-mode.png" alt="OVERRIDE Fan Mode recommendation with what happened, why it mattered, and rule explanation" width="240"/> | The same reviewed evidence is translated into plain language for broadcasters and fans without changing the underlying strategy record. |
-| **Layered Defense** | <img src="assets/screenshots/layered-defense.png" alt="OVERRIDE layered-defense demo showing a surfaced validation failure and Guardian score" width="240"/> | Failure states are surfaced instead of hidden: the UI shows validator status, Guardian scoring, confidence, citation context, and the affected recommendation. |
-| **Deterministic Validation** | <img src="assets/screenshots/validation.png" alt="OVERRIDE validation failure card with suppressed reasoning and failed citation-existence rule" width="240"/> | If deterministic validation still fails after retries, reasoning is suppressed for that zone and the failed rule is shown directly on the card. |
-| **Driver Lab** | <img src="assets/screenshots/driver-lab.png" alt="OVERRIDE Driver Lab with validated TORCS driver profile controls" width="240"/> | TORCS driver profiles can be validated, duplicated, saved, and snapshotted into the next live session without mutating the shipped baseline profile. |
-| **Langflow Canvas** | <img src="assets/screenshots/langflow-canvas.png" alt="Langflow canvas with OVERRIDE custom components wired end-to-end" width="240"/> | Langflow mirrors the production pipeline as a visual orchestration layer with the OVERRIDE components wired end to end. |
-| **Jaeger Trace** | <img src="assets/screenshots/jaeger-trace.png" alt="Jaeger trace with nested OVERRIDE pipeline spans" width="240"/> | OpenTelemetry spans show nested pipeline execution, including retrieval, reasoning, validation, Guardian scoring, and retry behavior. |
+| **Race Control / Live Capture** | [<img src="assets/screenshots/race-control.png" alt="OVERRIDE race control with track, launch mode, driver profile, and capture ingest list" width="240"/>](assets/screenshots/race-control.png) | The live TORCS lab can be launched from the UI, configured by track/lap/profile, and completed JSONL captures can be ingested into a full session debrief. |
+| **Live Cockpit Simulation** | [<img src="assets/screenshots/cockpit.png" alt="OVERRIDE live cockpit with TORCS frame, timing rail, lap timeline, and hybrid energy rail" width="240"/>](assets/screenshots/cockpit.png) | The live cockpit combines the TORCS frame, timing panel, lap timeline, SoC, harvest, deploy, and AI Race Engineer entry point in one race surface. |
+| **Live Race Commentary** | [<img src="assets/screenshots/live-race-explainer.png" alt="OVERRIDE live race explainer with Granite readout and deterministic telemetry guardrail" width="240"/>](assets/screenshots/live-race-explainer.png) | Granite can generate a live race-engineer readout from recent closed laps while deterministic telemetry guardrails continue to highlight battery pressure. |
+| **AI Race Assistant** | [<img src="assets/screenshots/ai-race-assistant.png" alt="OVERRIDE AI Race Engineer assistant answering a live battery-pressure question" width="240"/>](assets/screenshots/ai-race-assistant.png) | The assistant supports follow-up questions inside the current live race context, grounding responses in real-time stream state, recent lap insights, battery pressure estimates and reports artifacts. |
+| **Energy Strategy Forecast** | [<img src="assets/screenshots/energy-forcast.png" alt="OVERRIDE energy curve with forecasted state-of-charge points and zone heatmap" width="240"/>](assets/screenshots/energy-forcast.png) | The energy curve shows observed SoC, forecast continuation, and detected zone evidence so strategy pressure is visible without reading raw telemetry. |
+| **Post-Race Report and Analysis** | [<img src="assets/screenshots/race-report.png" alt="OVERRIDE post-race intelligence report with scores, key moments, commentary, and lap drill-down" width="240"/>](assets/screenshots/race-report.png) | A completed run becomes an executive debrief with driver, battery, consistency, and risk scores, plus key moments, AI commentary, lap drill-down, and PDF export. |
+| **Engineer Reasoning/ Zone Card** | [<img src="assets/screenshots/reasoning-card.png" alt="OVERRIDE engineer reasoning card with cause, consequence, recommendation, and citation" width="240"/>](assets/screenshots/reasoning-card.png) | The recommendation card exposes cause, consequence, recommendation, reasoning chain, confidence, and dynamic regulation grounding. |
+| **Counterfactual Strategy Review** | [<img src="assets/screenshots/counter-factual.png" alt="OVERRIDE counterfactual strategy review with before and after energy-zone comparison" width="240"/>](assets/screenshots/counter-factual.png) | Users can test alternate energy choices without bypassing safety gates using the same pipeline, showing before/after zone changes, newly detected pressure, and validation badges. |
+| **Fan Mode** | [<img src="assets/screenshots/fan-mode.png" alt="OVERRIDE Fan Mode recommendation with what happened, why it mattered, and rule explanation" width="240"/>](assets/screenshots/fan-mode.png) | The same reviewed evidence is translated into plain language for broadcasters and fans without changing the underlying strategy record, why it mattered, and which rule shaped the recommendation. |
+| **Layered Defense** | [<img src="assets/screenshots/layered-defense.png" alt="OVERRIDE layered-defense demo showing a surfaced validation failure and Guardian score" width="240"/>](assets/screenshots/layered-defense.png) | Failure states are surfaced instead of hidden: the UI shows validator status, Guardian scoring, confidence, citation context, and the affected recommendation. |
+| **Deterministic Validation** | [<img src="assets/screenshots/validation.png" alt="OVERRIDE validation failure card with suppressed reasoning and failed citation-existence rule" width="240"/>](assets/screenshots/validation.png) | If deterministic validation still fails after retries, reasoning is suppressed for that zone and the failed rule is shown directly on the card. |
+| **Driver Lab** | [<img src="assets/screenshots/driver-lab.png" alt="OVERRIDE Driver Lab with validated TORCS driver profile controls" width="240"/>](assets/screenshots/driver-lab.png) | TORCS driver profiles can be validated, duplicated, calibrated, saved, and snapshotted into the next live session without mutating the shipped TORCS baseline driver profile. |
+| **Langflow Canvas** | [<img src="assets/screenshots/langflow-canvas.png" alt="Langflow canvas with OVERRIDE custom components wired end-to-end" width="240"/>](assets/screenshots/langflow-canvas.png) | Langflow mirrors the production pipeline as a visual orchestration layer with the OVERRIDE components wired end to end. |
+| **Jaeger Trace** | [<img src="assets/screenshots/jaeger-trace.png" alt="Jaeger trace with nested OVERRIDE pipeline spans" width="240"/>](assets/screenshots/jaeger-trace.png) | OpenTelemetry spans show nested pipeline execution, including retrieval, reasoning, validation, Guardian scoring, and retry behavior. |
 
 ## IBM Technology
 
-| Solution | Role in OVERRIDE | Implementation Details |
+| Solution | How it is Used in OVERRIDE | Implementation Details |
 |---|---|---|
 | **1. Granite 4 Instruct** | Core reasoning engine + Fan Mode translation | watsonx.ai US-South, `ibm/granite-4-h-small`, generates causal reasoning chains and plain-language explanations |
 | **2. Granite Guardian** | Pass-2 AI safety scoring (BYOC) | watsonx.ai US-South, `ibm/granite-guardian-3-8b`, scores recommendations on energy-safety and regulation-consistency |
@@ -144,10 +129,10 @@ Screenshots are used here as proof points reviewers can verify, not as decoratio
 | **6. Langflow** | Visual pipeline design + demo layer | `pip install langflow`, 9 custom components mirror production FastAPI pipeline for architecture demonstration |
 
 **Additional Tools**:
-- **IBM Bob** - Build-time development partner (acknowledgment only, not in runtime. Context settings [`.bob/`](.bob/) )
-- **IBM TORCS Learning Lab** - Foundation for live race integration and telemetry generation
+- **IBM Bob** - Build-time development partner (acknowledgment only, not in runtime. Context settings [`.bob/`](.bob/), and instructions [`AGENTS.md`](AGENTS.md) )
+- **IBM TORCS Learning Lab** - Foundation for live race integration and telemetry generation [`hands-on-labs/01_torcs_lab`](hands-on-labs/01_torcs_lab)
  
-**Observability:** direct OpenTelemetry instrumentation covers FastAPI and the AI pipeline. The Jaeger proof appears in [Execution Evidence](#execution-evidence); enable with `OVERRIDE_TRACING=otlp` when capturing traces. Default is `off` (zero overhead).
+**Observability:** direct OpenTelemetry instrumentation covers FastAPI and the AI pipeline. The Jaeger proof appears in [Main Features](#main-features); enable with `OVERRIDE_TRACING=otlp` when capturing traces. Default is `off` (zero overhead).
  
 
  
@@ -234,7 +219,7 @@ Test inventory currently stands at **439 collected tests**, including **4** netw
 - Fan Mode is a plain-language translation layer over the same reviewed evidence; it is not a substitute for professional commentary or FIA interpretation.
 - OVERRIDE is decision support. It highlights, explains, validates, and recommends; a human remains responsible for race decisions.
 
-## Optional Forecasting
+## Forecasting
 
 IBM Granite Time Series TTM-R2 can add a 5-lap state-of-charge forecast through an isolated service. Forecasting is optional: if the service is unavailable or the session has fewer than 30 completed laps, OVERRIDE continues from observed telemetry with `forecast=None`.
 
