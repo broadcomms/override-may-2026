@@ -244,7 +244,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/override-may-2026
-ExecStart=/usr/bin/podman-compose up -d override torcs
+ExecStart=/usr/bin/podman-compose up -d override torcs ttm
 ExecStop=/usr/bin/podman-compose down
 TimeoutStartSec=0
 
@@ -258,6 +258,31 @@ Enable it:
 systemctl daemon-reload
 systemctl enable --now override-compose
 systemctl status override-compose
+```
+
+You can also run this directly in the terminal:
+```bash
+cat >/etc/systemd/system/override-compose.service <<'EOF'
+[Unit]
+Description=OVERRIDE compose stack
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/override-may-2026
+ExecStart=/usr/bin/podman-compose up -d override torcs ttm
+ExecStop=/usr/bin/podman-compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now override-compose
+systemctl status override-compose --no-pager
 ```
 
 `docker-compose.yml` carries `restart: unless-stopped` for the long-lived app and TORCS containers. Some Ubuntu-packaged Podman builds do not support `podman update --restart`, so keep restart behavior in compose and let systemd recreate the stack after VM reboot.
