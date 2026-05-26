@@ -21,8 +21,8 @@
 #
 #   2. VS Code extension install hang
 #      start.sh's step [1/6] runs `code --install-extension ms-python.python`
-#      inside the container, but on WSL2 the bundled `code` CLI prints
-#      "please install VS Code in Windows" and hangs the whole script.
+#      inside the container, but the bundled `code` CLI can print a host
+#      desktop setup prompt and hang the whole script.
 #      We're not editing code in the container (task 1.5 needs telemetry
 #      capture only), so pre-create the marker directories the script's
 #      skip-condition greps for, then suppress the hang defensively.
@@ -37,6 +37,14 @@
 
 set -e
 
+# Cloud release rendering posture: keep TORCS portable on a standard Ubuntu
+# VM by forcing Xvfb + Mesa llvmpipe before start.sh creates any GL process.
+# The values are also repeated in docker-compose.yml so direct container runs
+# and compose runs share the same behavior.
+export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
+export MESA_LOADER_DRIVER_OVERRIDE="${MESA_LOADER_DRIVER_OVERRIDE:-llvmpipe}"
+export GALLIUM_DRIVER="${GALLIUM_DRIVER:-llvmpipe}"
+
 # ── Fix 1 — Ollama directory ownership ──────────────────────────────────────
 # Recursive chown on /opt/ollama is safe (image-internal, not bind-mounted).
 chown -R student:student /opt/ollama 2>/dev/null || true
@@ -50,7 +58,7 @@ chown student:student /tmp/ollama-* 2>/dev/null || true
 # ── Fix 2 — VS Code extension install hang ──────────────────────────────────
 # Pre-create the marker dirs that start.sh's step [1/6] greps for. Once
 # present, the script's "already installed, skipping" branch fires and
-# the install step (which hangs under WSL2) is avoided.
+# the install step is avoided.
 mkdir -p /home/student/.vscode/extensions/ms-python.python \
          /home/student/.vscode/extensions/Continue.continue 2>/dev/null || true
 chown -R student:student /home/student/.vscode 2>/dev/null || true
@@ -59,7 +67,7 @@ chown -R student:student /home/student/.vscode 2>/dev/null || true
 # through (e.g., student modified a marker dir). Silent when no match.
 pkill -f "code.*install-extension" 2>/dev/null || true
 
-# Suppress the WSL-install prompt loop entirely. The marker prevents the
+# Suppress the VS Code host-install prompt loop entirely. The marker prevents the
 # install from running, but `code --version` or other `code` invocations
 # downstream could still trip the prompt. compose runs this script as root
 # (user: "0:0" in the torcs service) so the >> /etc/environment write
@@ -73,7 +81,7 @@ pkill -f "code.*install-extension" 2>/dev/null || true
 # ── Fix 3 — Xvfb visual config for software-Mesa alpha compositing ──────────
 # The lab image's start.sh spawns Xvfb at `1920x1080x24` — 24-bit color, no
 # alpha plane. Under software Mesa (llvmpipe — what we get with no /dev/dri
-# or /dev/dxg passthrough), TORCS's menu rendering ends up compositing
+# on a standard cloud VM), TORCS's menu rendering ends up compositing
 # alpha-blended glyph quads against a backbuffer with no destination alpha,
 # and the menu items blow out to solid white bars. Symptom seen 2026-05-13.
 #
@@ -377,11 +385,9 @@ PAUSE_FILE=/tmp/override-managed-race.lock
 # first GL context opens.
 sleep 2
 
-# Force TORCS onto software Mesa inside Xvfb. On WSL hosts the container also
-# sees the D3D12 translation stack via /usr/lib/wsl/lib; that path can keep the
-# simulation alive while the visible 3D surface stops repainting mid-race.
-# The kiosk surface is display-bound, not throughput-bound, so stable llvmpipe
-# rendering is the better tradeoff here.
+# Force TORCS onto software Mesa inside Xvfb. The IBM Cloud VM release path
+# intentionally does not mount host GPU devices, so stable llvmpipe rendering
+# is the portable display path for noVNC.
 
 # Disable X screen blanking so the display never fades to grey during
 # idle periods (e.g. between TORCS restarts or on a paused race).
@@ -656,9 +662,10 @@ if ! command -v xdotool >/dev/null 2>&1; then
     echo "[init] installing xdotool for TORCS GUI launch bridge"
     export DEBIAN_FRONTEND=noninteractive
   if ! run_with_timeout 45s apt-get update -qq; then
-        # The lab image has a VS Code apt source whose key can expire/miss in
-        # WSL. Disable it inside this disposable container and retry against
-        # Ubuntu's repos; this mirrors the existing "skip VS Code install"
+        # The lab image has a VS Code apt source whose key can expire or miss
+        # in a containerized Ubuntu VM. Disable it inside this disposable
+        # container and retry against Ubuntu's repos; this mirrors the existing
+        # "skip VS Code install"
         # posture above and avoids blocking the control daemon on an unrelated
         # editor repository.
         mv /etc/apt/sources.list.d/vscode.sources \
