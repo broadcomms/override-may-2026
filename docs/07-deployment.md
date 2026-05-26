@@ -68,12 +68,28 @@ ssh root@<IBM_PUBLIC_IP>
 
 apt update
 apt upgrade -y
-apt install -y git curl jq ufw podman podman-compose python3-venv build-essential
+apt install -y git curl jq ufw podman podman-compose python3-venv build-essential netavark aardvark-dns
 
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow from <YOUR_PUBLIC_IP>/32 to any port 22 proto tcp
 ufw enable
+```
+
+After the compose network exists, allow the Podman bridge to answer container DNS and route container-to-container traffic. Without this, `override` can hang resolving `torcs` even when the `torcs` container is healthy.
+
+```bash
+cd /opt/override-may-2026
+podman-compose up -d override torcs ttm
+
+PODMAN_IFACE=$(podman network inspect override-may-2026_override-net | jq -r '.[0].network_interface')
+PODMAN_SUBNET=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].subnet')
+PODMAN_GATEWAY=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].gateway')
+
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto udp
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto tcp
+ufw route allow in on "$PODMAN_IFACE" out on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_SUBNET"
+ufw reload
 ```
 
 Clone the release branch:
@@ -144,6 +160,22 @@ curl -fsS http://localhost:8000/api/health | jq .
 curl -fsS http://localhost:6080/ >/dev/null
 curl -fsS http://localhost:8001/health | jq .
 curl -fsS http://localhost:8000/api/torcs/control-status | jq .
+```
+
+If `podman exec override getent hosts torcs` still hangs after the UFW bridge rules above, use the temporary IP fallback:
+
+```bash
+TORCS_IP=$(podman inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' torcs)
+TTM_IP=$(podman inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' override-ttm)
+
+grep -q '^TORCS_CONTROL_URL=' .env \
+  && sed -i "s|^TORCS_CONTROL_URL=.*|TORCS_CONTROL_URL=http://${TORCS_IP}:7000|" .env \
+  || echo "TORCS_CONTROL_URL=http://${TORCS_IP}:7000" >> .env
+grep -q '^TTM_SERVICE_URL=' .env \
+  && sed -i "s|^TTM_SERVICE_URL=.*|TTM_SERVICE_URL=http://${TTM_IP}:8001|" .env \
+  || echo "TTM_SERVICE_URL=http://${TTM_IP}:8001" >> .env
+
+podman-compose up -d --force-recreate override
 ```
 
 ---

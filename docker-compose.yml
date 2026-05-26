@@ -68,11 +68,11 @@ services:
       # The override proxy endpoints fail gracefully (503) with a "control
       # daemon unreachable" message when the torcs service isn't running,
       # so the default OVERRIDE-only run remains unaffected.
-      TORCS_CONTROL_URL: http://torcs:7000
+      TORCS_CONTROL_URL: ${TORCS_CONTROL_URL:-http://torcs:7000}
       TORCS_CONTROL_SECRET: ${TORCS_CONTROL_SECRET:-}
       # TTM-R2 forecast service — resolves to the ttm service when up.
       # When not running, forecast_lap_window_http returns None gracefully.
-      TTM_SERVICE_URL: http://ttm:8001
+      TTM_SERVICE_URL: ${TTM_SERVICE_URL:-http://ttm:8001}
     volumes:
       # Session persistence — survives container restarts.
       - ./data/sessions:/app/data/sessions:Z

@@ -53,6 +53,19 @@ podman-compose build override torcs ttm
 podman-compose up -d override torcs ttm
 ```
 
+If UFW is enabled, allow Podman bridge DNS and container-to-container routing:
+
+```bash
+PODMAN_IFACE=$(podman network inspect override-may-2026_override-net | jq -r '.[0].network_interface')
+PODMAN_SUBNET=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].subnet')
+PODMAN_GATEWAY=$(podman network inspect override-may-2026_override-net | jq -r '.[0].subnets[0].gateway')
+
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto udp
+ufw allow in on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_GATEWAY" port 53 proto tcp
+ufw route allow in on "$PODMAN_IFACE" out on "$PODMAN_IFACE" from "$PODMAN_SUBNET" to "$PODMAN_SUBNET"
+ufw reload
+```
+
 ## Routes
 
 | Hostname | Target | Access |
