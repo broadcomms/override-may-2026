@@ -52,7 +52,7 @@ class LapFeatures(BaseModel):
     sector3_time: float = Field(gt=0.0)
     avg_speed: float = Field(ge=0.0, description="km/h")
     max_speed: float = Field(ge=0.0, description="km/h")
-    override_uses: int = Field(ge=0, description="count of Override Mode activations this lap")
+    override_uses: int = Field(ge=0, description="count of Overtake Mode activations this lap")
     boost_uses: int = Field(ge=0, description="count of additional MGU-K boost windows")
     recharge_zones: list[int] = Field(
         default_factory=list,
@@ -90,6 +90,10 @@ class ZoneType(str, Enum):
     Lower-case hyphenated values match the schema doc, the prompts, and the
     UI rendering. Do not change the string values without updating every
     consumer in the same PR (see docs/04-schema.md §13 versioning).
+
+    Compatibility note: the v1 payload keeps legacy "override" identifiers
+    for stable APIs, while user-facing copy uses the current FIA/F1 term
+    "Overtake Mode".
     """
 
     LOW_ROI_DEPLOY = "low-roi-deploy"
@@ -163,7 +167,7 @@ class RegulationSource(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     document_title: str = Field(min_length=1)
-    issue: str = Field(min_length=1, description="e.g. 'Issue 12 — 2025-06-10'")
+    issue: str = Field(min_length=1, description="e.g. 'Issue 18 — 2026-05-07'")
     section: str = Field(
         min_length=1,
         description="read from Docling DocTag at runtime, never hardcoded",
@@ -494,7 +498,7 @@ class Session(BaseModel):
 PerturbationKind = Literal[
     "delay_first_deploy",   # shift first deploy event by n laps (energy conserved)
     "skip_harvest_zone",    # zero harvest_mj on a target zone's lap (energy LOST)
-    "extend_override",      # add 0.5 MJ deploy for extra_laps after a target zone
+    "extend_override",      # add calibrated deploy for extra_laps after a target zone
 ]
 
 
@@ -528,7 +532,7 @@ class WhatIfRequest(BaseModel):
         default=1,
         ge=1,
         le=5,
-        description="additional laps of Override deploy (extend_override only)",
+        description="additional laps of Overtake Mode-style deploy (extend_override only)",
     )
 
     @model_validator(mode="after")

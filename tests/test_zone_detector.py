@@ -403,7 +403,7 @@ def test_unused_override_no_fire_if_override_used():
     laps = [
         lap(lap_number=1, lap_time=85.0,
             soc_start=0.95, deploy_mj=0.0,
-            override_uses=1),  # already used Override
+            override_uses=1),  # already used Overtake Mode
         lap(lap_number=2, lap_time=85.0),
     ]
     zones = [z for z in detect_zones(laps, SOC_MAX)

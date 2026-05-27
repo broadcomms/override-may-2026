@@ -456,7 +456,7 @@ def test_retrieve_chunk_combined_score_in_zero_to_one():
     chunks = [
         _make_chunk("MGU-K deploy", embedding=[1.0, 0.0, 0.0]),
         _make_chunk("ES recovery", embedding=[0.0, 1.0, 0.0]),
-        _make_chunk("override mode", embedding=[0.0, 0.0, 1.0]),
+        _make_chunk("Overtake Mode", embedding=[0.0, 0.0, 1.0]),
     ]
     client = FakeEmbeddingClient(dim=3)
     out = retrieve_chunk(ZoneType.LOW_ROI_DEPLOY, chunks, client, threshold=0.0)
@@ -620,7 +620,7 @@ def test_embed_chunks_live_watsonx_returns_768_dim():
 
     chunks = [
         _make_chunk("Energy released from the ES into the MGU-K shall not exceed the per-lap cap."),
-        _make_chunk("Override Mode is available within one second of the leading car."),
+        _make_chunk("Sporting Regulations govern Overtake Mode availability."),
     ]
     client = WatsonxAIEmbeddingClient()
     out = embed_chunks(chunks, client, batch_size=8)

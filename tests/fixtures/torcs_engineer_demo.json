@@ -76,7 +76,7 @@
         },
         "fan": {
           "headline": "Driver pushes boost too early, overloads the battery",
-          "what_happened": "On the first lap the driver used the new boost button right away, which recharged the battery. But the battery was already full, so it went over the allowed limit. This is against the rules and could lead to penalties, while also leaving less energy for later in the race.",
+          "what_happened": "On the first lap the driver used the overtake boost right away, which recharged the battery. But the battery was already full, so it went over the allowed limit. This is against the rules and could lead to penalties, while also leaving less energy for later in the race.",
           "why_it_mattered": "Going over the battery's allowed charge means the team might be penalized, and the driver will have less stored energy to use when it really counts later in the race. It's like filling a glass that's already full \u2013 it spills over and wastes what you're trying to save.",
           "the_rule": "During the race, the battery's charge must stay within a 4 megajoule window \u2013 it can't be too full or too empty."
         },

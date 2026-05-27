@@ -30,7 +30,7 @@ interface Props {
 const PERTURBATION_LABEL: Record<PerturbationKind, string> = {
   delay_first_deploy: "Delay first deploy",
   skip_harvest_zone: "Skip harvest zone",
-  extend_override: "Extend Override Mode",
+  extend_override: "Extend Overtake Mode",
 };
 
 export function WhatIfDiff({ result, onDismiss }: Props) {

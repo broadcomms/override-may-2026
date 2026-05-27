@@ -41,8 +41,8 @@ from ingest.schema import LapFeatures, WhatIfRequest
 DEPLOY_MIN_THRESHOLD_MJ = 0.05
 
 # Magnitude of the additional deploy applied by extend_override per lap.
-# Per whatif-semantics.md §Perturbation 3: matches the documented Override
-# Mode boost magnitude in the 2026 regs (~50% over deploy-in-flight × 10 s).
+# This is a local counterfactual calibration for replay review, not a quoted
+# FIA Overtake Mode energy allowance.
 OVERRIDE_DEPLOY_MJ_PER_LAP = 0.5
 
 
@@ -207,14 +207,13 @@ def apply_extend_override(
     zone_lap_number: int,
     extra_laps: int = 1,
 ) -> tuple[list[LapFeatures], Optional[str]]:
-    """Add Override-Mode deploy onto ``extra_laps`` laps after the zone's lap.
+    """Add Overtake Mode-style deploy onto ``extra_laps`` laps after the zone's lap.
 
-    Per whatif-semantics.md §Perturbation 3: each extension lap gets
-    +``OVERRIDE_DEPLOY_MJ_PER_LAP`` (0.5 MJ) on top of its existing
-    deploy_mj. If SoC underflows before all extensions land, the
-    perturbation truncates honestly — that lap's extension is capped at
-    the available budget, and subsequent laps get 0. The note carries
-    the truncation message.
+    Per whatif-semantics.md §Perturbation 3: each extension lap gets a local
+    calibrated deploy increment on top of its existing deploy_mj. If SoC
+    underflows before all extensions land, the perturbation truncates honestly
+    — that lap's extension is capped at the available budget, and subsequent
+    laps get 0. The note carries the truncation message.
 
     Increments ``override_uses`` on the seed lap by 1.
 

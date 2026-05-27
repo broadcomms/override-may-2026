@@ -36,11 +36,10 @@ logger = logging.getLogger(__name__)
 
 
 # Known FIA index pages. The actual PDF URL is parsed out of these at runtime
-# rather than hardcoded — FIA posts new issues mid-season (per .bob/AGENTS.md
-# strategic anchor: "FIA tweaked Albert Park harvest limits mid-2026").
+# rather than hardcoded because FIA publishes new regulation issues over time.
 INDEX_URLS = {
-    "technical": "https://www.fia.com/regulation/category/110",
-    "sporting": "https://www.fia.com/regulation/category/110",
+    "technical": "https://www.fia.com/regulation/fia-formula-1-world-championship-technical-regulations",
+    "sporting": "https://www.fia.com/regulation/fia-formula-1-world-championship-technical-regulations",
 }
 
 REGS_DIR = Path(__file__).resolve().parent.parent / "data" / "regs"
@@ -76,17 +75,25 @@ def discover_pdf_url(doc: Literal["technical", "sporting"]) -> str:
     with urllib.request.urlopen(index, timeout=30) as resp:
         html = resp.read().decode("utf-8", errors="replace")
 
-    # Match links to PDFs whose filename mentions "technical" or "sporting"
-    # plus "2026" plus ".pdf".
-    pattern = re.compile(
-        rf'href="([^"]+\.pdf)"[^>]*>[^<]*?{doc}[^<]*?2026',
-        re.IGNORECASE,
-    )
+    # Prefer the FIA's section-specific filenames. The index nests the title
+    # inside child divs, so matching text directly after the href is brittle.
+    section_patterns = {
+        "technical": r'href="([^"]*2026[^"]*section[_-]c[_-]technical[^"]*\.pdf)"',
+        "sporting": r'href="([^"]*2026[^"]*section[_-]b[_-]sporting[^"]*\.pdf)"',
+    }
+    pattern = re.compile(section_patterns[doc], re.IGNORECASE)
     matches = pattern.findall(html)
     if not matches:
-        # Fallback: any 2026 PDF on the page
-        pattern = re.compile(r'href="([^"]+2026[^"]+\.pdf)"', re.IGNORECASE)
-        matches = pattern.findall(html)
+        # Fallback: parse list cards and match the visible title.
+        card_re = re.compile(
+            r'<a\s+href="([^"]+\.pdf)"[^>]*>.*?<div\s+class="title">\s*([^<]+?)\s*</div>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        matches = [
+            href
+            for href, title in card_re.findall(html)
+            if "2026" in title and doc in title.lower()
+        ]
     if not matches:
         raise RuntimeError(
             f"could not find a 2026 {doc} regulations PDF link on {index}. "

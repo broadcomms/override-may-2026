@@ -159,7 +159,7 @@ def _render_lap_window(lap_window: LapWindow) -> str:
     """
     header = (
         "| lap | soc_start | soc_end | harvest_mj | deploy_mj | lap_time | "
-        "sectors_s | avg_kmh | max_kmh | override | boost | recharge_zones | soc_source |"
+        "sectors_s | avg_kmh | max_kmh | overtake_uses | boost | recharge_zones | soc_source |"
     )
     sep = (
         "|----:|----------:|--------:|-----------:|----------:|---------:|"

@@ -117,10 +117,11 @@ the UI shows the resulting recommendation diff honestly.
 
 ## Perturbation 3 — `extend_override`
 
-**Intent.** Answer "what if the driver activated Override Mode on this
-zone — or extended an existing activation?" — Override Mode (the 2026
-"push-to-pass" equivalent) is a discrete strategic choice with a fixed
-energy cost, modeled here as +0.5 MJ/lap of additional deploy.
+**Intent.** Answer "what if the driver activated Overtake Mode on this
+zone - or extended an existing activation?" Overtake Mode is a discrete
+strategic choice under the FIA F1 Regulations; the system models the
+counterfactual as an extra deploy calibration so users can compare two
+strategy records without claiming an FIA-quoted energy value.
 
 **Semantics.**
 
@@ -135,16 +136,15 @@ energy cost, modeled here as +0.5 MJ/lap of additional deploy.
       `<= 0`, truncate honestly — no further extensions land.
    c. Otherwise, add `min(OVERRIDE_DEPLOY_MJ_PER_LAP, remaining)`
       onto that lap's `deploy_mj`. Partial extensions are allowed
-      (e.g. a lap with 0.3 MJ available gets +0.3 MJ, not the full
-      0.5 MJ).
+      when the remaining SoC budget is below the configured increment.
 4. Re-derive SoC trajectory.
 
-**Why 0.5 MJ/lap.** Approximates Override Mode's documented magnitude
-under the 2026 regulations (~50% over the in-flight deploy rate × 10
-seconds). The exact number is a calibration target; if regs analysis
-or telemetry capture refines it, change `OVERRIDE_DEPLOY_MJ_PER_LAP`
-in `analysis/perturbations.py` and update this paragraph in the same
-commit.
+**Why the local deploy increment.** `OVERRIDE_DEPLOY_MJ_PER_LAP` is a
+counterfactual calibration knob for the TORCS/FastF1-style replay
+environment, not a direct FIA energy allowance. If regulation analysis
+or telemetry capture refines the simulator calibration, change
+`OVERRIDE_DEPLOY_MJ_PER_LAP` in `analysis/perturbations.py` and update
+this paragraph in the same commit.
 
 **Edge cases:**
 

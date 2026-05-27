@@ -177,7 +177,7 @@ def build_lap_analysis(session: Session, lap_number: int) -> LapAnalysis:
     ]
     if lap.override_uses or lap.boost_uses:
         evidence.append(
-            f"Override uses: {lap.override_uses}; boost windows: {lap.boost_uses}."
+            f"Overtake Mode uses: {lap.override_uses}; boost windows: {lap.boost_uses}."
         )
     for rec in related_recs[:2]:
         evidence.extend(rec.reasoning.reasoning_chain[:2])
