@@ -310,3 +310,19 @@ This directly maps to the challenge rubric: technical execution, innovation, cha
 | TORCS runtime | Cloud branch removes WSL device mounts and uses Xvfb + llvmpipe | Allows `podman-compose up -d override torcs ttm` on Ubuntu 24.04 without GPU passthrough |
 | Public routes | OVERRIDE is public; TORCS noVNC and Jaeger are Cloudflare Access gated | Keeps the review app reachable while protecting unauthenticated admin surfaces |
 | Port binding | App and auxiliary services bind to loopback on the VM | Cloudflare Tunnel becomes the intentional public edge |
+
+---
+
+## 16. 2026 FIA Terminology Accuracy Sync Record
+
+**Review window**: 2026-05-27
+**Purpose**: Align public copy, prompt wording, UI labels, and technical notes with current 2026 FIA/F1 terminology.
+
+### Sync decisions
+
+| Area | Decision | Rationale |
+|---|---|---|
+| Regulation term | Use **Overtake Mode** in public-facing language | Current FIA/F1 sources and the checked-in Issue 18 Docling chunks use Overtake, not the older Override terminology |
+| DRS framing | Say DRS is retired; active aero handles low-drag behavior while Overtake Mode provides the race-assist energy mode | Avoids implying DRS became only Overtake Mode |
+| API compatibility | Keep `override_uses`, `unused-override`, and `extend_override` as v1 payload keys | Prevents cache/API churn while UI and docs use Overtake Mode |
+| Counterfactual review | Treat `OVERRIDE_DEPLOY_MJ_PER_LAP` as a local calibration, not an FIA-quoted allowance | Keeps simulator semantics useful without overstating regulation precision |

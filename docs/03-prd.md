@@ -8,7 +8,7 @@
 
 **OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans understand 2026 hybrid energy decisions through telemetry reasoning, regulation grounding, and counterfactual strategy review.**
 
-A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / override zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine: 
+A user uploads a session replay (TORCS simulator output or FastF1 export); within 30 seconds OVERRIDE returns a structured debrief: detected inefficient deploy / harvest / recharge / Overtake-related zones, a causal reasoning chain per zone, a verbatim citation from the FIA's 2026 energy-management regulations, a deterministic safety pass, an AI-based safety pass, and an optional 5-lap forecast. Two UI modes share one engine:
 
 a. **Engineer Mode** for race engineers and analysts who need full reasoning, citations, and counterfactual strategy review;
 
@@ -22,7 +22,7 @@ OVERRIDE competes on *can it explain why*, not on *more data, faster models*. It
 
 ### 2.1 The user problem
 
-The 2026 F1 regulation cycle is the deepest technical reset since 2014. The MGU-H is removed, the MGU-K triples to 350 kW, energy splits roughly 50/50, DRS is replaced by Override Mode, and fuel is now 100% sustainable. Mid-2026 the FIA further refined harvest caps, super-clipping limits, deployment caps in non-straight zones, and added a low-power-start detection mode. Every lap is now an energy decision.
+The 2026 F1 regulation cycle is the deepest technical reset since 2014. The MGU-H is removed, the MGU-K triples to 350 kW, energy splits roughly 50/50, DRS is retired, active aerodynamics handles low-drag straight-line behavior, Overtake Mode provides the race-assist energy mode under FIA F1 Regulations, and fuel is now 100% sustainable. The FIA has already published multiple 2026 regulation issues, so every lap is now an energy decision against a moving rule surface.
 
 This produces two pains:
 

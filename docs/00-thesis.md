@@ -12,11 +12,11 @@ Formula 1's 2026 regulation cycle is the deepest technical reset since 2014. Fiv
 
 - **50/50 power split.** The combustion engine drops from ~80% of total output to roughly half. The MGU-K triples in power to 350 kW. Battery is no longer the side-show - it carries half the lap.
 - **MGU-H removed.** The single most efficient recovery path of the previous era is gone. The car's only meaningful way to refill the battery is now braking, which fundamentally rewrites where and how energy can be replenished.
-- **DRS replaced by Override Mode.** Instead of a fixed-zone drag-reduction button, the chasing car gets an extra deployment envelope when within roughly one second. Override is usable anywhere on the lap, turning every approach into a tactical decision rather than a checklist item.
+- **DRS retired; active aero and Overtake Mode replace its job.** Active aerodynamics handles the low-drag straight-line behavior that DRS made visible, while Overtake Mode provides the race-assist energy mode when available under FIA F1 Regulations. That shifts the strategy question from a fixed flap zone to an energy-and-aero decision.
 - **Active aerodynamics (X-Mode / Z-Mode).** Front and rear wings shift between high-grip and low-drag positions automatically through the lap. The aerodynamic state of the car is now another time-varying input that strategy must reason about.
 - **100% sustainable fuel.** Combustion behaviour under load is materially different from prior fuels.
 
-On top of those baseline rules, the FIA already issued mid-season refinements (qualifying harvest cap reduced from 8 MJ to 7 MJ per lap, super-clipping raised to 350 kW, a low-power-start detection mode, deployment caps in non-straight zones for safety, reduced wet-weather deployment). The regulation surface is *moving* - any tool that hardcodes article numbers will be wrong inside a season.
+On top of those baseline rules, the FIA has already published multiple 2026 regulation issues. The regulation surface is *moving* - any tool that hardcodes article numbers will be wrong inside a season.
 
 ## 2. The new problem class
 
@@ -24,7 +24,7 @@ These changes do not just shift numbers. They change the unit of strategic reaso
 
 In the 2014–2025 era, fuel and tyres were the dominant strategic axes; the hybrid system was a secondary modifier. Engineers and broadcasters could explain a race in those terms.
 
-In 2026, **every lap is an energy decision**. Where to harvest, where to deploy, when to trigger Override, when to accept a slower exit to refill the pack, whether to downshift on a straight to keep the engine in its power band - these tradeoffs happen continuously, lap by lap, and the cost of getting them wrong is no longer "lose half a tenth." A car that drains its battery without managing the recovery becomes a sitting duck on the next straight; a car that over-harvests in qualifying loses the flat-out lap.
+In 2026, **every lap is an energy decision**. Where to harvest, where to deploy, when to trigger Overtake Mode, when to accept a slower exit to refill the pack, whether to downshift on a straight to keep the engine in its power band - these tradeoffs happen continuously, lap by lap, and the cost of getting them wrong is no longer "lose half a tenth." A car that drains its battery without managing the recovery becomes a sitting duck on the next straight; a car that over-harvests in qualifying loses the flat-out lap.
 
 This creates two distinct user pains:
 

@@ -21,6 +21,10 @@ If this document disagrees with those files, the code wins and this document sho
 
 One completed lap after ingest normalization.
 
+Compatibility note: v1 payload fields keep the legacy `override_*` naming for
+stable API/cache compatibility. User-facing copy uses the current FIA/F1 term
+**Overtake Mode**.
+
 ```python
 class LapFeatures(BaseModel):
     lap_number: int
@@ -349,6 +353,9 @@ Validation rules:
 - `delay_first_deploy` requires `n`
 - `skip_harvest_zone` requires `zone_id`
 - `extend_override` requires `zone_id`
+
+The `extend_override` perturbation key is a stable v1 API name. UI and docs
+describe it as extending Overtake Mode.
 
 ### `WhatIfResult`
 

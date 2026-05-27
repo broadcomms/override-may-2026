@@ -6,7 +6,7 @@
 
 ## 1. Approach in one paragraph
 
-OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay or ingests a completed TORCS live capture; OVERRIDE detects inefficient deploy / harvest / recharge / override zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture - a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning, citations, and counterfactual strategy review) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **OVERRIDE integrates six IBM technologies - Granite Instruct, Granite Guardian, Granite Embedding, Granite Time Series TTM-R2, Docling, and Langflow.** Granite Time Series TTM-R2 runs as an optional isolated service because of torch dependency constraints; when the service is unavailable or a session lacks 30 completed laps, the pipeline returns `forecast=None` and continues from observed evidence only. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling and TTM-R2 run locally. See `docs/adrs/ADR-001-watsonx-runtime.md` and `docs/adrs/ADR-004-ttm-deployment.md`.)
+OVERRIDE is an **explainable AI race-strategy copilot**. A user uploads a session replay or ingests a completed TORCS live capture; OVERRIDE detects inefficient deploy / harvest / recharge / Overtake-related zones with deterministic Python heuristics, retrieves the relevant section of the FIA's 2026 energy-management regulations using **Docling** with **IBM Granite Embedding** for chunk retrieval, and produces a structured causal explanation with **IBM Granite 4.x Instruct served via IBM watsonx.ai** that cites the regulation passage verbatim. Every output passes through a two-pass safety architecture - a deterministic validator first, then **IBM Granite Guardian** scoring on Bring-Your-Own-Criteria for energy-safety and regulation-consistency. The same engine renders into Engineer Mode (full reasoning, citations, and counterfactual strategy review) and Fan Mode (plain language). **Langflow** documents the orchestration as a visual canvas; FastAPI runs the production pipeline. **OVERRIDE integrates six IBM technologies - Granite Instruct, Granite Guardian, Granite Embedding, Granite Time Series TTM-R2, Docling, and Langflow.** Granite Time Series TTM-R2 runs as an optional isolated service because of torch dependency constraints; when the service is unavailable or a session lacks 30 completed laps, the pipeline returns `forecast=None` and continues from observed evidence only. (Granite Instruct, Guardian, and Embedding all run on watsonx.ai; Docling and TTM-R2 run locally. See `docs/adrs/ADR-001-watsonx-runtime.md` and `docs/adrs/ADR-004-ttm-deployment.md`.)
 
 ---
 
@@ -39,7 +39,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Inputs.** TORCS simulator JSON logs, or FastF1 sessions (Parquet/CSV exports of public historical races).
 
-**Output.** `list[LapFeatures]` with the canonical schema in [`04-schema.md` §3](./04-schema.md#3-lap-level-features): SoC start/end, harvest, deploy, lap time, sector times, speeds, override and boost counts, recharge zones.
+**Output.** `list[LapFeatures]` with the canonical schema in [`04-schema.md` §3](./04-schema.md#3-lap-level-features): SoC start/end, harvest, deploy, lap time, sector times, speeds, legacy `override_uses` counts for Overtake Mode activation, boost counts, and recharge zones.
 
 **Energy-state derivation.** When the underlying source does not natively expose state-of-charge or energy flux (TORCS may not), values are derived from throttle and brake integrals. The `soc_source` field on every lap row is set to `"derived"` so downstream consumers - and the user - know the provenance. This is risk R1 in `05-risk-register.md`, decided at gate G-2.
 
@@ -54,7 +54,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 | `low-roi-deploy` | Battery deployed in a corner where the time gain per MJ is small |
 | `late-recharge` | A harvest opportunity used too late or in a low-recovery window |
 | `over-harvest` | Lap harvest approaches the per-lap cap with no need |
-| `unused-override` | A close-following window where Override Mode could have been triggered but wasn't |
+| `unused-override` | A close-following window where Overtake Mode could have been triggered but wasn't |
 
 **Output.** `list[Zone]` with severity (`low` / `medium` / `high`) and per-type metrics. Granite reasons over these zones; it does *not* replace them.
 
@@ -145,7 +145,7 @@ Each component has a single responsibility, a typed contract from [`04-schema.md
 
 **Model.** Granite 4.x Instruct, slightly higher temperature than reasoning to allow more natural prose, still constrained by the strict output schema.
 
-**Acronym substitution rules** (defined in `prompts/fan_mode.system.md`): `MGU-K` → "energy recovery system"; `SoC` → "battery level"; `deploy` → "use the boost"; `harvest` → "recharge the battery"; `Override Mode` → "the new boost button". No raw kJ / MJ numbers; qualitative descriptors only.
+**Acronym substitution rules** (defined in `prompts/fan_mode.system.md`): `MGU-K` → "energy recovery system"; `SoC` → "battery level"; `deploy` → "use the boost"; `harvest` → "recharge the battery"; `Overtake Mode` → "the overtake boost". No raw kJ / MJ numbers; qualitative descriptors only.
 
 **Lazy execution.** Fan Mode runs on first request, not on upload. Keeps median upload→debrief latency under 30 s. The toggle in the header (`E` / `F`) calls the Fan endpoint per zone; switching back to Engineer is free.
 

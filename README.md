@@ -31,15 +31,15 @@
 
 ## The problem we are solving
 
-Formula 1's 2026 regulation cycle turns energy management from a background system into one of the central strategic problems of every lap. The MGU-H is removed, the MGU-K triples to 350 kW, power delivery shifts toward a roughly 50/50 combustion-electric split, DRS gives way to Override Mode, active aerodynamics changes straight-line and cornering behavior, and sustainable fuel changes how the power unit behaves under load.
+Formula 1's 2026 regulation cycle turns energy management from a background system into one of the central strategic problems of every lap. The MGU-H is removed, the MGU-K triples to 350 kW, power delivery shifts toward a roughly 50/50 combustion-electric split, and DRS is retired: active aerodynamics handles low-drag straight-line behavior while Overtake Mode provides the race-assist energy mode under FIA F1 Regulations. Sustainable fuel also changes how the power unit behaves under load.
 
-For engineers and analysts, that means each lap now carries a sequence of harvest, deploy, recharge, and Override tradeoffs. For broadcasters and fans, the deciding moments become harder to see: energy-budget decisions are often invisible on broadcast but measurable in telemetry. Existing public racing AI tools were shaped around the 2014–2025 hybrid era, so they do not directly provide an open, explainable layer for the new 2026 energy-management problem.
+For engineers and analysts, that means each lap now carries a sequence of harvest, deploy, recharge, and Overtake Mode tradeoffs. For broadcasters and fans, the deciding moments become harder to see: energy-budget decisions are often invisible on broadcast but measurable in telemetry. Existing public racing AI tools were shaped around the 2014-2025 hybrid era, so they do not directly provide an open, explainable layer for the new 2026 energy-management problem.
 
 OVERRIDE builds as the explainable race intelligence layer for 2026 FIA Formula 1 hybrid energy management strategy, by translating telemetry-backed energy decisions into clear reasoning, regulatory evidence, and actionable insight that engineers, analysts, broadcasters, and fans can trust.
 
 ## Our AI / Technical Approach
 
-OVERRIDE ingests a TORCS lab capture, sample replay, or FastF1-style session export and converts it into lap-level energy features. Deterministic Python heuristics first highlight inefficient deploy, harvest, recharge, or Override zones, giving the system a reliable evidence layer before any model is asked to explain the result.
+OVERRIDE ingests a TORCS lab capture, sample replay, or FastF1-style session export and converts it into lap-level energy features. Deterministic Python heuristics first highlight inefficient deploy, harvest, recharge, or Overtake Mode zones, giving the system a reliable evidence layer before any model is asked to explain the result.
 
 The AI layer then grounds each recommendation in the current regulation source: Docling parses the FIA 2026 technical regulation text, Granite Embedding retrieves the relevant regulation chunk, and IBM Granite 4 Instruct on watsonx.ai generates a structured causal explanation with evidence, confidence, and a dynamically rendered citation. Every output passes through Pass 1 deterministic validation before Pass 2 Granite Guardian BYOC scoring for energy-safety and regulation-consistency. Both validation results are shown to the user.
 
@@ -55,7 +55,7 @@ The result is decision support, not replacement. OVERRIDE does not call the race
 
 ## Strategy Decision Support
 
-The 2026 hybrid reset makes race pace harder to interpret. Engineers and analysts can see telemetry, but the decisive question is whether the energy pattern supports the next racing objective: where did the car harvest too late, deploy into low-return moments, recharge without useful headroom, or leave Override value unused?
+The 2026 hybrid reset makes race pace harder to interpret. Engineers and analysts can see telemetry, but the decisive question is whether the energy pattern supports the next racing objective: where did the car harvest too late, deploy into low-return moments, recharge without useful headroom, or leave Overtake Mode value unused?
 
 OVERRIDE is built for energy-budget decisions that are invisible on broadcast but measurable in telemetry. It turns a TORCS lab run, sample replay, or FastF1-style session export into an auditable strategy debrief that connects lap evidence to regulation-grounded reasoning.
 
@@ -69,7 +69,7 @@ OVERRIDE uses a four-part proof frame:
 
 | Proof step | What OVERRIDE does | What the user sees | Core technology |
 |---|---|---|---|
-| **Detect** | Converts telemetry into lap-level energy features and highlights inefficient deploy, harvest, recharge, or Override zones. | Live cockpit pressure signals, energy curve, zone heatmap, session KPIs | Python, Pandas, deterministic heuristics |
+| **Detect** | Converts telemetry into lap-level energy features and highlights inefficient deploy, harvest, recharge, or Overtake Mode zones. | Live cockpit pressure signals, energy curve, zone heatmap, session KPIs | Python, Pandas, deterministic heuristics |
 | **Explain** | Generates a race-engineer explanation grounded in the current regulation source. | Cause, consequence, recommendation, reasoning chain, dynamic citation block | IBM Granite Instruct, Docling, Granite Embedding |
 | **Validate** | Runs deterministic checks first, then AI safety scoring for energy-safety and regulation-consistency. | Pass-1 validator badge, Pass-2 Guardian score, low-confidence or rejection state when needed | Deterministic validator, IBM Granite Guardian BYOC |
 | **Translate** | Renders the same evidence for technical and non-technical audiences. | Engineer Mode, Fan Mode, AI Race Engineer, counterfactual strategy review | IBM Granite Instruct, FastAPI, React |
@@ -89,7 +89,7 @@ Forecasting is an enhancement, not a dependency. IBM Granite Time Series TTM-R2 
 | Ingest | `torcs_parser` / `fastf1_parser` | Python, Pandas |
 | Aggregate | Lap-level energy features | Custom `analysis/` pipeline |
 | Forecast | Optional 5-lap SoC trajectory | **IBM Granite Time Series TTM-R2** |
-| Detect | Inefficient deploy / harvest / recharge / Override zones | Pure-Python heuristics |
+| Detect | Inefficient deploy / harvest / recharge / Overtake Mode zones | Pure-Python heuristics |
 | Ground | Dynamic regulation retrieval from parsed source text | **Docling** + **IBM Granite Embedding** |
 | Explain | Causal reasoning chain | **IBM Granite Instruct** |
 | Validate | Deterministic checks, then AI safety scoring | Validator + **IBM Granite Guardian BYOC** |

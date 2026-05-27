@@ -19,9 +19,8 @@ Notes
 - Uses PyPdfium backend + OCR off + table-structure off — see
   docs/plans/p2.5-docling-kicker.md for the rationale (~27 s for the full
   207-page Issue 8 doc on a CPU laptop).
-- The default PDF is the 2024-06-24 Issue 8 of the Technical Regulations,
-  which is the only one we've cached without renaming pitfalls. Override
-  with --pdf if you have a newer version locally.
+- The default PDF path reflects the current verified Section C Issue 18
+  corpus. Override with --pdf when the FIA publishes a newer issue locally.
 """
 
 from __future__ import annotations
@@ -49,10 +48,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--pdf",
         type=Path,
         default=ROOT
-        / "data/regs/FIA-2026-F1-Regulations-Section-C-_Technical_-Iss-12-2025-06-10.pdf",
+        / "data/regs/fia_2026_f1_regulations_-_section_c_technical_-_iss_18_-_2026-05-07.pdf",
         help=(
-            "Cached FIA PDF (gitignored). Default: Section C Issue 12 (2025-06-10) "
-            "— the canonical document for energy-management citations per G-4 / "
+            "Cached FIA PDF (gitignored). Default: Section C Issue 18 (2026-05-07) "
+            "- the canonical document for energy-management citations per G-4 / "
             "docs/regulation-source.md."
         ),
     )
@@ -63,7 +62,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     p.add_argument(
         "--issue",
-        default="Issue 12 — 2025-06-10",
+        default="Issue 18 — 2026-05-07",
         help="issue label written into RegulationSource",
     )
     p.add_argument(

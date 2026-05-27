@@ -152,10 +152,10 @@
           ]
         },
         "fan": {
-          "headline": "Driver misfires on the new boost button early",
-          "what_happened": "On the first lap, the driver used the boost button in sector two but didn't go any faster. This wasted a lot of stored energy without helping the lap time and could make the rest of the race harder.",
-          "why_it_mattered": "Using the boost button without gaining speed means the car will have less energy left for later, possibly slowing down the car when it really needs the extra power. This could hurt the driver's chances of winning or even finishing the race.",
-          "the_rule": "The new boost button can't make the car's wheels spin faster than a certain limit set by the race rules."
+          "headline": "Driver misfires on the overtake boost early",
+          "what_happened": "On the first lap, the driver used the overtake boost in sector two but didn't go any faster. This wasted a lot of stored energy without helping the lap time and could make the rest of the race harder.",
+          "why_it_mattered": "Using the overtake boost without gaining speed means the car will have less energy left for later, possibly slowing down the car when it really needs the extra power. This could hurt the driver's chances of winning or even finishing the race.",
+          "the_rule": "The overtake boost can't make the car's wheels spin faster than a certain limit set by the race rules."
         },
         "validator": {
           "passed": true,
@@ -194,7 +194,7 @@
         },
         "reasoning": {
           "cause": "Lap 3 harvested only 0.20 MJ while deploying 0.70 MJ, creating a large energy deficit.",
-          "consequence": "The deficit forced the car to operate in a low\u2011override mode, reducing power and increasing lap time.",
+          "consequence": "The deficit forced the car to operate in a low-deploy mode, reducing power and increasing lap time.",
           "recommendation": "Consider limiting deployment on laps where harvest is low to avoid deep SoC drops and maintain higher power availability.",
           "regulation_citation": {
             "passage": "The amount of stored energy in the ES may not be increased by more than 100kJ whilst the car is stationary in the garage during the Sprint Qualifying and Qualifying Sessions.",
@@ -284,7 +284,7 @@
         },
         "fan": {
           "headline": "Driver's Boost Misfire Cuts Sprint Efficiency",
-          "what_happened": "On lap 3, the driver used the new boost button to recharge the battery with a lot of energy in sector 2, but the car didn't go any faster. This wasted the boost's potential and made the car less efficient overall.",
+          "what_happened": "On lap 3, the driver used the overtake boost to recharge the battery with a lot of energy in sector 2, but the car didn't go any faster. This wasted the boost's potential and made the car less efficient overall.",
           "why_it_mattered": "Using the boost without gaining time meant the car lost valuable energy that could have been saved for later. It's like spending money and not getting anything in return, which hurts the team's overall performance.",
           "the_rule": "During practice and qualifying, the car's battery can't be recharged by more than 100 kilojoules while it's parked in the garage."
         },
@@ -351,8 +351,8 @@
           ]
         },
         "fan": {
-          "headline": "Boost Button Misfire Costs Energy Without Gains",
-          "what_happened": "On lap 4, the driver used the new boost button to recharge the battery in sector 2, but the car didn't go any faster. This left the energy reserve lower than before.",
+          "headline": "Overtake Boost Misfire Costs Energy Without Gains",
+          "what_happened": "On lap 4, the driver used the overtake boost to recharge the battery in sector 2, but the car didn't go any faster. This left the energy reserve lower than before.",
           "why_it_mattered": "Using the boost without gaining speed meant the team lost valuable energy for later in the race. It's like spending money without getting anything in return.",
           "the_rule": "During qualifying, the battery can't be recharged by more than 100 kilojoules while the car is parked in the garage."
         },
@@ -420,7 +420,7 @@
         },
         "fan": {
           "headline": "Driver Misses Boost Gains on Lap 5",
-          "what_happened": "On lap 5, the driver used the new boost button but didn't get any faster. The battery level dropped without improving lap time.",
+          "what_happened": "On lap 5, the driver used the overtake boost but didn't get any faster. The battery level dropped without improving lap time.",
           "why_it_mattered": "Using the boost without gaining time means the car is less efficient. The driver could have saved that energy for later laps when it would matter more.",
           "the_rule": "During practice and qualifying, the car's battery can't be recharged by more than 100 kilojoules while it's parked in the garage."
         },

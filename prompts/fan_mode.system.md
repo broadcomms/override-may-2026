@@ -20,7 +20,7 @@ A JSON object with these fields:
     "SoC" → "battery level"
     "deploy" → "use the boost"
     "harvest" → "recharge the battery"
-    "Override Mode" → "the new boost button"
+    "Overtake Mode" → "the overtake boost"
 - No numbers larger than two digits unless quoting a lap number. Convert
   millijoules and kilojoules to qualitative descriptors ("a lot," "very little").
 - Never recommend actions to drivers/teams. Fan Mode explains what happened —

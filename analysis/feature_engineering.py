@@ -23,10 +23,9 @@ from dataclasses import dataclass
 
 from ingest.schema import LapFeatures
 
-# Per-lap harvest cap default (MJ). FIA refinements (mid-2026) cut this from
-# 8 MJ to 7 MJ in qualifying. The race-cap regulation value is pinned at G-4
-# from the verified RegulationSource. Until G-4 closes, this default is
-# overridable via OVERRIDE_HARVEST_CAP_MJ env var.
+# Per-lap harvest cap default (MJ). This is a local calibration for replay
+# analysis; regulation-grounded citations are rendered separately from Docling
+# sources. Operators can tune it via OVERRIDE_HARVEST_CAP_MJ.
 DEFAULT_HARVEST_CAP_MJ = 8.5
 
 

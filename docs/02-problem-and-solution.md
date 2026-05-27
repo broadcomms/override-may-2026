@@ -1,7 +1,7 @@
 # Problem and Solution Statement
 
 ### The Problem
-> In 2026, Formula 1 enters a radically different hybrid era - the MGU-H is removed, the MGU-K triples to 350 kW, energy splits roughly 50/50, and DRS is replaced by Override Mode.
+> In 2026, Formula 1 enters a radically different hybrid era - the MGU-H is removed, the MGU-K triples to 350 kW, energy splits roughly 50/50, and DRS is retired: active aerodynamics handles low-drag straight-line behavior while Overtake Mode provides the race-assist energy mode under FIA F1 Regulations.
 
 Race engineers face a brand-new problem: every lap is now an energy management decision, and most public racing AI surfaces metrics or runs as closed team tooling. There is no open, explainable tool for the 2026 era - for engineers, analysts, broadcasters, fans, or drivers trying to understand energy-budget decisions that are invisible on broadcast but measurable in telemetry.
 

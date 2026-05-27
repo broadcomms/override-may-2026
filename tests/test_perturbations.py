@@ -209,7 +209,7 @@ def test_extend_override_adds_deploy_to_next_lap_default():
     perturbed, note = apply_extend_override(
         laps, zone_id="z_uo_l2_s1", zone_lap_number=2, extra_laps=1,
     )
-    # Lap 3 gets +0.5 MJ deploy
+    # Lap 3 gets the configured Overtake-style deploy increment.
     assert perturbed[2].deploy_mj == round(1.8 + OVERRIDE_DEPLOY_MJ_PER_LAP, 6)
     # Seed lap 2's override_uses bumped
     assert perturbed[1].override_uses == 1
@@ -220,7 +220,7 @@ def test_extend_override_adds_deploy_to_next_lap_default():
 
 def test_extend_override_multi_lap_extends_all_when_budget_allows():
     """Three-lap extension on a session where each subsequent lap has
-    enough SoC budget for the full +0.5 MJ extension."""
+    enough SoC budget for the full configured extension."""
     # Build a session where lap 1 has high SoC, so lap 2/3/4 inherit
     # plenty of headroom even after the extension stacking.
     laps = [
@@ -232,7 +232,7 @@ def test_extend_override_multi_lap_extends_all_when_budget_allows():
     perturbed, note = apply_extend_override(
         laps, zone_id="z_test", zone_lap_number=1, extra_laps=3,
     )
-    # Laps 2/3/4 each get +0.5 MJ deploy
+    # Laps 2/3/4 each get the configured deploy increment.
     for i in (1, 2, 3):
         assert perturbed[i].deploy_mj == round(0.5 + OVERRIDE_DEPLOY_MJ_PER_LAP, 6)
 
@@ -252,7 +252,7 @@ def test_extend_override_truncates_when_battery_exhausted():
     # Battery empty entering the extension target
     laps = [
         _lap(1, harvest=0.5, deploy=0.5, soc_start=1.0, soc_end=0.5),
-        # Lap 2: very low soc_start so adding 0.5 MJ would underflow
+        # Lap 2: very low soc_start so the configured increment would underflow
         _lap(2, harvest=0.0, deploy=BATTERY_CAPACITY_MJ * 0.05, soc_start=0.05, soc_end=0.0),
     ]
     perturbed, note = apply_extend_override(

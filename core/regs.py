@@ -427,7 +427,7 @@ _ZONE_KEYWORDS: dict[ZoneType, list[str]] = {
         "MJ", "ES", "energy store",
     ],
     ZoneType.UNUSED_OVERRIDE: [
-        "override", "overtake", "manual override", "boost",
+        "override", "overtake", "boost",
         "second", "MGU-K", "deploy",
     ],
 }
@@ -647,11 +647,11 @@ DEFAULT_CHUNKS_PATH = (
 # Regulation-text parsing — extract the per-lap harvest cap
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Match a numeric MJ value near a per-lap cap clause. Issue 12 wording:
+# Match a numeric MJ value near a per-lap cap clause. Legacy wording:
 #   "energy harvested by the ERS-K, ... must not exceed 8.5MJ in each lap"
-# Issue 18 wording:
-#   "C5.2.10 Recharge, as measured at the CU-K HV DC Bus, must not exceed a
-#    limit of 8.5MJ in each lap"
+# Current Issue 18 wording:
+#   "Recharge, as measured at the CU-K HV DC Bus, must not exceed a limit
+#    of 8.5MJ in each lap"
 # The regex tolerates "exceed (a limit of)? <N> MJ (in )?each lap".
 _HARVEST_CAP_PRIMARY_RE = re.compile(
     r"must\s+not\s+exceed\s+(?:a\s+limit\s+of\s+)?(\d+(?:\.\d+)?)\s*MJ\s+(?:in\s+)?each\s+lap",
@@ -667,11 +667,10 @@ _HARVEST_CAP_FALLBACK_RE = re.compile(
 def extract_harvest_cap_mj(chunks: list[RegulationChunk]) -> Optional[float]:
     """Find the verified per-lap ERS-K harvest cap from the regulation chunks.
 
-    Looks first for the strict pattern "must not exceed <N> MJ in each lap"
-    (the C5.2.10 phrasing as of Issue 12). Falls back to a softer
-    harvest-near-MJ-per-lap pattern. Returns the largest cap value found
-    (the default per-Article-C5.2.10 race cap is the upper bound; FIA
-    refinements are written as conditional reductions).
+    Looks first for the strict pattern "must not exceed <N> MJ in each lap",
+    then falls back to a softer harvest-near-MJ-per-lap pattern. Returns the
+    largest cap value found so the base cap is preserved when source-specific
+    conditional reductions appear nearby.
 
     Returns None when no cap can be parsed — the caller passes
     `cap_mj=None` to the validator, which keeps `harvest_cap` as a NOOP.
