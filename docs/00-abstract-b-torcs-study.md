@@ -33,7 +33,7 @@ Building on it is free distribution.
 F1's 2026 power-unit reset has made energy management the dominant competitive variable in racing industry.
 - Power unit is a 1.6L V6 ICE with a 350 kW MGU-K and a 50/50 ICE/electric split.
 - The MGU-K is tripled from 120 kW(~160 hp) to 350 kW (~470hp), and the expensive MGU-H is deleted. 
-- The energy recovery cap is now apptoximately 8.5 MJ per lap, with override/boost modes. 
+- Energy-flow limits come from the current Docling regulation source, with Overtake Mode changing the deploy/recharge strategy surface.
 - Fully sustainable 100% sysnthetic fuels are used, aiming for a net 0% carbon footprint. 
 
 According to Motosport, drivers themselves are calling it "annoying" and "sad." https://www.motorsport.com/f1/news/f1-2026-energy-management-annoying-sad-drivers-lift-early/10794872/ The cognitive load is now a market engineers and fans alike need an XAI co-pilot. TORCS is a clean, free, well-trodden RL/imitation-learning sandbox to prove the decision-logic in days, not months. 
@@ -112,12 +112,12 @@ https://www.espn.com/racing/f1/story/_/id/48090668/2026-f1-rules-whats-new-cars-
 - MGU-K tripled from 120 kW to 350 kW; 
 - MGU-H eliminated; 
 - battery still capped at 4 MJ but drivers can now deplete it ~3× per lap; 
-- recoverable energy per lap up to 8.5 MJ (already cut to 8 MJ at Melbourne); 
-- 4 MJ deployment bursts ≈ 11.5 seconds of full ERS-K; fuel flow cut from 100 kg/h to ~75 kg/h; 
+- recoverable-energy limits should be taken from the current Docling regulation source at review time;
+- deploy/recharge windows become a visible strategy surface; fuel flow is reduced versus the prior era;
 - 100% sustainable fuels. 
 - Active aero (X-mode straight-line / Z-mode corner) replaces DRS.
 
-> Drivers must consciously lift and coast, super-clip, and decide when to spend the Override / Boost button (full 350 kW manual deployment, 290 km/h taper) and Overtake Mode (within 1 s of car ahead → +0.5 MJ on the next lap). 
+> Drivers must consciously lift and coast, manage deploy and recharge, and decide when Overtake Mode value is worth spending under FIA F1 Regulations. In OVERRIDE's counterfactual review, extra deploy is modeled as a local calibration so users can compare strategy records without claiming an FIA-quoted energy value.
 
  The cognitive surface area for the strategist exploded and that is the pain a copilot solves. (ESPN 2026)
 

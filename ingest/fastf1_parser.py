@@ -10,7 +10,7 @@ Two important caveats — surfaced everywhere it matters:
   1. `soc_source` is always **'derived'** here (FR-1.2). Real numbers
      come from TORCS (P1.3 / G-2). FastF1 SoC values are demonstrative,
      not authoritative.
-  2. 2026-only concepts (`override_uses`, `boost_uses`) **do not exist**
+  2. 2026-only Overtake/boost concepts (`override_uses`, `boost_uses`) **do not exist**
      in pre-2026 source data — they are 0 in every row this parser
      emits. This is documented honestly in the schema and surfaced in
      the SessionSummary.note when this parser is the source.

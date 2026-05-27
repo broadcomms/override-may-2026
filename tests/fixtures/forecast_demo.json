@@ -747,7 +747,7 @@
         },
         "fan": {
           "headline": "Driver using boost too early, leaving less energy for the end",
-          "what_happened": "Around lap 28 the driver used the boost button in a section of track that doesn't give much back in lap time. The battery is draining faster than needed heading into the final laps.",
+          "what_happened": "Around lap 28 the driver used the overtake boost in a section of track that doesn't give much back in lap time. The battery is draining faster than needed heading into the final laps.",
           "why_it_mattered": "By saving that energy for the hairpin corners later in the lap \u2014 where the boost actually helps more \u2014 the car could go faster at the end without breaking any rules.",
           "the_rule": "The battery charge must stay within a 4 megajoule window throughout the race \u2014 not too full, not too empty."
         },

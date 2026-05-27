@@ -55,9 +55,9 @@ OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans un
 ## 4. Problem statement (portal field: **Problem** / **Why does this matter?** — typically 1–3 paragraphs)
 
 ```
-In 2026, Formula 1 entered the deepest technical regulation reset in a decade. The combustion engine drops to roughly half of total output. The MGU-K triples in power to 350 kW. The MGU-H — the single most efficient recovery path of the previous era — is gone. DRS is replaced by Override Mode, deployable anywhere within a one-second gap. Active aerodynamics moves between Z-Mode and X-Mode. Sustainable fuel changes engine behavior under load.
+In 2026, Formula 1 entered the deepest technical regulation reset in a decade. The combustion engine drops to roughly half of total output. The MGU-K triples in power to 350 kW. The MGU-H - the single most efficient recovery path of the previous era - is gone. DRS is retired: active aerodynamics handles low-drag straight-line behavior while Overtake Mode provides the race-assist energy mode under FIA F1 Regulations. Sustainable fuel changes engine behavior under load.
 
-For race engineers, every lap is now an energy management decision: where to harvest, where to deploy, when to trigger Override, when to accept a slower exit to refill the pack. The search space for a coherent energy plan has exploded. For broadcasters and fans, energy-budget decisions are invisible on broadcast but measurable in telemetry.
+For race engineers, every lap is now an energy management decision: where to harvest, where to deploy, when to use Overtake Mode, when to accept a slower exit to refill the pack. The search space for a coherent energy plan has exploded. For broadcasters and fans, energy-budget decisions are invisible on broadcast but measurable in telemetry.
 
 Most public racing AI surfaces metrics or runs as closed team tooling. Those systems can be useful, but they rarely give users an open, auditable way to reason over 2026 hybrid-energy telemetry, dynamic regulation grounding, and counterfactual strategy review in one place. That is the gap OVERRIDE is built into.
 ```
@@ -73,7 +73,7 @@ Two modes:
 • Engineer Mode — full reasoning chains, regulation citations, validator + Guardian safety scores, and counterfactual strategy review.
 • Fan Mode — same intelligence, plain language, no acronyms.
 
-Counterfactual strategy review. For any detected zone, the engineer can ask: what if I delay my first deploy by N laps? What if I skip this harvest opportunity entirely? What if I extend the next Override by one lap? OVERRIDE re-runs the full pipeline against the perturbed session and renders a side-by-side Before / After diff — same reasoning, same Guardian gate, same regulation citation against the alternate strategy. The cache is keyed by a deterministic hash of the request, so the same exploration is cheap to revisit.
+Counterfactual strategy review. For any detected zone, the engineer can ask: what if I delay my first deploy by N laps? What if I skip this harvest opportunity entirely? What if I extend the next Overtake Mode-style deploy window by one lap? OVERRIDE re-runs the full pipeline against the perturbed session and renders a side-by-side Before / After diff - same reasoning, same Guardian gate, same regulation citation against the alternate strategy. The cache is keyed by a deterministic hash of the request, so the same exploration is cheap to revisit.
 
 Two-pass safety architecture:
 • Pass 1 — deterministic validation of citation-existence (verbatim match), banned-language filter, and section-consistency rules.

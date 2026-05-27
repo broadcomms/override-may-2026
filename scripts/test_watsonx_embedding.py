@@ -50,7 +50,7 @@ def main() -> int:
         vecs = e.embed_documents(
             texts=[
                 "Energy released from the ES into the MGU-K shall not exceed the per-lap cap.",
-                "Override Mode is available when the chasing car is within one second.",
+                "Sporting Regulations govern Overtake Mode availability.",
             ]
         )
     except Exception as ex:

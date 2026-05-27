@@ -48,11 +48,11 @@ OVERRIDE is an explainable AI race-strategy copilot that helps teams and fans un
 In 2026, Formula 1 enters the most disruptive technical regulation cycle in a decade:
 - **MGU-H removed**, MGU-K triples to 350 kW
 - **Energy split**: ~50/50 thermal/electric (vs previous 80/20)
-- **DRS replaced** by Override Mode (dynamic deployment)
+- **DRS retired**: active aerodynamics handles low-drag straight-line behavior, while Overtake Mode provides the race-assist energy mode under FIA F1 Regulations
 - **Active aerodynamics**: Z-Mode and X-Mode
 - **Sustainable fuel** changes engine behavior under load
 
-**Impact**: Every lap becomes an energy management decision. For race engineers and drivers, this means constant tactical choices about when to harvest, deploy, recharge, and trigger Override. For fans, broadcasts become harder to follow because energy-budget decisions are invisible on broadcast but measurable in telemetry.
+**Impact**: Every lap becomes an energy management decision. For race engineers and drivers, this means constant tactical choices about when to harvest, deploy, recharge, and use Overtake Mode. For fans, broadcasts become harder to follow because energy-budget decisions are invisible on broadcast but measurable in telemetry.
 
 ### 1.2 Gap in Existing Tools
 
@@ -216,7 +216,7 @@ class LapFeatures(BaseModel):
 1. **low-roi-deploy**: Deploy energy in low-return corners (poor time gain per MJ)
 2. **late-recharge**: Delayed harvest creates energy deficit for next straight
 3. **over-harvest**: Exceeds 8.5 MJ/lap FIA cap
-4. **unused-override**: Gap to leader <1s but Override not triggered
+4. **unused-override**: close-following energy window where Overtake Mode value is left unused
 
 **Implementation**: Pure Python, no AI. Returns `Zone` objects with `type`, `lap_number`, `sector`, `severity`, `metrics`.
 

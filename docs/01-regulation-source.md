@@ -40,22 +40,23 @@
 
 **Issue 18 phrasing change.** C5.2.10 wording moved from *"energy harvested by the ERS-K, ... must not exceed 8.5MJ in each lap"* (Issue 12) to *"Recharge, as measured at the CU-K HV DC Bus, must not exceed a limit of 8.5MJ in each lap"* (Issue 18). The cap **value is unchanged** - `extract_harvest_cap_mj()` regex was updated to match both phrasings (see `core/regs.py:_HARVEST_CAP_PRIMARY_RE`).
 
-**What's deliberately out of scope (post-submission upgrade path).** Override Mode availability rules - *"the chasing car is within one second"*, race-start procedures, qualifying mode behaviors - are governed by the **Sporting Regulations**, not the Technical Regulations.
+**What's deliberately out of scope for the current Section C corpus.** Overtake Mode availability rules - including one-second availability framing, race-start procedures, and qualifying mode behaviours - are governed by the **Sporting Regulations**, not the Technical Regulations.
 
-**Section B (Sporting), Issue 06, 2026-04-28** is now cached locally at `data/regs/FIA 2026 F1 Regulations - Section B [Sporting] - Iss 06 - 2026-04-28.pdf`. Integrating it into the chunk corpus would let `unused-override` zones cite real Sporting-Reg clauses ("Override Mode may be deployed when within X seconds of the car ahead") instead of shipping with `regulation_citation = null`. This is **deferred to a post-submission upgrade**: scope expansion at Day 14 of 23, ~3-4 hours of work for a second corpus + per-zone-type retrieval routing, and not strictly required for the rubric story (the architecture already demonstrates dynamic regulation grounding via Section C). Tracked as a follow-up; current behavior remains: `unused-override` ships with `regulation_citation = null` and `confidence = "low"` per `prompts/reasoning.system.md` and the `ReasoningOutput` contract.
+**Section B (Sporting), Issue 06, 2026-04-28** is now cached locally at `data/regs/FIA 2026 F1 Regulations - Section B [Sporting] - Iss 06 - 2026-04-28.pdf`. Integrating it into the chunk corpus is the route for full Overtake Mode availability grounding. Until then, Section C grounds ERS-K power/recharge behavior, while `unused-override` zones keep `regulation_citation = null` and `confidence = "low"` per `prompts/reasoning.system.md` and the `ReasoningOutput` contract.
 
 ---
 
 ## Hard rule reaffirmed
 
-Even with G-4 closed, **no FIA article number lives as a hardcoded literal anywhere in this codebase**. Every `RegulationSource.section` value is read at runtime from the Docling extraction. This document specifies *which* document and *which* article scope - but the strings `"C5.17"`, `"C5.18"`, etc. only appear in:
+Even with G-4 closed, public recommendations should not depend on a manually
+typed FIA article number. `RegulationSource.section` values shown to users are
+read at runtime from the Docling extraction. This document maps the verified
+scope for operators, while tests may keep static section examples to exercise
+retrieval and rendering behavior.
 
-1. The cached PDF (gitignored)
-2. The Docling-extracted markdown (gitignored)
-3. The committed `data/regs/extracted_chunks.sample.json` (regenerable from #1 + #2)
-4. **Nowhere in code, prompts, or templates.**
-
-If you find any of those strings hardcoded in a Python file, prompt, or schema default, that's a bug - file it against the §6 hard rule in `docs/04-schema.md`.
+If a production prompt, UI label, or schema default claims a fixed article
+number instead of rendering `RegulationSource.section`, that's a bug - file it
+against the section-rendering rule in `docs/04-schema.md`.
 
 ---
 
@@ -97,8 +98,8 @@ When the FIA publishes a new issue (Issue 19+), regenerate by updating the `--pd
 
 ## What stays open
 
-- **Sporting Regulations.** Override Mode availability + race-start procedures + qualifying behavior rules need a separate document fetch + extraction + a G-4-equivalent verification. Until then, `unused-override` zones cite nothing. Open as **issue:** *G-4-sporting* (small follow-up; not blocking submission).
-- **Per-lap harvest cap value.** C5.2 mentions energy flow accounting but the exact MJ/lap cap (FIA refinements: 8 → 7 MJ in qualifying) lives in nearby tables. A small parser in `core/regs.py` could extract this; for now `cap_mj` stays env-tunable via `OVERRIDE_HARVEST_CAP_MJ` (see `analysis/feature_engineering.py`).
+- **Sporting Regulations.** Overtake Mode availability + race-start procedures + qualifying behavior rules need a separate extraction + a G-4-equivalent verification before those clauses are cited. Until then, `unused-override` zones cite nothing. Open as **issue:** *G-4-sporting*.
+- **Per-lap harvest cap value.** Energy-flow limits should be parsed from the current Docling chunks instead of copied into public wording. The parser in `core/regs.py` handles the committed Technical corpus, and `cap_mj` remains env-tunable via `OVERRIDE_HARVEST_CAP_MJ` for replay calibration (see `analysis/feature_engineering.py`).
 - **Mid-season amendments.** The FIA publishes regulation revisions periodically. The build script regenerates from a new PDF in one command; the public_url stays stable.
 
 ---

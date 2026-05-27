@@ -145,13 +145,13 @@ Goal: end-to-end deterministic pipeline from session upload → reasoning JSON o
 ### P2.5 Docling + regulation verification gate (~5h) ✅ G-4 closed 2026-05-08
 - **Deliverable**: `scripts/download_regulations.py`, `scripts/build_chunks.py`, `core/regs.py`, `data/regs/extracted_chunks.sample.json`, `docs/regulation-source.md`.
 - **Verification gate G-4 (risk R13/R14) - closed 2026-05-08**:
-  1. ✅ Document identified: **FIA 2026 Formula 1 Technical Regulations - Section C, Issue 12, 10 June 2025**.
+  1. ✅ Document identified: **FIA 2026 Formula 1 Technical Regulations - Section C, Issue 18, 7 May 2026**.
   2. ✅ Article in scope: **Article C5 (Power Unit)**, with subsections C5.2, C5.2.14, C5.17, C5.18, C5.19, C5.20.
   3. ✅ Recorded in `docs/regulation-source.md`. Sporting Regulations are out of scope until a separate G-4-equivalent verification (tracked as `unused-override` open item).
 - **Done when** (all ✅):
   - `docs/regulation-source.md` records document + article + section subscope.
   - `scripts/download_regulations.py` fetches the public PDF (PDFs gitignored; large Docling-extracted MD files also gitignored - only `extracted_chunks.sample.json` is committed).
-  - `scripts/build_chunks.py` runs Docling (PyPdfium backend, OCR off, table-structure off, `\bC5\b` section filter) → 48 chunks → watsonx embedding pass (Granite Embedding 278M, 768-dim).
+  - `scripts/build_chunks.py` runs Docling (PyPdfium backend, OCR off, table-structure off, `\bC5\b` section filter) → 384 chunks → watsonx embedding pass (Granite Embedding 278M, 768-dim).
   - `data/regs/extracted_chunks.sample.json` committed with `g4_status: "closed"`.
   - `core/regs.py` performs keyword + embedding-based retrieval over the chunks. Score = 0.6 cosine + 0.4 keyword overlap; threshold 0.4.
   - Section labels (`C5.17`, `C5.18`, etc.) are extracted from the Docling text at runtime - never hardcoded in code, prompts, or schema defaults.
